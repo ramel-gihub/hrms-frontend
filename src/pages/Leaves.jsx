@@ -42,7 +42,7 @@ export default function Leaves({ currentUser, employeeProfile, embedded = false 
 
   const handleCancelLeave = async (leaveId) => {
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL || "https://hrms-backend-fzef.onrender.com"}/api/leaves/cancel/${leaveId}`, {
+      const res = await fetch(`${(import.meta.env.VITE_API_URL ? String(import.meta.env.VITE_API_URL).replace("f2ef", "fzef") : "https://hrms-backend-fzef.onrender.com")}/api/leaves/cancel/${leaveId}`, {
         method: 'PUT'
       });
       const result = await res.json();
@@ -70,7 +70,7 @@ export default function Leaves({ currentUser, employeeProfile, embedded = false 
     if (!currentUser) return;
     try {
       setLoading(true);
-      const res = await fetch(`${import.meta.env.VITE_API_URL || "https://hrms-backend-fzef.onrender.com"}/api/leaves/data/${currentUser.id}`);
+      const res = await fetch(`${(import.meta.env.VITE_API_URL ? String(import.meta.env.VITE_API_URL).replace("f2ef", "fzef") : "https://hrms-backend-fzef.onrender.com")}/api/leaves/data/${currentUser.id}`);
       const result = await res.json();
       if (result.error) {
           console.error(result.error);
@@ -186,7 +186,7 @@ export default function Leaves({ currentUser, employeeProfile, embedded = false 
         dataPayload.append('file', formData.documentFile);
       }
 
-      const response = await fetch(`${import.meta.env.VITE_API_URL || "https://hrms-backend-fzef.onrender.com"}/api/leaves/apply`, {
+      const response = await fetch(`${(import.meta.env.VITE_API_URL ? String(import.meta.env.VITE_API_URL).replace("f2ef", "fzef") : "https://hrms-backend-fzef.onrender.com")}/api/leaves/apply`, {
         method: 'POST',
         body: dataPayload
       });
@@ -377,7 +377,7 @@ export default function Leaves({ currentUser, employeeProfile, embedded = false 
           <img
             src={/^https?:\/\//i.test(employeeProfile?.profile_pic || employeeProfile?.avatar_url)
               ? (employeeProfile?.profile_pic || employeeProfile?.avatar_url)
-              : `${import.meta.env.VITE_API_URL || 'https://hrms-backend-fzef.onrender.com'}/${(employeeProfile?.profile_pic || employeeProfile?.avatar_url).replace(/^\/+/, '')}`}
+              : `${(import.meta.env.VITE_API_URL ? String(import.meta.env.VITE_API_URL).replace("f2ef", "fzef") : "https://hrms-backend-fzef.onrender.com")}/${(employeeProfile?.profile_pic || employeeProfile?.avatar_url).replace(/^\/+/, '')}`}
             alt="Employee"
             style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: "17px" }}
           />
@@ -1236,7 +1236,7 @@ export default function Leaves({ currentUser, employeeProfile, embedded = false 
                                       <input type="file" className="form-control form-control-sm border-0 px-0 shadow-none" onChange={e => setEditDocFile(e.target.files && e.target.files[0] ? e.target.files[0] : null)} />
                                       {viewLeave.document_url && !editDocFile && (
                                           <a 
-                                              href={viewLeave.document_url.startsWith('http') ? viewLeave.document_url : `${import.meta.env.VITE_API_URL || "https://hrms-backend-fzef.onrender.com"}${viewLeave.document_url}`} 
+                                              href={viewLeave.document_url.startsWith('http') ? viewLeave.document_url : `${(import.meta.env.VITE_API_URL ? String(import.meta.env.VITE_API_URL).replace("f2ef", "fzef") : "https://hrms-backend-fzef.onrender.com")}${viewLeave.document_url}`} 
                                               target="_blank" 
                                               rel="noopener noreferrer" 
                                               className="text-primary text-truncate d-inline-flex align-items-center gap-1 mt-1 text-decoration-none" 
@@ -1251,7 +1251,7 @@ export default function Leaves({ currentUser, employeeProfile, embedded = false 
                                   viewLeave.document_url ? (
                                       <div className="d-flex align-items-center gap-1 mt-1">
                                           <a 
-                                              href={viewLeave.document_url.startsWith('http') ? viewLeave.document_url : `${import.meta.env.VITE_API_URL || "https://hrms-backend-fzef.onrender.com"}${viewLeave.document_url}`} 
+                                              href={viewLeave.document_url.startsWith('http') ? viewLeave.document_url : `${(import.meta.env.VITE_API_URL ? String(import.meta.env.VITE_API_URL).replace("f2ef", "fzef") : "https://hrms-backend-fzef.onrender.com")}${viewLeave.document_url}`} 
                                               target="_blank" 
                                               rel="noopener noreferrer" 
                                               className="btn btn-sm btn-outline-primary d-inline-flex align-items-center gap-1 py-1 px-2" 
@@ -1329,7 +1329,7 @@ export default function Leaves({ currentUser, employeeProfile, embedded = false 
                                       updatePayload.append('file', editDocFile);
                                   }
 
-                                  const res = await fetch(`${import.meta.env.VITE_API_URL || "https://hrms-backend-fzef.onrender.com"}/api/leaves/update/${viewLeave.id}`, {
+                                  const res = await fetch(`${(import.meta.env.VITE_API_URL ? String(import.meta.env.VITE_API_URL).replace("f2ef", "fzef") : "https://hrms-backend-fzef.onrender.com")}/api/leaves/update/${viewLeave.id}`, {
                                       method: 'PUT',
                                       body: updatePayload
                                   });

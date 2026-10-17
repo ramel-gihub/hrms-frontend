@@ -31,7 +31,7 @@ export default function EmployeeProfile({ currentUser, employeeProfile, onProfil
     const skillNames = Array.isArray(employeeProfile?.skills)
         ? employeeProfile.skills.filter(Boolean).join(" · ")
         : "";
-    const API_BASE = import.meta.env.VITE_API_URL || "https://hrms-backend-fzef.onrender.com";
+    const API_BASE = (import.meta.env.VITE_API_URL ? String(import.meta.env.VITE_API_URL).replace("f2ef", "fzef") : "https://hrms-backend-fzef.onrender.com");
     const rawAvatar = employeeProfile?.profile_pic || employeeProfile?.avatar_url || "";
     const dynamicAvatarUrl = rawAvatar
         ? (/^https?:\/\//i.test(rawAvatar) ? rawAvatar : `${API_BASE}/${rawAvatar.replace(/^\/+/, "")}`)
