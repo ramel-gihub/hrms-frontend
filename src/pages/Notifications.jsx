@@ -2,8 +2,8 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 
 const API_BASE = import.meta.env.VITE_API_URL || (
   ["localhost", "127.0.0.1"].includes(window.location.hostname)
-    ? "http://localhost:5002"
-    : "https://hrms-backend-5xo8.onrender.com"
+    ? "https://hrms-backend-fzef.onrender.com"
+    : "https://hrms-backend-fzef.onrender.com"
 );
 const FILTERS = ["All Notifications", "Unread", "Important", "Archived"];
 const CATEGORIES = ["Leave", "Attendance", "Requests", "Assets", "IT Access", "Documents", "HR Announcement", "Celebrations"];

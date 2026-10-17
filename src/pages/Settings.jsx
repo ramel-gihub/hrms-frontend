@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import CharacterOnlyInput from "../utils/CharacterOnlyInput";
 import IntegerOnlyInput from "../utils/IntegerOnlyInput";
 
-const API_BASE = import.meta.env.VITE_API_URL || "https://hrms-backend-5xo8.onrender.com";
+const API_BASE = import.meta.env.VITE_API_URL || "https://hrms-backend-fzef.onrender.com";
 const EDIT_TRIGGER_STYLE = {
     display: "inline-flex",
     alignItems: "center",

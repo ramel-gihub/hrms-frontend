@@ -49,7 +49,7 @@ export default function EmployeeTemplate({
   const [selectedShortcutIds, setSelectedShortcutIds] = useState([]);
   const [shortcutsLoading, setShortcutsLoading] = useState(true);
 
-  const API_BASE = import.meta.env.VITE_API_URL || "https://hrms-backend-5xo8.onrender.com";
+  const API_BASE = import.meta.env.VITE_API_URL || "https://hrms-backend-fzef.onrender.com";
   const rawAvatar = employeeProfile?.profile_pic || employeeProfile?.avatar_url || "";
   const dynamicAvatarUrl = rawAvatar
     ? (/^https?:\/\//i.test(rawAvatar) ? rawAvatar : `${API_BASE}/${rawAvatar.replace(/^\/+/, "")}`)
@@ -69,7 +69,7 @@ export default function EmployeeTemplate({
   useEffect(() => {
     const targetId = currentUser?.id || employeeProfile?.employee_id;
     if (!targetId) return;
-    const API_URL = import.meta.env.VITE_API_URL || 'https://hrms-backend-5xo8.onrender.com';
+    const API_URL = import.meta.env.VITE_API_URL || 'https://hrms-backend-fzef.onrender.com';
     fetch(`${API_URL}/api/attendance/today/${targetId}`)
       .then(res => res.json())
       .then(data => {
@@ -164,7 +164,7 @@ export default function EmployeeTemplate({
 
     useEffect(() => {
         if (currentUser?.id) {
-            fetch(`${import.meta.env.VITE_API_URL || "https://hrms-backend-5xo8.onrender.com"}/api/dashboard/widgets/${currentUser.id}`)
+            fetch(`${import.meta.env.VITE_API_URL || "https://hrms-backend-fzef.onrender.com"}/api/dashboard/widgets/${currentUser.id}`)
                 .then(res => res.json())
                 .then(data => {
                     if (!data.error) setWidgetsData(data);
@@ -175,25 +175,25 @@ export default function EmployeeTemplate({
 
   useEffect(() => {
       if (currentUser?.id) {
-          fetch(`${import.meta.env.VITE_API_URL || "https://hrms-backend-5xo8.onrender.com"}/api/leaves/data/${currentUser.id}`)
+          fetch(`${import.meta.env.VITE_API_URL || "https://hrms-backend-fzef.onrender.com"}/api/leaves/data/${currentUser.id}`)
               .then(res => res.json())
               .then(data => setLeavesData(data || { balances: [], requests: [] }))
               .catch(err => console.error(err));
 
-          fetch(`${import.meta.env.VITE_API_URL || "https://hrms-backend-5xo8.onrender.com"}/api/assets/requests/${currentUser.id}`)
+          fetch(`${import.meta.env.VITE_API_URL || "https://hrms-backend-fzef.onrender.com"}/api/assets/requests/${currentUser.id}`)
               .then(res => res.json())
               .then(data => {
                   if (data && data.requests) setAssetRequests(data.requests);
               })
               .catch(console.error);
 
-          fetch(`${import.meta.env.VITE_API_URL || "https://hrms-backend-5xo8.onrender.com"}/api/attendance/corrections/${currentUser.id}`)
+          fetch(`${import.meta.env.VITE_API_URL || "https://hrms-backend-fzef.onrender.com"}/api/attendance/corrections/${currentUser.id}`)
               .then(res => res.json())
               .then(data => {
                   if (data && data.corrections) setAttendanceCorrections(data.corrections);
               })
               .catch(console.error);
-          fetch(`${import.meta.env.VITE_API_URL || "https://hrms-backend-5xo8.onrender.com"}/api/employee-requests/${currentUser.id}`)
+          fetch(`${import.meta.env.VITE_API_URL || "https://hrms-backend-fzef.onrender.com"}/api/employee-requests/${currentUser.id}`)
               .then(res => res.json())
               .then(data => {
                   if (data && data.requests) setEmployeeRequests(data.requests);
@@ -202,7 +202,7 @@ export default function EmployeeTemplate({
 
           // Fetch dynamic shortcut selections for current employee
           setShortcutsLoading(true);
-          const API_URL = import.meta.env.VITE_API_URL || "https://hrms-backend-5xo8.onrender.com";
+          const API_URL = import.meta.env.VITE_API_URL || "https://hrms-backend-fzef.onrender.com";
           fetch(`${API_URL}/api/employee/shortcut-selections/${currentUser.id}`)
               .then(res => {
                   if (res.status === 404) {
@@ -250,7 +250,7 @@ export default function EmployeeTemplate({
   const [teamMembers, setTeamMembers] = useState([]);
 
   useEffect(() => {
-    fetch(`${import.meta.env.VITE_API_URL || "https://hrms-backend-5xo8.onrender.com"}/api/admin/employees?orgId=1`)
+    fetch(`${import.meta.env.VITE_API_URL || "https://hrms-backend-fzef.onrender.com"}/api/admin/employees?orgId=1`)
       .then(res => res.json())
       .then(data => {
         if (Array.isArray(data)) {
