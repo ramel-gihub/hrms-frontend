@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import EmploymentDetails from "./EmploymentDetails";
 import Documents from "./Documents";
 import SkillsCertifications from "./SkillsCertifications";
@@ -32,10 +32,15 @@ export default function EmployeeProfile({ currentUser, employeeProfile, onProfil
         ? employeeProfile.skills.filter(Boolean).join(" · ")
         : "";
     const API_BASE = (import.meta.env.VITE_API_URL ? String(import.meta.env.VITE_API_URL).replace("f2ef", "fzef") : "https://hrms-backend-fzef.onrender.com");
+    const [avatarError, setAvatarError] = useState(false);
     const rawAvatar = employeeProfile?.profile_pic || employeeProfile?.avatar_url || "";
     const dynamicAvatarUrl = rawAvatar
-        ? (/^https?:\/\//i.test(rawAvatar) ? rawAvatar : `${API_BASE}/${rawAvatar.replace(/^\/+/, "")}`)
+        ? (/^(https?:\/\/|data:)/i.test(rawAvatar) ? rawAvatar : `${API_BASE}/${rawAvatar.replace(/^\/+/, "")}`)
         : "";
+
+    useEffect(() => {
+        setAvatarError(false);
+    }, [rawAvatar]);
   return (
     <>
 <div className="px-0 px-md-5 employee-dashboard">
@@ -65,8 +70,13 @@ export default function EmployeeProfile({ currentUser, employeeProfile, onProfil
                         <div className="esc-employee-main">
 
                             <div className="esc-avatar overflow-hidden">
-                                {dynamicAvatarUrl ? (
-                                    <img src={dynamicAvatarUrl} alt={employeeName} style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: "17px" }} />
+                                {dynamicAvatarUrl && !avatarError ? (
+                                    <img
+                                        src={dynamicAvatarUrl}
+                                        alt={employeeName}
+                                        onError={() => setAvatarError(true)}
+                                        style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: "17px" }}
+                                    />
                                 ) : (
                                     employeeInitials
                                 )}

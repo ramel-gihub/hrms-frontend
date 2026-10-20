@@ -48,12 +48,17 @@ export default function EmployeeTemplate({
   const [todayWorkMode, setTodayWorkMode] = useState(employeeProfile?.work_mode || '');
   const [selectedShortcutIds, setSelectedShortcutIds] = useState([]);
   const [shortcutsLoading, setShortcutsLoading] = useState(true);
+  const [avatarError, setAvatarError] = useState(false);
 
   const API_BASE = (import.meta.env.VITE_API_URL ? String(import.meta.env.VITE_API_URL).replace("f2ef", "fzef") : "https://hrms-backend-fzef.onrender.com");
   const rawAvatar = employeeProfile?.profile_pic || employeeProfile?.avatar_url || "";
   const dynamicAvatarUrl = rawAvatar
-    ? (/^https?:\/\//i.test(rawAvatar) ? rawAvatar : `${API_BASE}/${rawAvatar.replace(/^\/+/, "")}`)
+    ? (/^(https?:\/\/|data:)/i.test(rawAvatar) ? rawAvatar : `${API_BASE}/${rawAvatar.replace(/^\/+/, "")}`)
     : "";
+
+  useEffect(() => {
+    setAvatarError(false);
+  }, [rawAvatar]);
 
   useEffect(() => {
     const handleProfilePicUpdate = () => {
@@ -628,8 +633,13 @@ export default function EmployeeTemplate({
                             <button className="profile-button" data-bs-toggle="dropdown">
 
                                 <div className="profile-avatar overflow-hidden">
-                                    {dynamicAvatarUrl ? (
-                                        <img src={dynamicAvatarUrl} alt="Profile" style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: "14px" }} />
+                                    {dynamicAvatarUrl && !avatarError ? (
+                                        <img
+                                            src={dynamicAvatarUrl}
+                                            alt="Profile"
+                                            onError={() => setAvatarError(true)}
+                                            style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: "14px" }}
+                                        />
                                     ) : (
                                         (employeeProfile?.preferred_name
                                             ? employeeProfile.preferred_name.slice(0, 2)
@@ -749,10 +759,22 @@ export default function EmployeeTemplate({
                     <section className="ed-hero">
                         <div className="ed-hero-main">
                             <div className="ed-profile-avatar overflow-hidden">
-                                {dynamicAvatarUrl ? (
-                                    <img src={dynamicAvatarUrl} alt={employeeProfile?.preferred_name || employeeProfile?.first_name || "Employee"} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                                {dynamicAvatarUrl && !avatarError ? (
+                                    <img
+                                        src={dynamicAvatarUrl}
+                                        alt={employeeProfile?.preferred_name || employeeProfile?.first_name || "Employee"}
+                                        onError={() => setAvatarError(true)}
+                                        style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                                    />
                                 ) : (
-                                    <img src="https://i.pravatar.cc/150?img=12" alt={employeeProfile?.preferred_name || employeeProfile?.first_name || "Employee"} />
+                                    <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", background: "linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)", color: "#fff", fontWeight: "700", fontSize: "28px" }}>
+                                        {(employeeProfile?.preferred_name
+                                            ? employeeProfile.preferred_name.slice(0, 2)
+                                            : employeeProfile?.first_name
+                                                ? `${employeeProfile.first_name[0]}${employeeProfile.last_name ? employeeProfile.last_name[0] : (employeeProfile.first_name[1] || "")}`
+                                                : currentUser.email.slice(0, 2)
+                                        ).toUpperCase()}
+                                    </div>
                                 )}
                                 <span className="ed-online-dot"></span>
                             </div>

@@ -675,10 +675,11 @@ export default function Documents({ currentUser, employeeProfile, embedded = fal
                                 )}
 
                                 <div className="modal-footer">
-                                    {viewDoc && (
+                                    {viewDoc && viewDoc.file_path && (
                                         <a
                                             className="epd-modal-save text-decoration-none"
-                                            href={`${API_BASE}/uploads/documents/${encodeURIComponent(viewDoc.file_path)}`}
+                                            href={viewDoc.file_path.startsWith('data:') ? viewDoc.file_path : `${API_BASE}/uploads/documents/${encodeURIComponent(viewDoc.file_path)}`}
+                                            download={viewDoc.file_path.startsWith('data:') ? (viewDoc.file_name || "document") : undefined}
                                             target="_blank"
                                             rel="noopener noreferrer"
                                         >

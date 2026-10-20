@@ -387,10 +387,15 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
     }, [currentUser?.id]);
 
     const displayValue = (value) => value || "—";
+    const [avatarError, setAvatarError] = useState(false);
     const avatarUrl = personalInfo?.profile_pic || employeeProfile?.avatar_url || "";
     const employeeAvatar = avatarUrl
-        ? (/^https?:\/\//i.test(avatarUrl) ? avatarUrl : `${API_BASE}/${avatarUrl.replace(/^\/+/, "")}`)
+        ? (/^(https?:\/\/|data:)/i.test(avatarUrl) ? avatarUrl : `${API_BASE}/${avatarUrl.replace(/^\/+/, "")}`)
         : "";
+
+    useEffect(() => {
+        setAvatarError(false);
+    }, [avatarUrl]);
     const uploadProfilePicture = async (event) => {
         const file = event.target.files?.[0];
         if (!file) return;
@@ -423,6 +428,7 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
                 throw new Error(data.message || "Unable to upload profile picture.");
             }
             setPersonalInfo((current) => ({ ...(current || {}), profile_pic: data.profilePic }));
+            setAvatarError(false);
             if (typeof onProfileUpdate === "function") {
                 onProfileUpdate();
             }
@@ -1024,8 +1030,8 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
     
     <div className="es-profile-banner">
         <div className="es-profile-avatar">
-            {employeeAvatar
-                ? <img src={employeeAvatar} alt={`${employeeName} profile`} style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: "23px" }} />
+            {employeeAvatar && !avatarError
+                ? <img src={employeeAvatar} alt={`${employeeName} profile`} onError={() => setAvatarError(true)} style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: "23px" }} />
                 : <span>{employeeInitials}</span>}
             <input
                 ref={profilePictureInputRef}

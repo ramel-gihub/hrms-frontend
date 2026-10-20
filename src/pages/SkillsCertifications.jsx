@@ -165,7 +165,8 @@ export default function SkillsCertifications({ currentUser, employeeProfile, emb
             {cert.file_path && (
               <a
                 className="btn esc-cert-view-btn"
-                href={`${API_BASE}/uploads/certifications/${encodeURIComponent(cert.file_path)}`}
+                href={cert.file_path.startsWith('data:') ? cert.file_path : `${API_BASE}/uploads/certifications/${encodeURIComponent(cert.file_path)}`}
+                download={cert.file_path.startsWith('data:') ? (cert.file_name || "certificate") : undefined}
                 target="_blank"
                 rel="noopener noreferrer"
               >

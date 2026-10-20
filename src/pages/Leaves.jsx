@@ -1236,7 +1236,7 @@ export default function Leaves({ currentUser, employeeProfile, embedded = false 
                                       <input type="file" className="form-control form-control-sm border-0 px-0 shadow-none" onChange={e => setEditDocFile(e.target.files && e.target.files[0] ? e.target.files[0] : null)} />
                                       {viewLeave.document_url && !editDocFile && (
                                           <a 
-                                              href={viewLeave.document_url.startsWith('http') ? viewLeave.document_url : `${(import.meta.env.VITE_API_URL ? String(import.meta.env.VITE_API_URL).replace("f2ef", "fzef") : "https://hrms-backend-fzef.onrender.com")}${viewLeave.document_url}`} 
+                                              href={(viewLeave.document_url.startsWith('http') || viewLeave.document_url.startsWith('data:')) ? viewLeave.document_url : `${(import.meta.env.VITE_API_URL ? String(import.meta.env.VITE_API_URL).replace("f2ef", "fzef") : "https://hrms-backend-fzef.onrender.com")}${viewLeave.document_url}`} 
                                               target="_blank" 
                                               rel="noopener noreferrer" 
                                               className="text-primary text-truncate d-inline-flex align-items-center gap-1 mt-1 text-decoration-none" 
@@ -1251,7 +1251,7 @@ export default function Leaves({ currentUser, employeeProfile, embedded = false 
                                   viewLeave.document_url ? (
                                       <div className="d-flex align-items-center gap-1 mt-1">
                                           <a 
-                                              href={viewLeave.document_url.startsWith('http') ? viewLeave.document_url : `${(import.meta.env.VITE_API_URL ? String(import.meta.env.VITE_API_URL).replace("f2ef", "fzef") : "https://hrms-backend-fzef.onrender.com")}${viewLeave.document_url}`} 
+                                              href={(viewLeave.document_url.startsWith('http') || viewLeave.document_url.startsWith('data:')) ? viewLeave.document_url : `${(import.meta.env.VITE_API_URL ? String(import.meta.env.VITE_API_URL).replace("f2ef", "fzef") : "https://hrms-backend-fzef.onrender.com")}${viewLeave.document_url}`} 
                                               target="_blank" 
                                               rel="noopener noreferrer" 
                                               className="btn btn-sm btn-outline-primary d-inline-flex align-items-center gap-1 py-1 px-2" 
