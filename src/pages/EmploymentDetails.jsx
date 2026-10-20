@@ -4,6 +4,16 @@ export default function EmploymentDetails({ employeeProfile, currentUser, onProf
   const [profile, setProfile] = useState(employeeProfile || {});
   const [workMode, setWorkMode] = useState(employeeProfile?.work_mode || 'Hybrid');
   const [updating, setUpdating] = useState(false);
+  const [avatarError, setAvatarError] = useState(false);
+
+  const rawAvatar = employeeProfile?.profile_pic || employeeProfile?.avatar_url || profile?.profile_pic || profile?.avatar_url || "";
+  const dynamicAvatarUrl = rawAvatar
+    ? (/^(https?:\/\/|data:)/i.test(rawAvatar) ? rawAvatar : `${(import.meta.env.VITE_API_URL ? String(import.meta.env.VITE_API_URL).replace("f2ef", "fzef") : "https://hrms-backend-fzef.onrender.com")}/${rawAvatar.replace(/^\/+/, '')}`)
+    : "";
+
+  useEffect(() => {
+    setAvatarError(false);
+  }, [rawAvatar]);
 
   useEffect(() => {
     if (employeeProfile && Object.keys(employeeProfile).length > 0) {
@@ -304,12 +314,11 @@ export default function EmploymentDetails({ employeeProfile, currentUser, onProf
                   <div className="esc-employee-bar">
                     <div className="esc-employee-main">
                       <div className="esc-avatar overflow-hidden">
-                        {(employeeProfile?.profile_pic || employeeProfile?.avatar_url || profile?.profile_pic) ? (
+                        {dynamicAvatarUrl && !avatarError ? (
                           <img
-                            src={/^https?:\/\//i.test(employeeProfile?.profile_pic || employeeProfile?.avatar_url || profile?.profile_pic)
-                              ? (employeeProfile?.profile_pic || employeeProfile?.avatar_url || profile?.profile_pic)
-                              : `${(import.meta.env.VITE_API_URL ? String(import.meta.env.VITE_API_URL).replace("f2ef", "fzef") : "https://hrms-backend-fzef.onrender.com")}/${(employeeProfile?.profile_pic || employeeProfile?.avatar_url || profile?.profile_pic).replace(/^\/+/, '')}`}
+                            src={dynamicAvatarUrl}
                             alt="Employee"
+                            onError={() => setAvatarError(true)}
                             style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: "17px" }}
                           />
                         ) : (

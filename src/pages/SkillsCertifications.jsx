@@ -56,6 +56,15 @@ export default function SkillsCertifications({ currentUser, employeeProfile, emb
     || currentUser?.email
     || "Employee";
   const employeeInitials = employeeName.split(/\s+/).map((name) => name[0]).slice(0, 2).join("").toUpperCase();
+  const [avatarError, setAvatarError] = useState(false);
+  const rawAvatar = employeeProfile?.profile_pic || employeeProfile?.avatar_url || "";
+  const dynamicAvatarUrl = rawAvatar
+    ? (/^(https?:\/\/|data:)/i.test(rawAvatar) ? rawAvatar : `${(import.meta.env.VITE_API_URL ? String(import.meta.env.VITE_API_URL).replace("f2ef", "fzef") : "https://hrms-backend-fzef.onrender.com")}/${rawAvatar.replace(/^\/+/, '')}`)
+    : "";
+
+  useEffect(() => {
+    setAvatarError(false);
+  }, [rawAvatar]);
   const [isCertOpen, setIsCertOpen] = useState(false);
   const [certForm, setCertForm] = useState(EMPTY_CERT_FORM);
   const [certFile, setCertFile] = useState(null);
@@ -540,12 +549,11 @@ export default function SkillsCertifications({ currentUser, employeeProfile, emb
                             <div className="esc-employee-main">
 
                                 <div className="esc-avatar overflow-hidden">
-                                    {(employeeProfile?.profile_pic || employeeProfile?.avatar_url) ? (
+                                    {dynamicAvatarUrl && !avatarError ? (
                                         <img
-                                            src={/^https?:\/\//i.test(employeeProfile?.profile_pic || employeeProfile?.avatar_url)
-                                                ? (employeeProfile?.profile_pic || employeeProfile?.avatar_url)
-                                                : `${(import.meta.env.VITE_API_URL ? String(import.meta.env.VITE_API_URL).replace("f2ef", "fzef") : "https://hrms-backend-fzef.onrender.com")}/${(employeeProfile?.profile_pic || employeeProfile?.avatar_url).replace(/^\/+/, '')}`}
+                                            src={dynamicAvatarUrl}
                                             alt={employeeName}
+                                            onError={() => setAvatarError(true)}
                                             style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: "17px" }}
                                         />
                                     ) : (

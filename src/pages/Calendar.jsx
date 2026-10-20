@@ -4,6 +4,16 @@ export default function Calendar({ employeeProfile, currentUser }) {
   const profile = employeeProfile || {};
   const [activeTab, setActiveTab] = useState("calendar");
   const [currentMonth, setCurrentMonth] = useState(new Date());
+  const [avatarError, setAvatarError] = useState(false);
+
+  const rawAvatar = employeeProfile?.profile_pic || employeeProfile?.avatar_url || profile?.profile_pic || profile?.avatar_url || "";
+  const dynamicAvatarUrl = rawAvatar
+    ? (/^(https?:\/\/|data:)/i.test(rawAvatar) ? rawAvatar : `${(import.meta.env.VITE_API_URL ? String(import.meta.env.VITE_API_URL).replace("f2ef", "fzef") : "https://hrms-backend-fzef.onrender.com")}/${rawAvatar.replace(/^\/+/, '')}`)
+    : "";
+
+  useEffect(() => {
+    setAvatarError(false);
+  }, [rawAvatar]);
   
   const [holidays, setHolidays] = useState([]);
   const [leaves, setLeaves] = useState([]);
@@ -210,16 +220,22 @@ export default function Calendar({ employeeProfile, currentUser }) {
               <section className="ed-hero" style={{ marginBottom: "25px" }}>
                 <div className="ed-hero-main">
                   <div className="ed-profile-avatar overflow-hidden">
-                    {(employeeProfile?.profile_pic || employeeProfile?.avatar_url || profile?.profile_pic) ? (
+                    {dynamicAvatarUrl && !avatarError ? (
                       <img
-                        src={/^https?:\/\//i.test(employeeProfile?.profile_pic || employeeProfile?.avatar_url || profile?.profile_pic)
-                          ? (employeeProfile?.profile_pic || employeeProfile?.avatar_url || profile?.profile_pic)
-                          : `${(import.meta.env.VITE_API_URL ? String(import.meta.env.VITE_API_URL).replace("f2ef", "fzef") : "https://hrms-backend-fzef.onrender.com")}/${(employeeProfile?.profile_pic || employeeProfile?.avatar_url || profile?.profile_pic).replace(/^\/+/, '')}`}
+                        src={dynamicAvatarUrl}
                         alt={profile?.preferred_name || profile?.first_name || "Employee"}
+                        onError={() => setAvatarError(true)}
                         style={{ width: "100%", height: "100%", objectFit: "cover" }}
                       />
                     ) : (
-                      <img src="https://i.pravatar.cc/150?img=12" alt={profile?.preferred_name || profile?.first_name || "Employee"} />
+                      <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", background: "linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)", color: "#fff", fontWeight: "700", fontSize: "28px" }}>
+                        {(profile?.preferred_name
+                          ? profile.preferred_name.slice(0, 2)
+                          : profile?.first_name
+                            ? `${profile.first_name[0]}${profile.last_name ? profile.last_name[0] : (profile.first_name[1] || "")}`
+                            : currentUser?.email?.slice(0, 2) || "EM"
+                        ).toUpperCase()}
+                      </div>
                     )}
                     <span className="ed-online-dot"></span>
                   </div>

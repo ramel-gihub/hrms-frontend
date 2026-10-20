@@ -14,6 +14,16 @@ export default function Leaves({ currentUser, employeeProfile, embedded = false 
   const [viewLeave, setViewLeave] = useState(null);
   const [isEditMode, setIsEditMode] = useState(false);
   const [openDropdownId, setOpenDropdownId] = useState(null);
+  const [avatarError, setAvatarError] = useState(false);
+
+  const rawAvatar = employeeProfile?.profile_pic || employeeProfile?.avatar_url || "";
+  const dynamicAvatarUrl = rawAvatar
+    ? (/^(https?:\/\/|data:)/i.test(rawAvatar) ? rawAvatar : `${(import.meta.env.VITE_API_URL ? String(import.meta.env.VITE_API_URL).replace("f2ef", "fzef") : "https://hrms-backend-fzef.onrender.com")}/${rawAvatar.replace(/^\/+/, '')}`)
+    : "";
+
+  useEffect(() => {
+    setAvatarError(false);
+  }, [rawAvatar]);
   
   useEffect(() => {
       const closeDropdown = () => setOpenDropdownId(null);
@@ -373,17 +383,16 @@ export default function Leaves({ currentUser, employeeProfile, embedded = false 
                             <div className="esc-employee-main">
 
                                 <div className="esc-avatar overflow-hidden">
-        {(employeeProfile?.profile_pic || employeeProfile?.avatar_url) ? (
+        {dynamicAvatarUrl && !avatarError ? (
           <img
-            src={/^https?:\/\//i.test(employeeProfile?.profile_pic || employeeProfile?.avatar_url)
-              ? (employeeProfile?.profile_pic || employeeProfile?.avatar_url)
-              : `${(import.meta.env.VITE_API_URL ? String(import.meta.env.VITE_API_URL).replace("f2ef", "fzef") : "https://hrms-backend-fzef.onrender.com")}/${(employeeProfile?.profile_pic || employeeProfile?.avatar_url).replace(/^\/+/, '')}`}
+            src={dynamicAvatarUrl}
             alt="Employee"
+            onError={() => setAvatarError(true)}
             style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: "17px" }}
           />
         ) : (
           <>
-            {employeeProfile?.first_name?.charAt(0) || currentUser?.email?.charAt(0)?.toUpperCase()}
+            {employeeProfile?.first_name?.charAt(0) || currentUser?.email?.charAt(0)?.toUpperCase() || "E"}
             {employeeProfile?.last_name?.charAt(0) || ""}
           </>
         )}

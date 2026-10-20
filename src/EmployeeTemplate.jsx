@@ -1764,7 +1764,7 @@ export default function EmployeeTemplate({
 {activePage === "attendance" && <Attendance currentUser={currentUser} employeeProfile={employeeProfile} onNavigate={navigateTo} />}
 {activePage === "leaves" && <Leaves currentUser={currentUser} employeeProfile={employeeProfile} />}
 {activePage === "assets" && <Assets employeeProfile={employeeProfile} currentUser={currentUser} />}
-{activePage === "access-accounts" && <AccessAccounts employeeProfile={employeeProfile} />}
+{activePage === "access-accounts" && <AccessAccounts employeeProfile={employeeProfile} currentUser={currentUser} />}
 {activePage === "notifications" && <Notifications currentUser={currentUser} employeeProfile={employeeProfile} />}
 {activePage === "settings" && <Settings employeeProfile={employeeProfile} currentUser={currentUser} onProfileUpdate={fetchEmployeeProfile} />}
 {activePage === "exit-management" && <ExitManagement employeeProfile={employeeProfile} currentUser={currentUser} onNavigate={navigateTo} />}
