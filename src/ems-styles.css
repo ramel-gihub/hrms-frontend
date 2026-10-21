@@ -16279,6 +16279,7 @@ a {
 
 .ed-quick-card {
     width: 100%;
+    height: 100%;
     min-height: 132px;
     border: 1px solid var(--card-border, #ebecf3);
     background: var(--card-bg, #fff);
@@ -16287,6 +16288,8 @@ a {
     text-align: left;
     box-shadow: 0 7px 25px rgba(31,35,69,.04);
     transition: .25s ease;
+    display: flex;
+    flex-direction: column;
 }
 
 .ed-quick-card:hover {
@@ -16347,6 +16350,7 @@ a {
 
 .ed-quick-card small {
     color: var(--muted-color, #85889b);
+    margin-top: auto;
 }
 
 
@@ -21718,21 +21722,19 @@ a {
 
 .employee-requests-page .request-modal {
     width: 100%;
-    height: min(720px, calc(100vh - 48px));
-    min-height: 620px;
-    max-height: calc(100vh - 48px);
     background: #fff;
-    border-radius: 30px;
+    border-radius: 16px;
     overflow: hidden;
-    box-shadow: 0 25px 80px rgba(0, 0, 0, .18);
+    box-shadow: 0 15px 45px rgba(0, 0, 0, .14);
     animation: requestModalIn .2s ease;
     display: flex;
     flex-direction: column;
+    max-height: calc(100vh - 48px);
 }
 
 .employee-requests-page .request-modal-dialog {
-    width: calc(100% - 64px);
-    max-width: 1000px;
+    width: 100%;
+    max-width: 620px;
     margin: 24px auto;
 }
 
@@ -21752,7 +21754,7 @@ a {
 }
 
 .employee-requests-page .request-details-modal {
-    width: min(760px, 100%);
+    width: min(620px, 100%);
 }
 
 @keyframes requestModalIn {
@@ -21769,37 +21771,42 @@ a {
 
 .employee-requests-page .request-modal-header {
     flex: 0 0 auto;
-    padding: 30px 34px;
+    padding: 18px 24px;
     border-bottom: 1px solid var(--border-color);
     display: flex;
-    align-items: flex-start;
+    align-items: center;
     justify-content: space-between;
-    gap: 24px;
+    gap: 16px;
     background: #fff;
 }
 
 .employee-requests-page .request-modal-header h2 {
-    margin: 0 0 5px;
+    margin: 0 0 3px;
     color: var(--text-dark);
-    font-size: 28px;
+    font-size: 20px;
     font-weight: 700;
 }
 
 .employee-requests-page .request-modal-header p {
     margin: 0;
     color: var(--text-muted);
-    line-height: 1.5;
+    font-size: 13px;
+    line-height: 1.4;
 }
 
 .employee-requests-page .request-modal-close {
-    width: 52px;
-    height: 52px;
-    flex: 0 0 52px;
+    width: 36px;
+    height: 36px;
+    flex: 0 0 36px;
     border: 0;
-    border-radius: 15px;
+    border-radius: 10px;
     background: #f3f3f7;
     color: var(--text-muted);
     cursor: pointer;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     transition: background .2s ease, color .2s ease;
 }
 
@@ -21809,19 +21816,19 @@ a {
 }
 
 .employee-requests-page .request-modal-body {
-    padding: 34px;
+    padding: 20px 24px;
 }
 
 .employee-requests-page .request-form-grid {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
-    gap: 25px 24px;
+    gap: 16px;
 }
 
 .employee-requests-page .request-form-group {
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 6px;
     min-width: 0;
 }
 
@@ -21837,27 +21844,29 @@ a {
 .employee-requests-page .request-modal .request-form-group label,
 .employee-requests-page .request-modal .request-upload-label {
     margin: 0;
-    font-size: 18px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #1e293b;
 }
 
 .employee-requests-page .request-form-group input,
 .employee-requests-page .request-form-group select,
 .employee-requests-page .request-form-group textarea {
     width: 100%;
-    min-height: 64px;
-    border: 1px solid #e2e3eb;
-    border-radius: 16px;
-    padding: 14px 18px;
+    min-height: 42px;
+    border: 1px solid #dcdfe8;
+    border-radius: 10px;
+    padding: 8px 14px;
     background: #fff;
     color: var(--text-dark);
     outline: none;
     font: inherit;
-    font-size: 18px;
+    font-size: 14px;
     transition: border-color .2s ease, box-shadow .2s ease;
 }
 
 .employee-requests-page .request-form-group textarea {
-    min-height: 150px;
+    min-height: 90px;
     resize: vertical;
 }
 
@@ -21869,8 +21878,8 @@ a {
 .employee-requests-page .request-form-group input:focus,
 .employee-requests-page .request-form-group select:focus,
 .employee-requests-page .request-form-group textarea:focus {
-    border-color: var(--primary);
-    box-shadow: 0 0 0 3px rgba(60, 47, 188, .1);
+    border-color: #4e36f5;
+    box-shadow: 0 0 0 3px rgba(78, 54, 245, .1);
 }
 
 .employee-requests-page .request-form-group input:focus-visible,
@@ -21886,30 +21895,36 @@ a {
 /* Upload */
 
 .employee-requests-page .request-upload-box {
-    min-height: 150px;
+    min-height: 85px;
     border: 1px dashed #c9c7dc;
-    border-radius: 16px;
+    border-radius: 12px;
     background: #fafaff;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 7px;
+    gap: 4px;
     cursor: pointer;
     color: var(--text-muted);
     text-align: center;
-    padding: 16px;
+    padding: 12px;
+    font-size: 13px;
     transition: border-color .2s ease, background .2s ease;
 }
 
 .employee-requests-page .request-upload-box i {
-    font-size: 25px;
+    font-size: 20px;
     color: var(--primary);
 }
 
 .employee-requests-page .request-upload-box strong {
     color: var(--text-dark);
+    font-size: 13px;
     overflow-wrap: anywhere;
+}
+
+.employee-requests-page .request-upload-box span {
+    font-size: 11px;
 }
 
 .employee-requests-page .request-upload-box:hover {
@@ -21923,13 +21938,13 @@ a {
 }
 
 .employee-requests-page .request-form-error {
-    margin: 0 26px 14px;
-    padding: 11px 13px;
+    margin: 0 24px 12px;
+    padding: 10px 14px;
     border: 1px solid #f4c7c7;
     border-radius: 10px;
     background: var(--red-light);
     color: #b42323;
-    font-size: 14px;
+    font-size: 13px;
 }
 
 .employee-requests-page .requests-loading {
@@ -21937,7 +21952,7 @@ a {
     align-items: center;
     justify-content: center;
     gap: 10px;
-    min-height: 150px;
+    min-height: 100px;
     color: var(--text-muted);
 }
 
@@ -21945,7 +21960,7 @@ a {
 
 .employee-requests-page .request-modal-footer {
     flex: 0 0 auto;
-    padding: 20px 34px;
+    padding: 14px 24px;
     border-top: 1px solid var(--border-color);
     display: flex;
     align-items: center;
@@ -21956,10 +21971,12 @@ a {
 
 .employee-requests-page .request-modal-footer .requests-secondary-btn,
 .employee-requests-page .request-modal-footer .requests-primary-btn {
-    min-width: 132px;
-    min-height: 52px;
-    padding: 12px 20px;
-    font-size: 16px;
+    min-width: 100px;
+    min-height: 40px;
+    height: 40px;
+    padding: 8px 18px;
+    font-size: 14px;
+    border-radius: 8px;
 }
 
 

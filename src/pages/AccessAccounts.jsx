@@ -1,16 +1,6 @@
-import React, { useState, useEffect } from "react";
+import React from "react";
 
-export default function AccessAccounts({ employeeProfile, currentUser }) {
-  const [avatarError, setAvatarError] = useState(false);
-  const rawAvatar = employeeProfile?.profile_pic || employeeProfile?.avatar_url || "";
-  const dynamicAvatarUrl = rawAvatar
-    ? (/^(https?:\/\/|data:)/i.test(rawAvatar) ? rawAvatar : `${(import.meta.env.VITE_API_URL ? String(import.meta.env.VITE_API_URL).replace("f2ef", "fzef") : "https://hrms-backend-fzef.onrender.com")}/${rawAvatar.replace(/^\/+/, '')}`)
-    : "";
-
-  useEffect(() => {
-    setAvatarError(false);
-  }, [rawAvatar]);
-
+export default function AccessAccounts() {
   return (
     <>
 <div className="px-0 px-md-5 employee-dashboard">
@@ -44,11 +34,12 @@ export default function AccessAccounts({ employeeProfile, currentUser }) {
                         <div className="esc-employee-main">
 
                             <div className="esc-avatar overflow-hidden">
-                                {dynamicAvatarUrl && !avatarError ? (
+                                {(employeeProfile?.profile_pic || employeeProfile?.avatar_url) ? (
                                     <img
-                                        src={dynamicAvatarUrl}
+                                        src={/^https?:\/\//i.test(employeeProfile?.profile_pic || employeeProfile?.avatar_url)
+                                            ? (employeeProfile?.profile_pic || employeeProfile?.avatar_url)
+                                            : `${import.meta.env.VITE_API_URL || 'https://hrms-backend-5xo8.onrender.com'}/${(employeeProfile?.profile_pic || employeeProfile?.avatar_url).replace(/^\/+/, '')}`}
                                         alt="Employee"
-                                        onError={() => setAvatarError(true)}
                                         style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: "17px" }}
                                     />
                                 ) : (
@@ -56,7 +47,7 @@ export default function AccessAccounts({ employeeProfile, currentUser }) {
                                         ? employeeProfile.preferred_name.slice(0, 2)
                                         : employeeProfile?.first_name
                                             ? `${employeeProfile.first_name[0]}${employeeProfile.last_name ? employeeProfile.last_name[0] : (employeeProfile.first_name[1] || "")}`
-                                            : currentUser?.email?.slice(0, 2) || "EM"
+                                            : "DA"
                                     ).toUpperCase()
                                 )}
                             </div>

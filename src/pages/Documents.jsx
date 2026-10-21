@@ -26,7 +26,7 @@ const statusKind = (status) => {
   if (status === "Re-upload") return { cls: "rejected", icon: "bi-arrow-repeat", label: "Re-upload Required" };
   return { cls: "pending", icon: "bi-clock-fill", label: "Pending" };
 };
-const API_BASE = (import.meta.env.VITE_API_URL ? String(import.meta.env.VITE_API_URL).replace("f2ef", "fzef") : "https://hrms-backend-fzef.onrender.com");
+const API_BASE = import.meta.env.VITE_API_URL || "https://hrms-backend-5xo8.onrender.com";
 const readApiResponse = async (response) => {
     const contentType = response.headers.get("content-type") || "";
     if (contentType.includes("application/json")) return response.json();
@@ -52,15 +52,6 @@ export default function Documents({ currentUser, employeeProfile, embedded = fal
     const employeeInitials = `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase()
         || currentUser?.email?.slice(0, 2).toUpperCase()
         || "EM";
-    const [avatarError, setAvatarError] = useState(false);
-    const rawAvatar = employeeProfile?.profile_pic || employeeProfile?.avatar_url || "";
-    const dynamicAvatarUrl = rawAvatar
-        ? (/^(https?:\/\/|data:)/i.test(rawAvatar) ? rawAvatar : `${(import.meta.env.VITE_API_URL ? String(import.meta.env.VITE_API_URL).replace("f2ef", "fzef") : "https://hrms-backend-fzef.onrender.com")}/${rawAvatar.replace(/^\/+/, '')}`)
-        : "";
-
-    useEffect(() => {
-        setAvatarError(false);
-    }, [rawAvatar]);
   const [isUploadOpen, setIsUploadOpen] = useState(false);
   const [selectedFile, setSelectedFile] = useState(null);
   const [fileError, setFileError] = useState("");
@@ -340,11 +331,12 @@ export default function Documents({ currentUser, employeeProfile, embedded = fal
                             <div className="esc-employee-main">
 
                                 <div className="esc-avatar overflow-hidden">
-                                    {dynamicAvatarUrl && !avatarError ? (
+                                    {(employeeProfile?.profile_pic || employeeProfile?.avatar_url) ? (
                                         <img
-                                            src={dynamicAvatarUrl}
+                                            src={/^https?:\/\//i.test(employeeProfile?.profile_pic || employeeProfile?.avatar_url)
+                                                ? (employeeProfile?.profile_pic || employeeProfile?.avatar_url)
+                                                : `${import.meta.env.VITE_API_URL || 'https://hrms-backend-5xo8.onrender.com'}/${(employeeProfile?.profile_pic || employeeProfile?.avatar_url).replace(/^\/+/, '')}`}
                                             alt={employeeName}
-                                            onError={() => setAvatarError(true)}
                                             style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: "17px" }}
                                         />
                                     ) : (
@@ -683,11 +675,10 @@ export default function Documents({ currentUser, employeeProfile, embedded = fal
                                 )}
 
                                 <div className="modal-footer">
-                                    {viewDoc && viewDoc.file_path && (
+                                    {viewDoc && (
                                         <a
                                             className="epd-modal-save text-decoration-none"
-                                            href={viewDoc.file_path.startsWith('data:') ? viewDoc.file_path : `${API_BASE}/uploads/documents/${encodeURIComponent(viewDoc.file_path)}`}
-                                            download={viewDoc.file_path.startsWith('data:') ? (viewDoc.file_name || "document") : undefined}
+                                            href={`${API_BASE}/uploads/documents/${encodeURIComponent(viewDoc.file_path)}`}
                                             target="_blank"
                                             rel="noopener noreferrer"
                                         >

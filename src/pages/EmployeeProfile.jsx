@@ -1,10 +1,11 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import EmploymentDetails from "./EmploymentDetails";
 import Documents from "./Documents";
 import SkillsCertifications from "./SkillsCertifications";
 import Attendance from "./Attendance";
 import Leaves from "./Leaves";
 import Assets from "./Assets";
+import Expenses from "./Expenses";
 
 export default function EmployeeProfile({ currentUser, employeeProfile, onProfileUpdate }) {
     const [activeProfileTab, setActiveProfileTab] = useState("overview");
@@ -31,16 +32,11 @@ export default function EmployeeProfile({ currentUser, employeeProfile, onProfil
     const skillNames = Array.isArray(employeeProfile?.skills)
         ? employeeProfile.skills.filter(Boolean).join(" · ")
         : "";
-    const API_BASE = (import.meta.env.VITE_API_URL ? String(import.meta.env.VITE_API_URL).replace("f2ef", "fzef") : "https://hrms-backend-fzef.onrender.com");
-    const [avatarError, setAvatarError] = useState(false);
+    const API_BASE = import.meta.env.VITE_API_URL || "https://hrms-backend-5xo8.onrender.com";
     const rawAvatar = employeeProfile?.profile_pic || employeeProfile?.avatar_url || "";
     const dynamicAvatarUrl = rawAvatar
-        ? (/^(https?:\/\/|data:)/i.test(rawAvatar) ? rawAvatar : `${API_BASE}/${rawAvatar.replace(/^\/+/, "")}`)
+        ? (/^https?:\/\//i.test(rawAvatar) ? rawAvatar : `${API_BASE}/${rawAvatar.replace(/^\/+/, "")}`)
         : "";
-
-    useEffect(() => {
-        setAvatarError(false);
-    }, [rawAvatar]);
   return (
     <>
 <div className="px-0 px-md-5 employee-dashboard">
@@ -70,13 +66,8 @@ export default function EmployeeProfile({ currentUser, employeeProfile, onProfil
                         <div className="esc-employee-main">
 
                             <div className="esc-avatar overflow-hidden">
-                                {dynamicAvatarUrl && !avatarError ? (
-                                    <img
-                                        src={dynamicAvatarUrl}
-                                        alt={employeeName}
-                                        onError={() => setAvatarError(true)}
-                                        style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: "17px" }}
-                                    />
+                                {dynamicAvatarUrl ? (
+                                    <img src={dynamicAvatarUrl} alt={employeeName} style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: "17px" }} />
                                 ) : (
                                     employeeInitials
                                 )}
@@ -160,6 +151,13 @@ export default function EmployeeProfile({ currentUser, employeeProfile, onProfil
                                 <i className="bi bi-laptop"></i>
                                 Assets
                             </button>
+
+                            {/*
+                            <button type="button" className={`ep-profile-tab${activeProfileTab === "expenses" ? " active" : ""}`} data-profile-tab="expenses" onClick={() => setActiveProfileTab("expenses")}>
+                                <i className="bi bi-wallet2"></i>
+                                Expenses & Claims
+                            </button>
+                            */}
 
                             {/* <button type="button" className="ep-profile-tab" data-profile-tab="access">
                                 <i className="bi bi-shield-lock"></i>
@@ -635,7 +633,11 @@ export default function EmployeeProfile({ currentUser, employeeProfile, onProfil
                         <Assets employeeProfile={employeeProfile} currentUser={currentUser} embedded />
                     )}
 
-                    <section className={`ep-profile-tab-content${["overview", "employment", "documents", "skills", "attendance", "leave", "assets"].includes(activeProfileTab) ? " d-none" : ""}`} id="profileTabPlaceholder">
+                    {activeProfileTab === "expenses" && (
+                        <Expenses employeeProfile={employeeProfile} currentUser={currentUser} embedded />
+                    )}
+
+                    <section className={`ep-profile-tab-content${["overview", "employment", "documents", "skills", "attendance", "leave", "assets", "expenses"].includes(activeProfileTab) ? " d-none" : ""}`} id="profileTabPlaceholder">
                         <div className="ep-placeholder-card">
                             <div className="ep-placeholder-icon">
                                 <i className="bi bi-window-stack"></i>

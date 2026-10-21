@@ -13,12 +13,14 @@ import Settings from "./pages/Settings";
 import ExitManagement from "./pages/ExitManagement";
 import EmployeeRequests from "./pages/EmployeeRequests";
 import Calendar from "./pages/Calendar";
+import Expenses from "./pages/Expenses";
 import HRAssistant from "./components/HRAssistant";
 
 const SHORTCUT_CONFIG = {
   "dashboard": { id: "dashboard", label: "Employee Dashboard", description: "Your workspace overview", icon: "bi-grid", color: "blue", page: "index" },
   "apply-leave": { id: "apply-leave", label: "Apply Leave", description: "Request time off", icon: "bi-calendar-plus", color: "purple", page: "leaves" },
   "attendance": { id: "attendance", label: "Attendance", description: "View attendance", icon: "bi-calendar-check", color: "blue", page: "attendance" },
+  // "expenses": { id: "expenses", label: "Expenses & Claims", description: "Submit & track claims", icon: "bi-wallet2", color: "orange", page: "expenses" },
   "new-request": { id: "new-request", label: "New Request", description: "Contact HR / Admin", icon: "bi-send", color: "orange", page: "employee-requests" },
   "documents": { id: "documents", label: "Documents", description: "My documents", icon: "bi-folder2-open", color: "green", page: "documents" },
   "employment-details": { id: "employment-details", label: "Employment Details", description: "View your job information", icon: "bi-briefcase", color: "orange", page: "employement-details" },
@@ -48,17 +50,12 @@ export default function EmployeeTemplate({
   const [todayWorkMode, setTodayWorkMode] = useState(employeeProfile?.work_mode || '');
   const [selectedShortcutIds, setSelectedShortcutIds] = useState([]);
   const [shortcutsLoading, setShortcutsLoading] = useState(true);
-  const [avatarError, setAvatarError] = useState(false);
 
-  const API_BASE = (import.meta.env.VITE_API_URL ? String(import.meta.env.VITE_API_URL).replace("f2ef", "fzef") : "https://hrms-backend-fzef.onrender.com");
+  const API_BASE = import.meta.env.VITE_API_URL || "https://hrms-backend-5xo8.onrender.com";
   const rawAvatar = employeeProfile?.profile_pic || employeeProfile?.avatar_url || "";
   const dynamicAvatarUrl = rawAvatar
-    ? (/^(https?:\/\/|data:)/i.test(rawAvatar) ? rawAvatar : `${API_BASE}/${rawAvatar.replace(/^\/+/, "")}`)
+    ? (/^https?:\/\//i.test(rawAvatar) ? rawAvatar : `${API_BASE}/${rawAvatar.replace(/^\/+/, "")}`)
     : "";
-
-  useEffect(() => {
-    setAvatarError(false);
-  }, [rawAvatar]);
 
   useEffect(() => {
     const handleProfilePicUpdate = () => {
@@ -74,7 +71,7 @@ export default function EmployeeTemplate({
   useEffect(() => {
     const targetId = currentUser?.id || employeeProfile?.employee_id;
     if (!targetId) return;
-    const API_URL = (import.meta.env.VITE_API_URL ? String(import.meta.env.VITE_API_URL).replace("f2ef", "fzef") : "https://hrms-backend-fzef.onrender.com");
+    const API_URL = import.meta.env.VITE_API_URL || 'https://hrms-backend-5xo8.onrender.com';
     fetch(`${API_URL}/api/attendance/today/${targetId}`)
       .then(res => res.json())
       .then(data => {
@@ -95,6 +92,7 @@ export default function EmployeeTemplate({
     "employee-requests": "/employee-requests",
     "attendance": "/attendance",
     "leaves": "/leave",
+    "expenses": "/expenses",
     "assets": "/assets",
     "access-accounts": "/access-accounts",
     "calendar": "/calendar",
@@ -113,6 +111,7 @@ export default function EmployeeTemplate({
     "/employee-requests": "employee-requests",
     "/attendance": "attendance",
     "/leave": "leaves",
+    "/expenses": "expenses",
     "/assets": "assets",
     "/access-accounts": "access-accounts",
     "/calendar": "calendar",
@@ -169,7 +168,7 @@ export default function EmployeeTemplate({
 
     useEffect(() => {
         if (currentUser?.id) {
-            fetch(`${(import.meta.env.VITE_API_URL ? String(import.meta.env.VITE_API_URL).replace("f2ef", "fzef") : "https://hrms-backend-fzef.onrender.com")}/api/dashboard/widgets/${currentUser.id}`)
+            fetch(`${import.meta.env.VITE_API_URL || "https://hrms-backend-5xo8.onrender.com"}/api/dashboard/widgets/${currentUser.id}`)
                 .then(res => res.json())
                 .then(data => {
                     if (!data.error) setWidgetsData(data);
@@ -180,25 +179,25 @@ export default function EmployeeTemplate({
 
   useEffect(() => {
       if (currentUser?.id) {
-          fetch(`${(import.meta.env.VITE_API_URL ? String(import.meta.env.VITE_API_URL).replace("f2ef", "fzef") : "https://hrms-backend-fzef.onrender.com")}/api/leaves/data/${currentUser.id}`)
+          fetch(`${import.meta.env.VITE_API_URL || "https://hrms-backend-5xo8.onrender.com"}/api/leaves/data/${currentUser.id}`)
               .then(res => res.json())
               .then(data => setLeavesData(data || { balances: [], requests: [] }))
               .catch(err => console.error(err));
 
-          fetch(`${(import.meta.env.VITE_API_URL ? String(import.meta.env.VITE_API_URL).replace("f2ef", "fzef") : "https://hrms-backend-fzef.onrender.com")}/api/assets/requests/${currentUser.id}`)
+          fetch(`${import.meta.env.VITE_API_URL || "https://hrms-backend-5xo8.onrender.com"}/api/assets/requests/${currentUser.id}`)
               .then(res => res.json())
               .then(data => {
                   if (data && data.requests) setAssetRequests(data.requests);
               })
               .catch(console.error);
 
-          fetch(`${(import.meta.env.VITE_API_URL ? String(import.meta.env.VITE_API_URL).replace("f2ef", "fzef") : "https://hrms-backend-fzef.onrender.com")}/api/attendance/corrections/${currentUser.id}`)
+          fetch(`${import.meta.env.VITE_API_URL || "https://hrms-backend-5xo8.onrender.com"}/api/attendance/corrections/${currentUser.id}`)
               .then(res => res.json())
               .then(data => {
                   if (data && data.corrections) setAttendanceCorrections(data.corrections);
               })
               .catch(console.error);
-          fetch(`${(import.meta.env.VITE_API_URL ? String(import.meta.env.VITE_API_URL).replace("f2ef", "fzef") : "https://hrms-backend-fzef.onrender.com")}/api/employee-requests/${currentUser.id}`)
+          fetch(`${import.meta.env.VITE_API_URL || "https://hrms-backend-5xo8.onrender.com"}/api/employee-requests/${currentUser.id}`)
               .then(res => res.json())
               .then(data => {
                   if (data && data.requests) setEmployeeRequests(data.requests);
@@ -207,7 +206,7 @@ export default function EmployeeTemplate({
 
           // Fetch dynamic shortcut selections for current employee
           setShortcutsLoading(true);
-          const API_URL = (import.meta.env.VITE_API_URL ? String(import.meta.env.VITE_API_URL).replace("f2ef", "fzef") : "https://hrms-backend-fzef.onrender.com");
+          const API_URL = import.meta.env.VITE_API_URL || "https://hrms-backend-5xo8.onrender.com";
           fetch(`${API_URL}/api/employee/shortcut-selections/${currentUser.id}`)
               .then(res => {
                   if (res.status === 404) {
@@ -255,7 +254,7 @@ export default function EmployeeTemplate({
   const [teamMembers, setTeamMembers] = useState([]);
 
   useEffect(() => {
-    fetch(`${(import.meta.env.VITE_API_URL ? String(import.meta.env.VITE_API_URL).replace("f2ef", "fzef") : "https://hrms-backend-fzef.onrender.com")}/api/admin/employees?orgId=1`)
+    fetch(`${import.meta.env.VITE_API_URL || "https://hrms-backend-5xo8.onrender.com"}/api/admin/employees?orgId=1`)
       .then(res => res.json())
       .then(data => {
         if (Array.isArray(data)) {
@@ -290,13 +289,39 @@ export default function EmployeeTemplate({
       leave_type_name: 'Sick Leave', total_days: 10, used_days: 0, remaining_days: 10
   };
 
-  const dashHolidaysList = leavesData.holidays || [];
-  const dashTotalHolidays = dashHolidaysList.length > 0 ? dashHolidaysList.length : 12;
-  const dashPassedHolidays = dashHolidaysList.filter(h => new Date(h.holiday_date) < new Date());
-  const dashUpcomingHolidays = dashHolidaysList.filter(h => new Date(h.holiday_date) >= new Date());
+  const currentYear = new Date().getFullYear();
+  const rawHolidays = (leavesData.holidays && leavesData.holidays.length > 0)
+    ? leavesData.holidays
+    : (widgetsData.allHolidays || []);
 
-  const dashHolidaysCompleted = dashPassedHolidays.length > 0 ? dashPassedHolidays.length : 10;
-  const dashHolidaysRemaining = dashUpcomingHolidays.length > 0 ? dashUpcomingHolidays.length : Math.max(0, dashTotalHolidays - dashHolidaysCompleted);
+  // Show current year holidays count only
+  const dashHolidaysList = rawHolidays.filter(h => {
+    if (!h.holiday_date) return false;
+    const dStr = typeof h.holiday_date === 'string' ? h.holiday_date.split('T')[0] : '';
+    if (dStr) {
+      return dStr.startsWith(`${currentYear}-`);
+    }
+    const d = new Date(h.holiday_date);
+    return !isNaN(d.getTime()) && d.getFullYear() === currentYear;
+  });
+
+  const dashTotalHolidays = dashHolidaysList.length;
+  const now = new Date();
+  now.setHours(0, 0, 0, 0);
+
+  const dashPassedHolidays = dashHolidaysList.filter(h => {
+    const d = new Date(h.holiday_date);
+    d.setHours(0, 0, 0, 0);
+    return d < now;
+  });
+  const dashUpcomingHolidays = dashHolidaysList.filter(h => {
+    const d = new Date(h.holiday_date);
+    d.setHours(0, 0, 0, 0);
+    return d >= now;
+  });
+
+  const dashHolidaysCompleted = dashPassedHolidays.length;
+  const dashHolidaysRemaining = dashUpcomingHolidays.length;
 
   const dashDisplayCards = [
       {
@@ -323,17 +348,30 @@ export default function EmployeeTemplate({
           used: dashHolidaysCompleted,
           total: dashTotalHolidays,
           remaining: String(dashHolidaysRemaining).padStart(2, '0'),
-          percent: Math.round((dashHolidaysCompleted / dashTotalHolidays) * 100),
+          percent: dashTotalHolidays > 0 ? Math.round((dashHolidaysCompleted / dashTotalHolidays) * 100) : 0,
           dotClass: 'ed-dot-orange'
       }
   ];
 
   const today = new Date();
   today.setHours(0,0,0,0);
+  const pad2 = n => String(n).padStart(2, '0');
+  const todayStr = `${today.getFullYear()}-${pad2(today.getMonth() + 1)}-${pad2(today.getDate())}`;
+
+  const getCleanDate = (val) => {
+    if (!val) return '';
+    if (typeof val === 'string') return val.split('T')[0];
+    const d = new Date(val);
+    return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+  };
+
   const dashUpcomingLeave = (leavesData.requests || [])
-      .filter(r => (r.status === 'Pending' || r.status === 'Approved') && new Date(r.start_date) >= today)
-      .sort((a, b) => new Date(a.start_date) - new Date(b.start_date))[0] || 
-      (leavesData.requests || []).filter(r => r.status === 'Pending' || r.status === 'Approved').sort((a, b) => new Date(b.start_date) - new Date(a.start_date))[0];
+      .filter(r => {
+        if (r.status !== 'Pending' && r.status !== 'Approved') return false;
+        const sDate = getCleanDate(r.start_date);
+        return sDate && sDate >= todayStr;
+      })
+      .sort((a, b) => getCleanDate(a.start_date).localeCompare(getCleanDate(b.start_date)))[0] || null;
 
   // Dynamic Recent Requests for Dashboard strictly using employee_requests (Top 3)
   const recentDashboardRequests = (employeeRequests || []).slice(0, 3).map((req) => {
@@ -388,32 +426,7 @@ export default function EmployeeTemplate({
     };
   });
 
-  const currentYear = new Date().getFullYear();
-  const nationalHolidays = [
-      { holiday_date: `${currentYear}-01-01`, holiday_name: 'New Year\'s Day' },
-      { holiday_date: `${currentYear}-01-26`, holiday_name: 'Republic Day' },
-      { holiday_date: `${currentYear}-05-01`, holiday_name: 'Labour Day' },
-      { holiday_date: `${currentYear}-08-15`, holiday_name: 'Independence Day' },
-      { holiday_date: `${currentYear}-10-02`, holiday_name: 'Gandhi Jayanti' },
-      { holiday_date: `${currentYear}-12-25`, holiday_name: 'Christmas Day' },
-      { holiday_date: '2026-03-03', holiday_name: 'Holi' },
-      { holiday_date: '2026-04-10', holiday_name: 'Good Friday' },
-      { holiday_date: '2026-04-14', holiday_name: 'Ambedkar Jayanti' },
-      { holiday_date: '2026-08-26', holiday_name: 'Raksha Bandhan' },
-      { holiday_date: '2026-09-06', holiday_name: 'Janmashtami' },
-      { holiday_date: '2026-09-17', holiday_name: 'Ganesh Chaturthi' },
-      { holiday_date: '2026-10-20', holiday_name: 'Dussehra / Vijayadashami' },
-      { holiday_date: '2026-11-08', holiday_name: 'Diwali' },
-      { holiday_date: '2026-11-24', holiday_name: 'Guru Nanak Jayanti' }
-  ];
-  
-  const mergedHolidays = [...nationalHolidays, ...(widgetsData.allHolidays || [])];
-  const uniqueHolidaysMap = new Map();
-  mergedHolidays.forEach(h => {
-      const dateStr = new Date(h.holiday_date).toISOString().split('T')[0];
-      uniqueHolidaysMap.set(dateStr, h);
-  });
-  const finalHolidays = Array.from(uniqueHolidaysMap.values());
+  const finalHolidays = widgetsData.allHolidays || [];
 
   const dashNextHoliday = finalHolidays
       .filter(h => new Date(h.holiday_date) >= today)
@@ -515,6 +528,14 @@ export default function EmployeeTemplate({
                       <i className="bi bi-calendar2-minus"></i>
                       <span>Leave</span>
                   </span>
+
+                  {/*
+                  <span className="menu-label" style={{ fontSize: '11px', fontWeight: 700, color: '#8a90a2', marginLeft: '22px', marginBottom: '8px', display: 'block', marginTop: '24px', letterSpacing: '0.5px' }}>FINANCE & CLAIMS</span>
+                  <span onClick={() => navigateTo("expenses")} className="menu-item" style={{cursor:"pointer"}}>
+                      <i className="bi bi-wallet2"></i>
+                      <span>Expenses & Claims</span>
+                  </span>
+                  */}
 
                   <span className="menu-label" style={{ fontSize: '11px', fontWeight: 700, color: '#8a90a2', marginLeft: '22px', marginBottom: '8px', display: 'block', marginTop: '24px', letterSpacing: '0.5px' }}>COMPANY RESOURCES</span>
                   <span onClick={() => navigateTo("assets")} className="menu-item" style={{cursor:"pointer"}}>
@@ -633,13 +654,8 @@ export default function EmployeeTemplate({
                             <button className="profile-button" data-bs-toggle="dropdown">
 
                                 <div className="profile-avatar overflow-hidden">
-                                    {dynamicAvatarUrl && !avatarError ? (
-                                        <img
-                                            src={dynamicAvatarUrl}
-                                            alt="Profile"
-                                            onError={() => setAvatarError(true)}
-                                            style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: "14px" }}
-                                        />
+                                    {dynamicAvatarUrl ? (
+                                        <img src={dynamicAvatarUrl} alt="Profile" style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: "14px" }} />
                                     ) : (
                                         (employeeProfile?.preferred_name
                                             ? employeeProfile.preferred_name.slice(0, 2)
@@ -759,22 +775,10 @@ export default function EmployeeTemplate({
                     <section className="ed-hero">
                         <div className="ed-hero-main">
                             <div className="ed-profile-avatar overflow-hidden">
-                                {dynamicAvatarUrl && !avatarError ? (
-                                    <img
-                                        src={dynamicAvatarUrl}
-                                        alt={employeeProfile?.preferred_name || employeeProfile?.first_name || "Employee"}
-                                        onError={() => setAvatarError(true)}
-                                        style={{ width: "100%", height: "100%", objectFit: "cover" }}
-                                    />
+                                {dynamicAvatarUrl ? (
+                                    <img src={dynamicAvatarUrl} alt={employeeProfile?.preferred_name || employeeProfile?.first_name || "Employee"} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                                 ) : (
-                                    <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", background: "linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)", color: "#fff", fontWeight: "700", fontSize: "28px" }}>
-                                        {(employeeProfile?.preferred_name
-                                            ? employeeProfile.preferred_name.slice(0, 2)
-                                            : employeeProfile?.first_name
-                                                ? `${employeeProfile.first_name[0]}${employeeProfile.last_name ? employeeProfile.last_name[0] : (employeeProfile.first_name[1] || "")}`
-                                                : currentUser.email.slice(0, 2)
-                                        ).toUpperCase()}
-                                    </div>
+                                    <img src="https://i.pravatar.cc/150?img=12" alt={employeeProfile?.preferred_name || employeeProfile?.first_name || "Employee"} />
                                 )}
                                 <span className="ed-online-dot"></span>
                             </div>
@@ -1089,8 +1093,8 @@ export default function EmployeeTemplate({
                                     .map((id) => SHORTCUT_CONFIG[id])
                                     .filter(Boolean)
                                     .map((shortcut) => (
-                                        <div className="col-xl col-lg-3 col-md-4 col-6" key={shortcut.id}>
-                                            <button className="ed-quick-card" onClick={() => navigateTo(shortcut.page)}>
+                                        <div className="col-xl col-lg-3 col-md-4 col-6 d-flex" key={shortcut.id}>
+                                            <button className="ed-quick-card flex-fill" onClick={() => navigateTo(shortcut.page)}>
                                                 <span className={`ed-quick-icon ed-q-${shortcut.color}`}>
                                                     <i className={`bi ${shortcut.icon}`}></i>
                                                 </span>
@@ -1203,9 +1207,13 @@ export default function EmployeeTemplate({
                                             {dashUpcomingLeave ? (
                                                 <div style={{ marginTop: '2px' }}>
                                                     <strong style={{ display: 'block', fontSize: '14px', color: '#24263d', fontWeight: '700' }}>
-                                                        {new Date(dashUpcomingLeave.start_date).toLocaleDateString('en-GB', {day: '2-digit'})} - {new Date(dashUpcomingLeave.end_date).toLocaleDateString('en-GB', {day: '2-digit', month: 'short', year: 'numeric'})}
+                                                        {getCleanDate(dashUpcomingLeave.start_date) === getCleanDate(dashUpcomingLeave.end_date)
+                                                            ? new Date(dashUpcomingLeave.start_date).toLocaleDateString('en-GB', {day: '2-digit', month: 'short', year: 'numeric'})
+                                                            : `${new Date(dashUpcomingLeave.start_date).toLocaleDateString('en-GB', {day: '2-digit', month: 'short'})} - ${new Date(dashUpcomingLeave.end_date).toLocaleDateString('en-GB', {day: '2-digit', month: 'short', year: 'numeric'})}`}
                                                     </strong>
-                                                    <small style={{ color: '#8b8e9f', fontSize: '12px' }}>{dashUpcomingLeave.leave_type} - {Number(dashUpcomingLeave.days_requested)} {Number(dashUpcomingLeave.days_requested) === 1 ? 'day' : 'days'}</small>
+                                                    <small style={{ color: '#8b8e9f', fontSize: '12px' }}>
+                                                        {dashUpcomingLeave.leave_type} · {dashUpcomingLeave.is_half_day ? `0.5 day (${dashUpcomingLeave.half_day_period === 'Second Half' ? '2nd Half' : '1st Half'})` : `${Number(dashUpcomingLeave.days_requested)} ${Number(dashUpcomingLeave.days_requested) === 1 ? 'day' : 'days'}`}
+                                                    </small>
                                                 </div>
                                             ) : (
                                                 <div style={{ marginTop: '2px' }}>
@@ -1763,8 +1771,9 @@ export default function EmployeeTemplate({
 {activePage === "skills-certifications" && <SkillsCertifications employeeProfile={employeeProfile} currentUser={currentUser} />}
 {activePage === "attendance" && <Attendance currentUser={currentUser} employeeProfile={employeeProfile} onNavigate={navigateTo} />}
 {activePage === "leaves" && <Leaves currentUser={currentUser} employeeProfile={employeeProfile} />}
+{activePage === "expenses" && <Expenses currentUser={currentUser} employeeProfile={employeeProfile} onNavigate={navigateTo} />}
 {activePage === "assets" && <Assets employeeProfile={employeeProfile} currentUser={currentUser} />}
-{activePage === "access-accounts" && <AccessAccounts employeeProfile={employeeProfile} currentUser={currentUser} />}
+{activePage === "access-accounts" && <AccessAccounts employeeProfile={employeeProfile} />}
 {activePage === "notifications" && <Notifications currentUser={currentUser} employeeProfile={employeeProfile} />}
 {activePage === "settings" && <Settings employeeProfile={employeeProfile} currentUser={currentUser} onProfileUpdate={fetchEmployeeProfile} />}
 {activePage === "exit-management" && <ExitManagement employeeProfile={employeeProfile} currentUser={currentUser} onNavigate={navigateTo} />}

@@ -45,7 +45,7 @@ export default function HRAssistant({ currentUser, employeeProfile }) {
     try {
       const userRole = currentUser?.role || employeeProfile?.role || "employee";
       const userId = currentUser?.id || employeeProfile?.user_id || employeeProfile?.id || 1;
-      const res = await fetch(`${(import.meta.env.VITE_API_URL ? String(import.meta.env.VITE_API_URL).replace("f2ef", "fzef") : "https://hrms-backend-fzef.onrender.com")}/api/ask-hr`, {
+      const res = await fetch(`${import.meta.env.VITE_API_URL || "https://hrms-backend-5xo8.onrender.com"}/api/ask-hr`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -89,8 +89,8 @@ export default function HRAssistant({ currentUser, employeeProfile }) {
       <div
         style={{
           position: "fixed",
-          bottom: "95px",
-          right: "26px",
+          bottom: "20px",
+          right: "24px",
           zIndex: 9990
         }}
       >
@@ -127,12 +127,12 @@ export default function HRAssistant({ currentUser, employeeProfile }) {
         <div
           style={{
             position: "fixed",
-            bottom: "160px",
-            right: "26px",
+            bottom: "82px",
+            right: "24px",
             width: "380px",
             maxWidth: "calc(100vw - 32px)",
             height: "530px",
-            maxHeight: "calc(100vh - 180px)",
+            maxHeight: "calc(100vh - 100px)",
             backgroundColor: "#ffffff",
             borderRadius: "18px",
             boxShadow: "0 16px 48px rgba(27, 24, 74, 0.22)",

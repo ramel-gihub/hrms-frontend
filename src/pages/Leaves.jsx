@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import Chart from "react-apexcharts";
 
 export default function Leaves({ currentUser, employeeProfile, embedded = false }) {
@@ -14,16 +14,6 @@ export default function Leaves({ currentUser, employeeProfile, embedded = false 
   const [viewLeave, setViewLeave] = useState(null);
   const [isEditMode, setIsEditMode] = useState(false);
   const [openDropdownId, setOpenDropdownId] = useState(null);
-  const [avatarError, setAvatarError] = useState(false);
-
-  const rawAvatar = employeeProfile?.profile_pic || employeeProfile?.avatar_url || "";
-  const dynamicAvatarUrl = rawAvatar
-    ? (/^(https?:\/\/|data:)/i.test(rawAvatar) ? rawAvatar : `${(import.meta.env.VITE_API_URL ? String(import.meta.env.VITE_API_URL).replace("f2ef", "fzef") : "https://hrms-backend-fzef.onrender.com")}/${rawAvatar.replace(/^\/+/, '')}`)
-    : "";
-
-  useEffect(() => {
-    setAvatarError(false);
-  }, [rawAvatar]);
   
   useEffect(() => {
       const closeDropdown = () => setOpenDropdownId(null);
@@ -48,11 +38,45 @@ export default function Leaves({ currentUser, employeeProfile, embedded = false 
   const [filterType, setFilterType] = useState('All Leave Type');
   const [searchQuery, setSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 5;
+  const [itemsPerPage, setItemsPerPage] = useState(5);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, filterStatus, filterType, itemsPerPage]);
+
+  const filteredLeaveRequests = useMemo(() => {
+    return (data.requests || []).filter(req => {
+      let match = true;
+      if (filterStatus !== 'All Status' && req.status !== filterStatus) match = false;
+      if (filterType !== 'All Leave Type' && req.leave_type !== filterType) match = false;
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase();
+        const typeMatch = (req.leave_type || '').toLowerCase().includes(q);
+        const reasonMatch = (req.reason || '').toLowerCase().includes(q);
+        if (!typeMatch && !reasonMatch) match = false;
+      }
+      return match;
+    });
+  }, [data.requests, filterStatus, filterType, searchQuery]);
+
+  const totalLeavePages = Math.ceil(filteredLeaveRequests.length / itemsPerPage) || 1;
+
+  useEffect(() => {
+    if (currentPage > totalLeavePages) {
+      setCurrentPage(Math.max(1, totalLeavePages));
+    }
+  }, [currentPage, totalLeavePages]);
+
+  const leaveStartIndex = (currentPage - 1) * itemsPerPage;
+  const leaveEndIndex = Math.min(leaveStartIndex + itemsPerPage, filteredLeaveRequests.length);
+
+  const paginatedLeaveRequests = useMemo(() => {
+    return filteredLeaveRequests.slice(leaveStartIndex, leaveEndIndex);
+  }, [filteredLeaveRequests, leaveStartIndex, leaveEndIndex]);
 
   const handleCancelLeave = async (leaveId) => {
     try {
-      const res = await fetch(`${(import.meta.env.VITE_API_URL ? String(import.meta.env.VITE_API_URL).replace("f2ef", "fzef") : "https://hrms-backend-fzef.onrender.com")}/api/leaves/cancel/${leaveId}`, {
+      const res = await fetch(`${import.meta.env.VITE_API_URL || "https://hrms-backend-5xo8.onrender.com"}/api/leaves/cancel/${leaveId}`, {
         method: 'PUT'
       });
       const result = await res.json();
@@ -72,7 +96,8 @@ export default function Leaves({ currentUser, employeeProfile, embedded = false 
   const [editDocFile, setEditDocFile] = useState(null);
   
   const [formData, setFormData] = useState({
-    leaveTypeId: '', approverId: '', startDate: '', endDate: '', reason: '', documentFile: null
+    leaveTypeId: '', approverId: '', startDate: '', endDate: '', reason: '', documentFile: null,
+    isHalfDay: false, halfDayPeriod: 'First Half'
   });
   const [daysCalculated, setDaysCalculated] = useState(0);
 
@@ -80,7 +105,7 @@ export default function Leaves({ currentUser, employeeProfile, embedded = false 
     if (!currentUser) return;
     try {
       setLoading(true);
-      const res = await fetch(`${(import.meta.env.VITE_API_URL ? String(import.meta.env.VITE_API_URL).replace("f2ef", "fzef") : "https://hrms-backend-fzef.onrender.com")}/api/leaves/data/${currentUser.id}`);
+      const res = await fetch(`${import.meta.env.VITE_API_URL || "https://hrms-backend-5xo8.onrender.com"}/api/leaves/data/${currentUser.id}`);
       const result = await res.json();
       if (result.error) {
           console.error(result.error);
@@ -144,8 +169,12 @@ export default function Leaves({ currentUser, employeeProfile, embedded = false 
 
   // Calculate working days for apply modal
   useEffect(() => {
-    setDaysCalculated(calculateWorkingDays(formData.startDate, formData.endDate));
-  }, [formData.startDate, formData.endDate, data.holidays]);
+    if (formData.isHalfDay) {
+      setDaysCalculated(0.5);
+    } else {
+      setDaysCalculated(calculateWorkingDays(formData.startDate, formData.endDate));
+    }
+  }, [formData.startDate, formData.endDate, formData.isHalfDay, data.holidays]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -165,7 +194,7 @@ export default function Leaves({ currentUser, employeeProfile, embedded = false 
       setLeaveSubmitError("Please select a from date.");
       return;
     }
-    if (!formData.endDate) {
+    if (!formData.isHalfDay && !formData.endDate) {
       setLeaveSubmitError("Please select a to date.");
       return;
     }
@@ -173,7 +202,7 @@ export default function Leaves({ currentUser, employeeProfile, embedded = false 
       setLeaveSubmitError(`From Date must be between ${minSelectableDate} and ${maxSelectableDate}.`);
       return;
     }
-    if (formData.endDate < formData.startDate) {
+    if (!formData.isHalfDay && formData.endDate < formData.startDate) {
       setLeaveSubmitError("To Date cannot be earlier than From Date.");
       return;
     }
@@ -189,21 +218,23 @@ export default function Leaves({ currentUser, employeeProfile, embedded = false 
       dataPayload.append('leaveTypeId', formData.leaveTypeId);
       dataPayload.append('approverId', formData.approverId);
       dataPayload.append('startDate', formData.startDate);
-      dataPayload.append('endDate', formData.endDate);
-      dataPayload.append('days', daysCalculated);
+      dataPayload.append('endDate', formData.isHalfDay ? formData.startDate : formData.endDate);
+      dataPayload.append('days', formData.isHalfDay ? 0.5 : daysCalculated);
+      dataPayload.append('isHalfDay', formData.isHalfDay);
+      dataPayload.append('halfDayPeriod', formData.halfDayPeriod || 'First Half');
       dataPayload.append('reason', formData.reason.trim());
       if (formData.documentFile) {
         dataPayload.append('file', formData.documentFile);
       }
 
-      const response = await fetch(`${(import.meta.env.VITE_API_URL ? String(import.meta.env.VITE_API_URL).replace("f2ef", "fzef") : "https://hrms-backend-fzef.onrender.com")}/api/leaves/apply`, {
+      const response = await fetch(`${import.meta.env.VITE_API_URL || "https://hrms-backend-5xo8.onrender.com"}/api/leaves/apply`, {
         method: 'POST',
         body: dataPayload
       });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || 'Unable to submit leave request');
       setShowApplyModal(false);
-      setFormData({ leaveTypeId: '', approverId: '', startDate: '', endDate: '', reason: '', documentFile: null });
+      setFormData({ leaveTypeId: '', approverId: '', startDate: '', endDate: '', reason: '', documentFile: null, isHalfDay: false, halfDayPeriod: 'First Half' });
       setAlertBanner({ type: 'success', message: 'Leave request submitted successfully!' });
       setTimeout(() => setAlertBanner(null), 5000);
       await fetchData();
@@ -219,15 +250,26 @@ export default function Leaves({ currentUser, employeeProfile, embedded = false 
   
   const today = new Date();
   today.setHours(0, 0, 0, 0);
+  const currentYear = today.getFullYear();
 
-  const holidaysList = data.holidays || [];
-  const totalHolidays = holidaysList.length > 0 ? holidaysList.length : 12;
+  // Show current year holidays count only
+  const holidaysList = (data.holidays || []).filter(h => {
+    if (!h.holiday_date) return false;
+    const dStr = typeof h.holiday_date === 'string' ? h.holiday_date.split('T')[0] : '';
+    if (dStr) {
+      return dStr.startsWith(`${currentYear}-`);
+    }
+    const d = new Date(h.holiday_date);
+    return !isNaN(d.getTime()) && d.getFullYear() === currentYear;
+  });
+
+  const totalHolidays = holidaysList.length;
   const passedHolidays = holidaysList.filter(h => new Date(h.holiday_date) < today);
   const upcomingHolidays = holidaysList.filter(h => new Date(h.holiday_date) >= today);
 
-  const holidaysCompletedCount = passedHolidays.length > 0 ? passedHolidays.length : 10;
-  const holidaysRemainingCount = upcomingHolidays.length > 0 ? upcomingHolidays.length : Math.max(0, totalHolidays - holidaysCompletedCount);
-  const holidayCompletedPercent = Math.round((holidaysCompletedCount / totalHolidays) * 100);
+  const holidaysCompletedCount = passedHolidays.length;
+  const holidaysRemainingCount = upcomingHolidays.length;
+  const holidayCompletedPercent = totalHolidays > 0 ? Math.round((holidaysCompletedCount / totalHolidays) * 100) : 0;
 
   const orgLeaveTypes = (data.leaveTypes && data.leaveTypes.length > 0)
     ? data.leaveTypes.map(lt => ({ id: lt.id, name: lt.name }))
@@ -286,16 +328,30 @@ export default function Leaves({ currentUser, employeeProfile, embedded = false 
       legend: { show: false }
   };
 
+  const todayDateStr = `${today.getFullYear()}-${pad2(today.getMonth() + 1)}-${pad2(today.getDate())}`;
+
+  const getCleanDate = (val) => {
+    if (!val) return '';
+    if (typeof val === 'string') return val.split('T')[0];
+    const d = new Date(val);
+    return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+  };
+
   const scheduledLeaves = (data.requests || [])
-      .filter(req => req.status !== 'Rejected')
+      .filter(req => (req.status === 'Pending' || req.status === 'Approved'))
+      .filter(req => {
+          const sDate = getCleanDate(req.start_date);
+          return sDate && sDate >= todayDateStr;
+      })
       .map(req => {
           const startDate = new Date(req.start_date);
           const month = startDate.toLocaleString('default', { month: 'short' }).toUpperCase();
           const day = startDate.getDate();
           const startFmt = new Date(req.start_date).toLocaleDateString('en-GB', {day:'2-digit', month:'short', year:'numeric'}).replace(/ /g, '-');
           const endFmt = new Date(req.end_date).toLocaleDateString('en-GB', {day:'2-digit', month:'short', year:'numeric'}).replace(/ /g, '-');
-          const dateStr = req.start_date === req.end_date ? startFmt : `${startFmt} to ${endFmt}`;
-          const statusClass = req.status === 'Approved' ? 'approved' : req.status === 'Rejected' ? 'rejected' : 'pending';
+          const isSameDay = getCleanDate(req.start_date) === getCleanDate(req.end_date);
+          const dateStr = isSameDay ? startFmt : `${startFmt} to ${endFmt}`;
+          const statusClass = req.status === 'Approved' ? 'approved' : 'pending';
           return {
               id: `leave-${req.id}`,
               date: startDate,
@@ -304,6 +360,8 @@ export default function Leaves({ currentUser, employeeProfile, embedded = false 
               title: req.leave_type,
               dateStr,
               days: req.days_requested,
+              is_half_day: req.is_half_day,
+              half_day_period: req.half_day_period,
               status: req.status,
               statusClass
           };
@@ -383,16 +441,17 @@ export default function Leaves({ currentUser, employeeProfile, embedded = false 
                             <div className="esc-employee-main">
 
                                 <div className="esc-avatar overflow-hidden">
-        {dynamicAvatarUrl && !avatarError ? (
+        {(employeeProfile?.profile_pic || employeeProfile?.avatar_url) ? (
           <img
-            src={dynamicAvatarUrl}
+            src={/^https?:\/\//i.test(employeeProfile?.profile_pic || employeeProfile?.avatar_url)
+              ? (employeeProfile?.profile_pic || employeeProfile?.avatar_url)
+              : `${import.meta.env.VITE_API_URL || 'https://hrms-backend-5xo8.onrender.com'}/${(employeeProfile?.profile_pic || employeeProfile?.avatar_url).replace(/^\/+/, '')}`}
             alt="Employee"
-            onError={() => setAvatarError(true)}
             style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: "17px" }}
           />
         ) : (
           <>
-            {employeeProfile?.first_name?.charAt(0) || currentUser?.email?.charAt(0)?.toUpperCase() || "E"}
+            {employeeProfile?.first_name?.charAt(0) || currentUser?.email?.charAt(0)?.toUpperCase()}
             {employeeProfile?.last_name?.charAt(0) || ""}
           </>
         )}
@@ -593,7 +652,7 @@ export default function Leaves({ currentUser, employeeProfile, embedded = false 
                                             <div className="epl-upcoming-content">
                                                 <strong>{req.title}</strong>
                                                 <span>{req.dateStr}</span>
-                                                <small>{req.days} Day{req.days > 1 ? 's' : ''}</small>
+                                                <small>{req.is_half_day ? `0.5 Day (${req.half_day_period === 'Second Half' ? '2nd Half' : '1st Half'})` : `${req.days} Day${Number(req.days) > 1 ? 's' : ''}`}</small>
                                             </div>
                                             <span className={`epl-leave-status ${req.statusClass}`}>
                                                 {req.status}
@@ -624,7 +683,7 @@ export default function Leaves({ currentUser, employeeProfile, embedded = false 
                                     <h3>Employee Leave Requests</h3>
 
                                     <p>
-                                        Review all leave applications and approval details.
+                                        Showing {filteredLeaveRequests.length === 0 ? 0 : leaveStartIndex + 1} - {leaveEndIndex} of {filteredLeaveRequests.length} leave requests {totalLeavePages > 1 ? `(Page ${currentPage} of ${totalLeavePages})` : ''}
                                     </p>
 
                                 </div>
@@ -685,137 +744,162 @@ export default function Leaves({ currentUser, employeeProfile, embedded = false 
 
                                     </thead>
 
-                                    <tbody id="eplLeaveTableBody">
-{(() => {
-    if (loading) return <tr><td colSpan={9} className="text-center py-3">Loading...</td></tr>;
-    
-    let filtered = (data.requests || []).filter(req => {
-        let match = true;
-        if (filterStatus !== 'All Status' && req.status !== filterStatus) match = false;
-        if (filterType !== 'All Leave Type' && req.leave_type !== filterType) match = false;
-        if (searchQuery.trim()) {
-            const q = searchQuery.toLowerCase();
-            const typeMatch = (req.leave_type || '').toLowerCase().includes(q);
-            const reasonMatch = (req.reason || '').toLowerCase().includes(q);
-            if (!typeMatch && !reasonMatch) match = false;
-        }
-        return match;
-    });
-    
-    if (filtered.length === 0) return <tr><td colSpan={9} className="text-center py-3 text-muted">No leave requests found.</td></tr>;
-    
-    const startIndex = (currentPage - 1) * itemsPerPage;
-    const paginated = filtered.slice(startIndex, startIndex + itemsPerPage);
-    
-    return paginated.map(req => {
-        const statusClass = req.status === 'Approved' ? 'success' : (req.status === 'Rejected' || req.status === 'Cancelled') ? 'danger' : 'warning';
-        const startFmt = new Date(req.start_date).toLocaleDateString('en-GB', {day:'2-digit', month:'short', year:'numeric'}).replace(/ /g, ' ');
-        const endFmt = new Date(req.end_date).toLocaleDateString('en-GB', {day:'2-digit', month:'short', year:'numeric'}).replace(/ /g, ' ');
-        const appliedFmt = new Date(req.created_at).toLocaleDateString('en-GB', {day:'2-digit', month:'short', year:'numeric'}).replace(/ /g, ' ');
-        const isAnnual = (req.leave_type || '').toLowerCase().includes('annual');
-        const isSick = (req.leave_type || '').toLowerCase().includes('sick');
-        const typeClass = isAnnual ? 'annual' : isSick ? 'sick' : 'casual';
-        const typeIcon = isAnnual ? 'bi-calendar-check' : isSick ? 'bi-heart-pulse' : 'bi-calendar2-week';
-        
-        return (
-            <tr key={req.id}>
-                <td>
-                    <div className="epl-leave-type">
-                        <div className={`epl-type-icon ${typeClass}`}><i className={`bi ${typeIcon}`}></i></div>
-                        <strong>{req.leave_type}</strong>
-                    </div>
-                </td>
-                <td>{startFmt}</td>
-                <td>{endFmt}</td>
-                <td>{req.days_requested} Day(s)</td>
-                <td><span className="text-truncate d-inline-block" style={{maxWidth: '150px'}} title={req.reason}>{req.reason || '--'}</span></td>
-                <td>{req.approver_first ? `${req.approver_first} ${req.approver_last}` : '--'}</td>
-                <td><span className={`badge bg-${statusClass} bg-opacity-10 text-${statusClass} rounded-pill px-3 py-2`}>{req.status}</span></td>
-                <td>{appliedFmt}</td>
-                <td>
-                    <div style={{ position: 'relative' }}>
-                          <button className="btn btn-sm btn-light border-0" style={{ backgroundColor: 'transparent', color: '#4e36f5', fontWeight: 'bold' }} type="button" onClick={(e) => { e.stopPropagation(); setOpenDropdownId(openDropdownId === req.id ? null : req.id); setSelectedLeave(req); }}>
-                              <i className="bi bi-three-dots"></i>
-                          </button>
-                          {openDropdownId === req.id && (
-                              <ul className="dropdown-menu dropdown-menu-end shadow border-0 show" style={{ position: 'absolute', right: '100%', top: 0, minWidth: '150px', zIndex: 9999, display: 'block', marginRight: '5px' }}>
-                                  <li>
-                                      {req.status === 'Pending' ? (
-                                          <button className="dropdown-item d-flex align-items-center gap-2 py-2 text-secondary" onClick={() => { setViewLeave(req); setIsEditMode(true); setOpenDropdownId(null); }}>
-                                              <i className="bi bi-pencil" style={{fontSize: '14px'}}></i> Edit
-                                          </button>
-                                      ) : (
-                                          <span className="dropdown-item d-flex align-items-center gap-2 py-2 text-muted" style={{ cursor: 'not-allowed' }} title="Can only edit pending leaves">
-                                              <i className="bi bi-pencil" style={{fontSize: '14px'}}></i> Edit
-                                          </span>
-                                      )}
-                                  </li>
-                                  <li><button className="dropdown-item d-flex align-items-center gap-2 py-2 text-secondary" onClick={() => { setViewLeave(req); setIsEditMode(false); setOpenDropdownId(null); }}><i className="bi bi-eye" style={{fontSize: '14px'}}></i> View Details</button></li>
-                                  <li><hr className="dropdown-divider m-0" /></li>
-                                  <li>
-                                      {req.status === 'Pending' ? (
-                                          <button 
-                                              className="dropdown-item d-flex align-items-center gap-2 py-2 text-danger" 
-                                              onClick={() => {
-                                                  setOpenDropdownId(null);
-                                                  handleCancelLeave(req.id);
-                                              }}
-                                          >
-                                              <i className="bi bi-trash" style={{fontSize: '14px'}}></i> Cancel
-                                          </button>
-                                      ) : (
-                                          <span className="dropdown-item d-flex align-items-center gap-2 py-2 text-muted" style={{ cursor: 'not-allowed' }} title="Can only cancel pending leaves">
-                                              <i className="bi bi-trash" style={{fontSize: '14px'}}></i> Cancel
-                                          </span>
-                                      )}
-                                  </li>
-                              </ul>
-                          )}
-                      </div>
-                </td>
-            </tr>
-        );
-    });
-})()}
-</tbody>
+                                    <tbody>
+                                        {loading ? (
+                                            <tr>
+                                                <td colSpan={9} className="text-center py-4 text-muted">
+                                                    <div className="spinner-border spinner-border-sm text-primary me-2" role="status"></div>
+                                                    Loading leave requests...
+                                                </td>
+                                            </tr>
+                                        ) : filteredLeaveRequests.length === 0 ? (
+                                            <tr>
+                                                <td colSpan={9} className="text-center py-4 text-muted">
+                                                    No leave requests found.
+                                                </td>
+                                            </tr>
+                                        ) : (
+                                            paginatedLeaveRequests.map((req) => {
+                                                const statusClass = req.status === 'Approved' ? 'success' : (req.status === 'Rejected' || req.status === 'Cancelled') ? 'danger' : 'warning';
+                                                const startFmt = new Date(req.start_date).toLocaleDateString('en-GB', {day:'2-digit', month:'short', year:'numeric'}).replace(/ /g, ' ');
+                                                const endFmt = new Date(req.end_date).toLocaleDateString('en-GB', {day:'2-digit', month:'short', year:'numeric'}).replace(/ /g, ' ');
+                                                const appliedFmt = new Date(req.created_at).toLocaleDateString('en-GB', {day:'2-digit', month:'short', year:'numeric'}).replace(/ /g, ' ');
+                                                const isAnnual = (req.leave_type || '').toLowerCase().includes('annual');
+                                                const isSick = (req.leave_type || '').toLowerCase().includes('sick');
+                                                const typeClass = isAnnual ? 'annual' : isSick ? 'sick' : 'casual';
+                                                const typeIcon = isAnnual ? 'bi-calendar-check' : isSick ? 'bi-heart-pulse' : 'bi-calendar2-week';
+                                                
+                                                return (
+                                                    <tr key={`leave-req-${req.id}`}>
+                                                        <td>
+                                                            <div className="epl-leave-type">
+                                                                <div className={`epl-type-icon ${typeClass}`}><i className={`bi ${typeIcon}`}></i></div>
+                                                                <strong>{req.leave_type}</strong>
+                                                            </div>
+                                                        </td>
+                                                        <td>{startFmt}</td>
+                                                        <td>{req.is_half_day ? startFmt : endFmt}</td>
+                                                        <td>
+                                                            {req.is_half_day ? (
+                                                                <span className="d-inline-flex align-items-center gap-1.5 flex-wrap">
+                                                                    <span>0.50 Day(s)</span>
+                                                                    <span className="badge rounded-pill" style={{ background: '#eef2ff', color: '#4338ca', fontSize: '11px', padding: '3px 8px', fontWeight: '600' }}>
+                                                                        {req.half_day_period === 'Second Half' ? '2nd Half' : '1st Half'}
+                                                                    </span>
+                                                                </span>
+                                                            ) : (
+                                                                `${req.days_requested} Day(s)`
+                                                            )}
+                                                        </td>
+                                                        <td><span className="text-truncate d-inline-block" style={{maxWidth: '150px'}} title={req.reason}>{req.reason || '--'}</span></td>
+                                                        <td>{req.approver_first ? `${req.approver_first} ${req.approver_last}` : '--'}</td>
+                                                        <td><span className={`badge bg-${statusClass} bg-opacity-10 text-${statusClass} rounded-pill px-3 py-2`}>{req.status}</span></td>
+                                                        <td>{appliedFmt}</td>
+                                                        <td>
+                                                            <div style={{ position: 'relative' }}>
+                                                                <button className="btn btn-sm btn-light border-0" style={{ backgroundColor: 'transparent', color: '#4e36f5', fontWeight: 'bold' }} type="button" onClick={(e) => { e.stopPropagation(); setOpenDropdownId(openDropdownId === req.id ? null : req.id); setSelectedLeave(req); }}>
+                                                                    <i className="bi bi-three-dots"></i>
+                                                                </button>
+                                                                {openDropdownId === req.id && (
+                                                                    <ul className="dropdown-menu dropdown-menu-end shadow border-0 show" style={{ position: 'absolute', right: '100%', top: 0, minWidth: '150px', zIndex: 9999, display: 'block', marginRight: '5px' }}>
+                                                                        <li>
+                                                                            {req.status === 'Pending' ? (
+                                                                                <button className="dropdown-item d-flex align-items-center gap-2 py-2 text-secondary" onClick={() => { setViewLeave(req); setIsEditMode(true); setOpenDropdownId(null); }}>
+                                                                                    <i className="bi bi-pencil" style={{fontSize: '14px'}}></i> Edit
+                                                                                </button>
+                                                                            ) : (
+                                                                                <span className="dropdown-item d-flex align-items-center gap-2 py-2 text-muted" style={{ cursor: 'not-allowed' }} title="Can only edit pending leaves">
+                                                                                    <i className="bi bi-pencil" style={{fontSize: '14px'}}></i> Edit
+                                                                                </span>
+                                                                            )}
+                                                                        </li>
+                                                                        <li><button className="dropdown-item d-flex align-items-center gap-2 py-2 text-secondary" onClick={() => { setViewLeave(req); setIsEditMode(false); setOpenDropdownId(null); }}><i className="bi bi-eye" style={{fontSize: '14px'}}></i> View Details</button></li>
+                                                                        <li><hr className="dropdown-divider m-0" /></li>
+                                                                        <li>
+                                                                            {req.status === 'Pending' ? (
+                                                                                <button 
+                                                                                    className="dropdown-item d-flex align-items-center gap-2 py-2 text-danger" 
+                                                                                    onClick={() => {
+                                                                                        setOpenDropdownId(null);
+                                                                                        handleCancelLeave(req.id);
+                                                                                    }}
+                                                                                >
+                                                                                    <i className="bi bi-trash" style={{fontSize: '14px'}}></i> Cancel
+                                                                                </button>
+                                                                            ) : (
+                                                                                <span className="dropdown-item d-flex align-items-center gap-2 py-2 text-muted" style={{ cursor: 'not-allowed' }} title="Can only cancel pending leaves">
+                                                                                    <i className="bi bi-trash" style={{fontSize: '14px'}}></i> Cancel
+                                                                                </span>
+                                                                            )}
+                                                                        </li>
+                                                                    </ul>
+                                                                )}
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })
+                                        )}
+                                    </tbody>
 
                                 </table>
 
                             </div>
 
 
-                            <div className="epl-table-footer">
-{(() => {
-    const filtered = (data.requests || []).filter(req => {
-        let match = true;
-        if (filterStatus !== 'All Status' && req.status !== filterStatus) match = false;
-        if (filterType !== 'All Leave Type' && req.leave_type !== filterType) match = false;
-        if (searchQuery.trim()) {
-            const q = searchQuery.toLowerCase();
-            const typeMatch = (req.leave_type || '').toLowerCase().includes(q);
-            const reasonMatch = (req.reason || '').toLowerCase().includes(q);
-            if (!typeMatch && !reasonMatch) match = false;
-        }
-        return match;
-    });
-    const totalPages = Math.ceil(filtered.length / itemsPerPage) || 1;
-    const startIndex = (currentPage - 1) * itemsPerPage;
-    const endIndex = Math.min(startIndex + itemsPerPage, filtered.length);
-    
-    return (
-        <>
-            <span>Showing {filtered.length === 0 ? 0 : startIndex + 1} to {endIndex} of {filtered.length} leave requests</span>
-            <div className="epl-pagination">
-                <button className={`epl-page-btn ${currentPage === 1 ? "disabled" : ""}`} disabled={currentPage === 1} onClick={() => setCurrentPage(p => p - 1)}><i className="bi bi-chevron-left"></i></button>
-                {[...Array(totalPages)].map((_, i) => (
-                    <button key={i} className={`epl-page-btn ${currentPage === i + 1 ? 'active' : ''}`} onClick={() => setCurrentPage(i + 1)}>{i + 1}</button>
-                ))}
-                <button className={`epl-page-btn ${currentPage === totalPages ? "disabled" : ""}`} disabled={currentPage === totalPages} onClick={() => setCurrentPage(p => p + 1)}><i className="bi bi-chevron-right"></i></button>
-            </div>
-        </>
-    );
-})()}
-</div>
+                            <div className="epl-table-footer d-flex flex-column flex-sm-row align-items-center justify-content-between gap-3 p-3">
+                                <div className="d-flex align-items-center gap-3 text-muted" style={{ fontSize: '13px' }}>
+                                    <span>
+                                        Showing <strong>{filteredLeaveRequests.length === 0 ? 0 : leaveStartIndex + 1}</strong> to <strong>{leaveEndIndex}</strong> of <strong>{filteredLeaveRequests.length}</strong> leave requests
+                                    </span>
+                                    <div className="d-flex align-items-center gap-2">
+                                        <span className="text-muted small">Per page:</span>
+                                        <select
+                                            className="form-select form-select-sm"
+                                            value={itemsPerPage}
+                                            onChange={e => { setItemsPerPage(Number(e.target.value)); setCurrentPage(1); }}
+                                            style={{ width: '72px', height: '32px', borderRadius: '8px', borderColor: '#ebecf3', fontSize: '12px', backgroundColor: '#fafaff', cursor: 'pointer' }}
+                                        >
+                                            <option value={5}>5</option>
+                                            <option value={10}>10</option>
+                                            <option value={20}>20</option>
+                                        </select>
+                                    </div>
+                                </div>
+
+                                {totalLeavePages > 1 && (
+                                    <div className="epl-pagination d-flex align-items-center gap-1">
+                                        <button 
+                                            type="button"
+                                            className={`epl-page-btn ${currentPage === 1 ? "disabled" : ""}`} 
+                                            disabled={currentPage === 1} 
+                                            onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                                            title="Previous Page"
+                                        >
+                                            <i className="bi bi-chevron-left"></i>
+                                        </button>
+                                        {Array.from({ length: totalLeavePages }, (_, i) => i + 1).map(pageNum => (
+                                            <button 
+                                                key={pageNum} 
+                                                type="button"
+                                                className={`epl-page-btn ${currentPage === pageNum ? 'active' : ''}`} 
+                                                onClick={() => setCurrentPage(pageNum)}
+                                            >
+                                                {pageNum}
+                                            </button>
+                                        ))}
+                                        <button 
+                                            type="button"
+                                            className={`epl-page-btn ${currentPage === totalLeavePages ? "disabled" : ""}`} 
+                                            disabled={currentPage === totalLeavePages} 
+                                            onClick={() => setCurrentPage(p => Math.min(totalLeavePages, p + 1))}
+                                            title="Next Page"
+                                        >
+                                            <i className="bi bi-chevron-right"></i>
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
 </div>
 </div>
 </div>
@@ -1128,21 +1212,126 @@ export default function Leaves({ currentUser, employeeProfile, embedded = false 
                         {(data.approvers || []).map(a => <option key={a.id} value={a.id}>{a.first_name} {a.last_name} ({a.role_name})</option>)}
                       </select>
                     </div>
-                    <div className="col-md-6">
-                      <label className="form-label">From Date <span className="text-danger">*</span></label>
-                      <input type="date" className="form-control" required min={minSelectableDate} max={maxSelectableDate} value={formData.startDate} onChange={e => setFormData({...formData, startDate: e.target.value})} />
+                    <div className="col-12">
+                      <div className="d-flex align-items-center justify-content-between rounded-3" style={{ background: '#f8fafc', border: '1px solid #e2e8f0', padding: '10px 14px' }}>
+                        <div className="form-check form-switch mb-0 d-flex align-items-center gap-2">
+                          <input
+                            className="form-check-input mt-0"
+                            type="checkbox"
+                            role="switch"
+                            id="halfDaySwitch"
+                            style={{ width: '38px', height: '20px', cursor: 'pointer' }}
+                            checked={formData.isHalfDay}
+                            onChange={(e) => {
+                              const checked = e.target.checked;
+                              setFormData(prev => ({
+                                ...prev,
+                                isHalfDay: checked,
+                                endDate: checked ? prev.startDate : prev.endDate,
+                                halfDayPeriod: prev.halfDayPeriod || 'First Half'
+                              }));
+                            }}
+                          />
+                          <label className="form-check-label fw-semibold text-dark mb-0" htmlFor="halfDaySwitch" style={{ cursor: 'pointer', fontSize: '13.5px' }}>
+                            Half Day Leave
+                          </label>
+                        </div>
+                        {formData.isHalfDay && (
+                          <div className="d-flex align-items-center gap-2">
+                            <span className="text-muted fw-medium" style={{ fontSize: '12px' }}>Session:</span>
+                            <div className="btn-group btn-group-sm" role="group">
+                              <button
+                                type="button"
+                                className={`btn btn-sm ${formData.halfDayPeriod === 'First Half' ? 'btn-primary' : 'btn-outline-secondary'}`}
+                                style={{ fontSize: '12px', padding: '3px 12px', fontWeight: formData.halfDayPeriod === 'First Half' ? '600' : '400' }}
+                                onClick={() => setFormData(prev => ({ ...prev, halfDayPeriod: 'First Half' }))}
+                              >
+                                1st Half (Morning)
+                              </button>
+                              <button
+                                type="button"
+                                className={`btn btn-sm ${formData.halfDayPeriod === 'Second Half' ? 'btn-primary' : 'btn-outline-secondary'}`}
+                                style={{ fontSize: '12px', padding: '3px 12px', fontWeight: formData.halfDayPeriod === 'Second Half' ? '600' : '400' }}
+                                onClick={() => setFormData(prev => ({ ...prev, halfDayPeriod: 'Second Half' }))}
+                              >
+                                2nd Half (Afternoon)
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
                     </div>
                     <div className="col-md-6">
-                      <label className="form-label">To Date <span className="text-danger">*</span></label>
-                      <input type="date" className="form-control" required min={formData.startDate || minSelectableDate} max={maxSelectableDate} value={formData.endDate} onChange={e => setFormData({...formData, endDate: e.target.value})} />
+                      <label className="form-label">{formData.isHalfDay ? 'Leave Date' : 'From Date'} <span className="text-danger">*</span></label>
+                      <input
+                        type="date"
+                        className="form-control"
+                        required
+                        min={minSelectableDate}
+                        max={maxSelectableDate}
+                        value={formData.startDate}
+                        onChange={e => {
+                          const val = e.target.value;
+                          setFormData(prev => ({
+                            ...prev,
+                            startDate: val,
+                            ...(prev.isHalfDay ? { endDate: val } : {})
+                          }));
+                        }}
+                      />
                     </div>
+                    {!formData.isHalfDay ? (
+                      <div className="col-md-6">
+                        <label className="form-label">To Date <span className="text-danger">*</span></label>
+                        <input
+                          type="date"
+                          className="form-control"
+                          required
+                          min={formData.startDate || minSelectableDate}
+                          max={maxSelectableDate}
+                          value={formData.endDate}
+                          onChange={e => setFormData({...formData, endDate: e.target.value})}
+                        />
+                      </div>
+                    ) : (
+                      <div className="col-md-6">
+                        <label className="form-label">Session Period</label>
+                        <input
+                          type="text"
+                          className="form-control"
+                          readOnly
+                          style={{ backgroundColor: '#f8fafc', fontWeight: '500', color: '#4338ca' }}
+                          value={formData.halfDayPeriod === 'Second Half' ? '2nd Half (Afternoon)' : '1st Half (Morning)'}
+                        />
+                      </div>
+                    )}
                     <div className="col-md-6">
                       <label className="form-label">Number of Days</label>
-                      <input type="text" className="form-control" readOnly value={daysCalculated > 0 ? `${daysCalculated} Day(s)` : 'Automatically calculated'} />
+                      <input
+                        type="text"
+                        className="form-control"
+                        readOnly
+                        style={{ backgroundColor: '#f8fafc', fontWeight: '600' }}
+                        value={formData.isHalfDay ? '0.50 Day' : (daysCalculated > 0 ? `${daysCalculated} Day(s)` : 'Automatically calculated')}
+                      />
                     </div>
                     <div className="col-md-6">
-                      <label className="form-label">Supporting Document</label>
-                      <input type="file" className="form-control" onChange={e => setFormData({ ...formData, documentFile: e.target.files && e.target.files[0] ? e.target.files[0] : null })} />
+                      <label className="form-label">Supporting Document <span className="text-muted fw-normal" style={{ fontSize: '12px' }}>(Max 500 KB)</span></label>
+                      <input
+                        type="file"
+                        className="form-control"
+                        onChange={e => {
+                          const file = e.target.files && e.target.files[0] ? e.target.files[0] : null;
+                          if (file && file.size > 500 * 1024) {
+                            setLeaveSubmitError("Supporting document size must be 500 KB or less.");
+                            e.target.value = "";
+                            setFormData(prev => ({ ...prev, documentFile: null }));
+                            return;
+                          }
+                          setLeaveSubmitError("");
+                          setFormData(prev => ({ ...prev, documentFile: file }));
+                        }}
+                      />
                     </div>
                     <div className="col-12">
                       <label className="form-label">Reason <span className="text-danger">*</span></label>
@@ -1215,7 +1404,11 @@ export default function Leaves({ currentUser, employeeProfile, embedded = false 
                       <div className="col-md-3">
                           <div className="p-3 rounded" style={{ border: '1px solid #eaeaea' }}>
                               <small className="text-muted d-block mb-1" style={{ fontSize: '13px' }}>Number of Days</small>
-                              <strong className="d-block text-dark">{viewLeave.days_requested || '--'} Days</strong>
+                              <strong className="d-block text-dark">
+                                  {viewLeave.is_half_day 
+                                      ? `0.50 Day (${viewLeave.half_day_period === 'Second Half' ? '2nd Half' : '1st Half'})` 
+                                      : `${viewLeave.days_requested || '--'} Days`}
+                              </strong>
                           </div>
                       </div>
       
@@ -1242,10 +1435,23 @@ export default function Leaves({ currentUser, employeeProfile, embedded = false 
                               <small className="text-muted d-block mb-1" style={{ fontSize: '13px' }}>Supporting Document</small>
                               {isEditMode ? (
                                   <div>
-                                      <input type="file" className="form-control form-control-sm border-0 px-0 shadow-none" onChange={e => setEditDocFile(e.target.files && e.target.files[0] ? e.target.files[0] : null)} />
+                                      <input
+                                          type="file"
+                                          className="form-control form-control-sm border-0 px-0 shadow-none"
+                                          onChange={e => {
+                                            const file = e.target.files && e.target.files[0] ? e.target.files[0] : null;
+                                            if (file && file.size > 500 * 1024) {
+                                              alert("Supporting document exceeds 500 KB limit. Please select a smaller file.");
+                                              e.target.value = "";
+                                              setEditDocFile(null);
+                                              return;
+                                            }
+                                            setEditDocFile(file);
+                                          }}
+                                      />
                                       {viewLeave.document_url && !editDocFile && (
                                           <a 
-                                              href={(viewLeave.document_url.startsWith('http') || viewLeave.document_url.startsWith('data:')) ? viewLeave.document_url : `${(import.meta.env.VITE_API_URL ? String(import.meta.env.VITE_API_URL).replace("f2ef", "fzef") : "https://hrms-backend-fzef.onrender.com")}${viewLeave.document_url}`} 
+                                              href={viewLeave.document_url.startsWith('http') ? viewLeave.document_url : `${import.meta.env.VITE_API_URL || "https://hrms-backend-5xo8.onrender.com"}${viewLeave.document_url}`} 
                                               target="_blank" 
                                               rel="noopener noreferrer" 
                                               className="text-primary text-truncate d-inline-flex align-items-center gap-1 mt-1 text-decoration-none" 
@@ -1260,7 +1466,7 @@ export default function Leaves({ currentUser, employeeProfile, embedded = false 
                                   viewLeave.document_url ? (
                                       <div className="d-flex align-items-center gap-1 mt-1">
                                           <a 
-                                              href={(viewLeave.document_url.startsWith('http') || viewLeave.document_url.startsWith('data:')) ? viewLeave.document_url : `${(import.meta.env.VITE_API_URL ? String(import.meta.env.VITE_API_URL).replace("f2ef", "fzef") : "https://hrms-backend-fzef.onrender.com")}${viewLeave.document_url}`} 
+                                              href={viewLeave.document_url.startsWith('http') ? viewLeave.document_url : `${import.meta.env.VITE_API_URL || "https://hrms-backend-5xo8.onrender.com"}${viewLeave.document_url}`} 
                                               target="_blank" 
                                               rel="noopener noreferrer" 
                                               className="btn btn-sm btn-outline-primary d-inline-flex align-items-center gap-1 py-1 px-2" 
@@ -1338,7 +1544,7 @@ export default function Leaves({ currentUser, employeeProfile, embedded = false 
                                       updatePayload.append('file', editDocFile);
                                   }
 
-                                  const res = await fetch(`${(import.meta.env.VITE_API_URL ? String(import.meta.env.VITE_API_URL).replace("f2ef", "fzef") : "https://hrms-backend-fzef.onrender.com")}/api/leaves/update/${viewLeave.id}`, {
+                                  const res = await fetch(`${import.meta.env.VITE_API_URL || "https://hrms-backend-5xo8.onrender.com"}/api/leaves/update/${viewLeave.id}`, {
                                       method: 'PUT',
                                       body: updatePayload
                                   });

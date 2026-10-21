@@ -4,16 +4,6 @@ export default function Calendar({ employeeProfile, currentUser }) {
   const profile = employeeProfile || {};
   const [activeTab, setActiveTab] = useState("calendar");
   const [currentMonth, setCurrentMonth] = useState(new Date());
-  const [avatarError, setAvatarError] = useState(false);
-
-  const rawAvatar = employeeProfile?.profile_pic || employeeProfile?.avatar_url || profile?.profile_pic || profile?.avatar_url || "";
-  const dynamicAvatarUrl = rawAvatar
-    ? (/^(https?:\/\/|data:)/i.test(rawAvatar) ? rawAvatar : `${(import.meta.env.VITE_API_URL ? String(import.meta.env.VITE_API_URL).replace("f2ef", "fzef") : "https://hrms-backend-fzef.onrender.com")}/${rawAvatar.replace(/^\/+/, '')}`)
-    : "";
-
-  useEffect(() => {
-    setAvatarError(false);
-  }, [rawAvatar]);
   
   const [holidays, setHolidays] = useState([]);
   const [leaves, setLeaves] = useState([]);
@@ -27,7 +17,7 @@ export default function Calendar({ employeeProfile, currentUser }) {
     const eid = profile.employee_id || 1;
 
     // Fetch Employees (for birthdays and anniversaries)
-    fetch(`${(import.meta.env.VITE_API_URL ? String(import.meta.env.VITE_API_URL).replace("f2ef", "fzef") : "https://hrms-backend-fzef.onrender.com")}/api/admin/employees?orgId=1`)
+    fetch(`${import.meta.env.VITE_API_URL || "https://hrms-backend-5xo8.onrender.com"}/api/admin/employees?orgId=1`)
         .then(res => res.json())
         .then(data => {
             if (Array.isArray(data)) {
@@ -43,39 +33,11 @@ export default function Calendar({ employeeProfile, currentUser }) {
 
     if (uid) {
         // Fetch Holidays (the widgets endpoint still returns allHolidays safely)
-        fetch(`${(import.meta.env.VITE_API_URL ? String(import.meta.env.VITE_API_URL).replace("f2ef", "fzef") : "https://hrms-backend-fzef.onrender.com")}/api/dashboard/widgets/${uid}`)
+        fetch(`${import.meta.env.VITE_API_URL || "https://hrms-backend-5xo8.onrender.com"}/api/dashboard/widgets/${uid}`)
             .then(res => res.json())
             .then(data => {
                 if (data.allHolidays) {
-                    // Inject general National Holidays dynamically
-                    const currentYear = new Date().getFullYear();
-                    const nationalHolidays = [
-      { holiday_date: `${currentYear}-01-01`, holiday_name: 'New Year\'s Day' },
-      { holiday_date: `${currentYear}-01-26`, holiday_name: 'Republic Day' },
-      { holiday_date: `${currentYear}-05-01`, holiday_name: 'Labour Day' },
-      { holiday_date: `${currentYear}-08-15`, holiday_name: 'Independence Day' },
-      { holiday_date: `${currentYear}-10-02`, holiday_name: 'Gandhi Jayanti' },
-      { holiday_date: `${currentYear}-12-25`, holiday_name: 'Christmas Day' },
-      { holiday_date: '2026-03-03', holiday_name: 'Holi' },
-      { holiday_date: '2026-04-10', holiday_name: 'Good Friday' },
-      { holiday_date: '2026-04-14', holiday_name: 'Ambedkar Jayanti' },
-      { holiday_date: '2026-08-26', holiday_name: 'Raksha Bandhan' },
-      { holiday_date: '2026-09-06', holiday_name: 'Janmashtami' },
-      { holiday_date: '2026-09-17', holiday_name: 'Ganesh Chaturthi' },
-      { holiday_date: '2026-10-20', holiday_name: 'Dussehra / Vijayadashami' },
-      { holiday_date: '2026-11-08', holiday_name: 'Diwali' },
-      { holiday_date: '2026-11-24', holiday_name: 'Guru Nanak Jayanti' }
-  ];
-                    
-                    // Merge DB holidays with National Holidays and remove duplicates by date
-                    const mergedHolidays = [...nationalHolidays, ...(data.allHolidays || [])];
-                    const uniqueHolidaysMap = new Map();
-                    mergedHolidays.forEach(h => {
-                        const dateStr = new Date(h.holiday_date).toISOString().split('T')[0];
-                        uniqueHolidaysMap.set(dateStr, h);
-                    });
-                    const finalHolidays = Array.from(uniqueHolidaysMap.values());
-
+                    const finalHolidays = data.allHolidays || [];
                     setHolidays(finalHolidays);
                     const today = new Date();
                     today.setHours(0,0,0,0);
@@ -86,7 +48,7 @@ export default function Calendar({ employeeProfile, currentUser }) {
             .catch(console.error);
 
         // Fetch Leaves using UID (backend expects user_id for /api/leaves/data/)
-        fetch(`${(import.meta.env.VITE_API_URL ? String(import.meta.env.VITE_API_URL).replace("f2ef", "fzef") : "https://hrms-backend-fzef.onrender.com")}/api/leaves/data/${uid}`)
+        fetch(`${import.meta.env.VITE_API_URL || "https://hrms-backend-5xo8.onrender.com"}/api/leaves/data/${uid}`)
             .then(res => res.json())
             .then(data => {
                 if (data.requests) {
@@ -141,49 +103,6 @@ export default function Calendar({ employeeProfile, currentUser }) {
         );
     }
 
-    const dayLeaves = leaves.filter(l => isDateBetween(date, l.start_date, l.end_date));
-    if (dayLeaves.length > 0) {
-        const lv = dayLeaves[0];
-        events.push(
-            <div key={`lv-${lv.id || date.getTime()}`} className="calendar-event special" title={`Leave (${lv.status}): ${lv.leave_type} - ${lv.reason || ''}`} onClick={() => { setModalData({ title: 'Leave Details', type: 'leave', list: dayLeaves }); setShowModal(true); }} style={{cursor: 'pointer'}}>
-                <i className="bi bi-calendar-check" style={{fontSize: '11px', color: '#3c2fbc', marginRight: '4px'}}></i>
-                <span>{dayLeaves.length > 1 ? `${dayLeaves.length} Leaves` : lv.leave_type}</span>
-            </div>
-        );
-    }
-
-    const bdays = allUsers.filter(u => u.dob && new Date(u.dob).getDate() === date.getDate() && new Date(u.dob).getMonth() === date.getMonth());
-    if (bdays.length > 0) {
-        const bdayNames = bdays.map(u => u.name).join('\n');
-        events.push(
-            <div key={`bday-${date.getTime()}`} className="calendar-event personal" title={`Birthdays:\n${bdayNames}`} onClick={() => { setModalData({ title: 'Birthdays Today', type: 'birthday', list: bdays.map(u => u.name) }); setShowModal(true); }} style={{cursor: 'pointer'}}>
-                <i className="bi bi-gift" style={{fontSize: '11px', color: '#dc3545', marginRight: '4px'}}></i>
-                <span>{bdays.length} {bdays.length > 1 ? 'Birthdays' : 'Birthday'}</span>
-            </div>
-        );
-    }
-
-    const annivs = allUsers.filter(u => u.doj && new Date(u.doj).getDate() === date.getDate() && new Date(u.doj).getMonth() === date.getMonth() && new Date(u.doj).getFullYear() < date.getFullYear());
-    if (annivs.length > 0) {
-        const annivNames = annivs.map(u => u.name).join('\n');
-        events.push(
-            <div key={`anniv-${date.getTime()}`} className="calendar-event team" title={`Work Anniversaries:\n${annivNames}`} onClick={() => { setModalData({ title: 'Work Anniversaries Today', type: 'anniversary', list: annivs.map(u => u.name) }); setShowModal(true); }} style={{cursor: 'pointer'}}>
-                <i className="bi bi-stars" style={{fontSize: '12px', color: '#ffc107', marginRight: '4px'}}></i>
-                <span>{annivs.length} {annivs.length > 1 ? 'Anniversaries' : 'Anniversary'}</span>
-            </div>
-        );
-    }
-
-    const dayOfWeek = date.getDay();
-    if ((dayOfWeek === 0 || dayOfWeek === 6) && !hol) {
-        events.push(
-            <div key="weekoff" className="calendar-event" style={{background: '#f8f9fa', color: '#6c757d'}} title="Week Off (Saturday/Sunday)">
-                <i className="legend-dot" style={{background: '#6c757d'}}></i>
-                <span>Week Off</span>
-            </div>
-        );
-    }
-
     return events;
   };
 
@@ -220,22 +139,16 @@ export default function Calendar({ employeeProfile, currentUser }) {
               <section className="ed-hero" style={{ marginBottom: "25px" }}>
                 <div className="ed-hero-main">
                   <div className="ed-profile-avatar overflow-hidden">
-                    {dynamicAvatarUrl && !avatarError ? (
+                    {(employeeProfile?.profile_pic || employeeProfile?.avatar_url || profile?.profile_pic) ? (
                       <img
-                        src={dynamicAvatarUrl}
+                        src={/^https?:\/\//i.test(employeeProfile?.profile_pic || employeeProfile?.avatar_url || profile?.profile_pic)
+                          ? (employeeProfile?.profile_pic || employeeProfile?.avatar_url || profile?.profile_pic)
+                          : `${import.meta.env.VITE_API_URL || 'https://hrms-backend-5xo8.onrender.com'}/${(employeeProfile?.profile_pic || employeeProfile?.avatar_url || profile?.profile_pic).replace(/^\/+/, '')}`}
                         alt={profile?.preferred_name || profile?.first_name || "Employee"}
-                        onError={() => setAvatarError(true)}
                         style={{ width: "100%", height: "100%", objectFit: "cover" }}
                       />
                     ) : (
-                      <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", background: "linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)", color: "#fff", fontWeight: "700", fontSize: "28px" }}>
-                        {(profile?.preferred_name
-                          ? profile.preferred_name.slice(0, 2)
-                          : profile?.first_name
-                            ? `${profile.first_name[0]}${profile.last_name ? profile.last_name[0] : (profile.first_name[1] || "")}`
-                            : currentUser?.email?.slice(0, 2) || "EM"
-                        ).toUpperCase()}
-                      </div>
+                      <img src="https://i.pravatar.cc/150?img=12" alt={profile?.preferred_name || profile?.first_name || "Employee"} />
                     )}
                     <span className="ed-online-dot"></span>
                   </div>
@@ -359,10 +272,7 @@ export default function Calendar({ employeeProfile, currentUser }) {
                       </div>
 
                       <div className="calendar-legend">
-                        <span><i className="legend-dot holiday"></i> Holiday</span>
-                        <span><i className="legend-dot special"></i> Leave</span>
-                        <span><i className="legend-dot personal"></i> Birthday</span>
-                        <span><i className="legend-dot team"></i> Anniversary / Week Off</span>
+                        <span><i className="legend-dot holiday"></i> Public Holiday</span>
                       </div>
 
                       <div className="calendar-grid-view" style={{ minWidth: "650px" }}>

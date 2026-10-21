@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 
-const API_BASE = (import.meta.env.VITE_API_URL ? String(import.meta.env.VITE_API_URL).replace("f2ef", "fzef") : "https://hrms-backend-fzef.onrender.com");
+const API_BASE = import.meta.env.VITE_API_URL || "https://hrms-backend-5xo8.onrender.com";
 
 const TYPE_META = {
   laptop: { icon: "bi-laptop", cls: "laptop", label: "Laptop" },
@@ -151,15 +151,6 @@ export default function Assets({ currentUser, employeeProfile, embedded = false 
   const { employee, assets } = data;
   const fullName = employee ? `${employee.first_name || ""} ${employee.last_name || ""}`.trim() || user?.email : user?.email || "";
   const initials = fullName.split(/[\s@.]+/).filter(Boolean).slice(0, 2).map((p) => p[0].toUpperCase()).join("");
-  const [avatarError, setAvatarError] = useState(false);
-  const rawAvatar = employeeProfile?.profile_pic || employeeProfile?.avatar_url || employee?.profile_pic || employee?.avatar_url || "";
-  const dynamicAvatarUrl = rawAvatar
-    ? (/^(https?:\/\/|data:)/i.test(rawAvatar) ? rawAvatar : `${API_BASE}/${rawAvatar.replace(/^\/+/, '')}`)
-    : "";
-
-  useEffect(() => {
-    setAvatarError(false);
-  }, [rawAvatar]);
 
   const total = assets.length;
   const activeCount = assets.filter((a) => a.status === "Assigned").length;
@@ -249,11 +240,12 @@ export default function Assets({ currentUser, employeeProfile, embedded = false 
                     <div className={`esc-employee-bar${embedded ? " d-none" : ""}`}>
                         <div className="esc-employee-main">
                             <div className="esc-avatar overflow-hidden">
-                                {dynamicAvatarUrl && !avatarError ? (
+                                {(employeeProfile?.profile_pic || employeeProfile?.avatar_url) ? (
                                     <img
-                                        src={dynamicAvatarUrl}
+                                        src={/^https?:\/\//i.test(employeeProfile?.profile_pic || employeeProfile?.avatar_url)
+                                            ? (employeeProfile?.profile_pic || employeeProfile?.avatar_url)
+                                            : `${import.meta.env.VITE_API_URL || 'https://hrms-backend-5xo8.onrender.com'}/${(employeeProfile?.profile_pic || employeeProfile?.avatar_url).replace(/^\/+/, '')}`}
                                         alt={fullName}
-                                        onError={() => setAvatarError(true)}
                                         style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: "17px" }}
                                     />
                                 ) : (

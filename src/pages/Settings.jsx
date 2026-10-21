@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import CharacterOnlyInput from "../utils/CharacterOnlyInput";
 import IntegerOnlyInput from "../utils/IntegerOnlyInput";
 
-const API_BASE = (import.meta.env.VITE_API_URL ? String(import.meta.env.VITE_API_URL).replace("f2ef", "fzef") : "https://hrms-backend-fzef.onrender.com");
+const API_BASE = import.meta.env.VITE_API_URL || "https://hrms-backend-5xo8.onrender.com";
 const EDIT_TRIGGER_STYLE = {
     display: "inline-flex",
     alignItems: "center",
@@ -40,6 +40,7 @@ const EMPLOYEE_SHORTCUTS = [
     { id: "dashboard", label: "Employee Dashboard", description: "Your workspace overview", icon: "bi-grid", color: "blue" },
     { id: "apply-leave", label: "Apply Leave", description: "Request time off", icon: "bi-calendar-plus", color: "purple" },
     { id: "attendance", label: "Attendance", description: "View attendance", icon: "bi-calendar-check", color: "blue" },
+    // { id: "expenses", label: "Expenses & Claims", description: "Submit & track claims", icon: "bi-wallet2", color: "orange" },
     { id: "new-request", label: "New Request", description: "Contact HR / Admin", icon: "bi-send", color: "orange" },
     { id: "documents", label: "Documents", description: "My documents", icon: "bi-folder2-open", color: "green" },
     { id: "employment-details", label: "Employment Details", description: "View your job information", icon: "bi-briefcase", color: "orange" },
@@ -149,6 +150,7 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
         aadhaarNumber: "",
         panNumber: "",
         passportNumber: "",
+        drivingLicenseNumber: "",
         uanNumber: "",
         reason: "",
     });
@@ -318,15 +320,9 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
                 );
                 const data = await readApiResponse(response);
                 if (!response.ok) {
-                    if (response.status === 404) {
-                        setBankInfo({});
-                        setBankInfoError("");
-                        return;
-                    }
                     throw new Error(data.message || "Unable to load bank information.");
                 }
-                setBankInfo(data || {});
-                setBankInfoError("");
+                setBankInfo(data);
             } catch (error) {
                 setBankInfoError(error.message || "Unable to load bank information.");
             } finally {
@@ -351,15 +347,9 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
                 );
                 const data = await readApiResponse(response);
                 if (!response.ok) {
-                    if (response.status === 404) {
-                        setIdentityInfo({});
-                        setIdentityInfoError("");
-                        return;
-                    }
                     throw new Error(data.message || "Unable to load identity information.");
                 }
-                setIdentityInfo(data || {});
-                setIdentityInfoError("");
+                setIdentityInfo(data);
             } catch (error) {
                 setIdentityInfoError(error.message || "Unable to load identity information.");
             } finally {
@@ -398,15 +388,10 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
     }, [currentUser?.id]);
 
     const displayValue = (value) => value || "—";
-    const [avatarError, setAvatarError] = useState(false);
     const avatarUrl = personalInfo?.profile_pic || employeeProfile?.avatar_url || "";
     const employeeAvatar = avatarUrl
-        ? (/^(https?:\/\/|data:)/i.test(avatarUrl) ? avatarUrl : `${API_BASE}/${avatarUrl.replace(/^\/+/, "")}`)
+        ? (/^https?:\/\//i.test(avatarUrl) ? avatarUrl : `${API_BASE}/${avatarUrl.replace(/^\/+/, "")}`)
         : "";
-
-    useEffect(() => {
-        setAvatarError(false);
-    }, [avatarUrl]);
     const uploadProfilePicture = async (event) => {
         const file = event.target.files?.[0];
         if (!file) return;
@@ -439,7 +424,6 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
                 throw new Error(data.message || "Unable to upload profile picture.");
             }
             setPersonalInfo((current) => ({ ...(current || {}), profile_pic: data.profilePic }));
-            setAvatarError(false);
             if (typeof onProfileUpdate === "function") {
                 onProfileUpdate();
             }
@@ -808,7 +792,7 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
             ifscCode: info.ifsc_code || "",
             branchName: info.branch_name || "",
             accountType: info.account_type || "Savings",
-            reason: "",
+            reason: info.change_reason || "",
         });
         setBankEditFeedback("");
         setIsBankEditOpen(true);
@@ -834,6 +818,9 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
             ["Account Number", bankEditForm.accountNumber],
             ["Confirm Account Number", bankEditForm.confirmAccountNumber],
             ["IFSC Code", bankEditForm.ifscCode],
+            ["Branch Name", bankEditForm.branchName],
+            ["Account Type", bankEditForm.accountType],
+            ["Reason for Change", bankEditForm.reason],
         ];
         const missingFields = requiredFields
             .filter(([, value]) => !String(value ?? "").trim())
@@ -869,6 +856,7 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
                         ifscCode: bankEditForm.ifscCode,
                         branchName: bankEditForm.branchName,
                         accountType: bankEditForm.accountType,
+                        reason: bankEditForm.reason,
                     }),
                 }
             );
@@ -892,8 +880,9 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
             aadhaarNumber: identityInfo?.aadhaar_last_four ? `XXXX XXXX ${identityInfo.aadhaar_last_four}` : "",
             panNumber: identityInfo?.pan_number_masked || "",
             passportNumber: identityInfo?.passport_number_masked || "",
-            uanNumber: identityInfo?.uan_last_four ? `•••• •••• ${identityInfo.uan_last_four}` : "",
-            reason: "",
+            drivingLicenseNumber: identityInfo?.driving_license_masked || "",
+            uanNumber: "",
+            reason: identityInfo?.change_reason || "",
         });
         setIdentityEditTouched({});
         setIdentityEditFeedback("");
@@ -920,16 +909,13 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
         const panNumber = identityEditTouched.panNumber
             ? identityEditForm.panNumber.trim().toUpperCase()
             : "";
-        const passportNumber = identityEditTouched.passportNumber
-            ? identityEditForm.passportNumber.trim()
-            : "";
-        const uanNumber = identityEditTouched.uanNumber
-            ? identityEditForm.uanNumber.replace(/\D/g, "")
-            : "";
+        const missingFields = [
+            !aadhaarNumber && "Aadhaar Number",
+            !panNumber && "PAN Number",
+        ].filter(Boolean);
 
-        const hasAnyInput = aadhaarNumber || panNumber || passportNumber || uanNumber;
-        if (!hasAnyInput) {
-            setIdentityEditFeedback("Please enter at least one identity number (Aadhaar, PAN, Passport, or UAN).");
+        if (missingFields.length) {
+            setIdentityEditFeedback(`Please enter ${missingFields.join(" and ")}.`);
             return;
         }
 
@@ -949,8 +935,10 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
                     body: JSON.stringify({
                         aadhaarNumber,
                         panNumber,
-                        passportNumber,
-                        uanNumber,
+                        passportNumber: identityEditTouched.passportNumber ? identityEditForm.passportNumber : "",
+                        drivingLicenseNumber: identityEditTouched.drivingLicenseNumber ? identityEditForm.drivingLicenseNumber : "",
+                        uanNumber: identityEditTouched.uanNumber ? identityEditForm.uanNumber : "",
+                        reason: identityEditForm.reason,
                     }),
                 }
             );
@@ -1037,8 +1025,8 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
     
     <div className="es-profile-banner">
         <div className="es-profile-avatar">
-            {employeeAvatar && !avatarError
-                ? <img src={employeeAvatar} alt={`${employeeName} profile`} onError={() => setAvatarError(true)} style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: "23px" }} />
+            {employeeAvatar
+                ? <img src={employeeAvatar} alt={`${employeeName} profile`} style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: "23px" }} />
                 : <span>{employeeInitials}</span>}
             <input
                 ref={profilePictureInputRef}
@@ -1337,6 +1325,10 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
                         <strong>{displayValue(identityInfo?.passport_number_masked)}</strong>
                     </div>
                     <div className="es-info-item">
+                        <span>Driving License</span>
+                        <strong>{displayValue(identityInfo?.driving_license_masked)}</strong>
+                    </div>
+                    <div className="es-info-item">
                         <span>UAN Number</span>
                         <strong>{identityInfo?.uan_last_four ? `•••• •••• ${identityInfo.uan_last_four}` : "—"}</strong>
                     </div>
@@ -1517,10 +1509,10 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
                     {EMPLOYEE_SHORTCUTS.map((shortcut) => {
                         const isSelected = selectedShortcutIds.includes(shortcut.id);
                         return (
-                            <div className="col-xl-3 col-lg-3 col-md-4 col-6" key={shortcut.id}>
+                            <div className="col-xl-3 col-lg-3 col-md-4 col-6 d-flex" key={shortcut.id}>
                                 <button
                                     type="button"
-                                    className="ed-quick-card"
+                                    className="ed-quick-card flex-fill"
                                     aria-pressed={isSelected}
                                     disabled={shortcutSelectionsLoading || shortcutSelectionsSaving || !currentUser?.id}
                                     onClick={() => toggleShortcutSelection(shortcut.id)}
@@ -1935,6 +1927,10 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
                         <input id="identityEditPassport" className="form-control" name="passportNumber" value={identityEditForm.passportNumber} onFocus={focusIdentityNumberField} onChange={updateIdentityEditField} maxLength="30" placeholder="Enter passport number" />
                     </div>
                     <div className="col-12 col-md-6 es-edit-field">
+                        <label htmlFor="identityEditDrivingLicense">Driving License Number</label>
+                        <input id="identityEditDrivingLicense" className="form-control" name="drivingLicenseNumber" value={identityEditForm.drivingLicenseNumber} onFocus={focusIdentityNumberField} onChange={updateIdentityEditField} maxLength="30" placeholder="Enter driving license number" />
+                    </div>
+                    <div className="col-12 col-md-6 es-edit-field">
                         <label htmlFor="identityEditUan">UAN Number</label>
                         <input id="identityEditUan" type="text" inputMode="numeric" className="form-control" name="uanNumber" value={identityEditForm.uanNumber} onFocus={focusIdentityNumberField} onChange={updateIdentityEditField} maxLength="12" placeholder="Enter UAN number" />
                     </div>
@@ -1945,7 +1941,7 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
                 </div>
                 <div className="es-security-note mt-3">
                     <i className="bi bi-shield-lock"></i>
-                    <span>Identity details will require HR verification. Focus a masked number to replace it.</span>
+                    <span>Aadhaar and PAN are required. Passport, Driving License, UAN, and reason are optional. Focus a masked number to replace it.</span>
                 </div>
                 {identityEditFeedback && <p className="text-danger mt-3 mb-0" role="alert">{identityEditFeedback}</p>}
             </div>

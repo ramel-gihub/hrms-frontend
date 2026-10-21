@@ -1,11 +1,13 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 
-const API_BASE = (import.meta.env.VITE_API_URL ? String(import.meta.env.VITE_API_URL).replace("f2ef", "fzef") : "https://hrms-backend-fzef.onrender.com");
+const API_BASE = import.meta.env.VITE_API_URL || "https://hrms-backend-5xo8.onrender.com";
 
 const requestCategories = [
   "Attendance Correction",
   "Certificate Request",
   "Leave Request",
+  "Work From Home (WFH)",
+  // "Expenses & Claims",
   "Payroll Request",
   "Personal Information",
   "Asset Request",
@@ -37,6 +39,22 @@ const quickActions = [
     color: "green"
   },
   {
+    category: "Work From Home (WFH)",
+    title: "Work From Home",
+    description: "Apply for remote work or work from home days",
+    icon: "bi-house-door",
+    color: "purple"
+  },
+  /*
+  {
+    category: "Expenses & Claims",
+    title: "Expenses & Claims",
+    description: "Submit travel, bills or expense claims",
+    icon: "bi-wallet2",
+    color: "orange"
+  },
+  */
+  {
     category: "Payroll Request",
     title: "Payroll & Salary",
     description: "Salary slips, payroll and payment queries",
@@ -59,7 +77,11 @@ const quickActions = [
   }
 ];
 
-const statusClass = (status) => (status === "In Review" ? "review" : status.toLowerCase());
+const statusClass = (status) => {
+  if (status === "In Review") return "review";
+  if (status === "Settled") return "completed";
+  return status ? status.toLowerCase() : "pending";
+};
 
 const statusIcon = (status) => {
   switch (status) {
@@ -70,6 +92,7 @@ const statusIcon = (status) => {
     case "Approved":
       return "bi-check2";
     case "Completed":
+    case "Settled":
       return "bi-check2-circle";
     default:
       return "bi-x-circle";
@@ -79,6 +102,12 @@ const statusIcon = (status) => {
 const categoryStyle = (category) => {
   const action = quickActions.find((item) => item.category === category);
   if (action) return { color: action.color, icon: action.icon };
+  if (category === "Work From Home (WFH)" || category === "WFH Request" || category === "WFH") {
+    return { color: "purple", icon: "bi-house-door" };
+  }
+  if (category === "Expenses & Claims" || category === "Expenses") {
+    return { color: "orange", icon: "bi-wallet2" };
+  }
   if (category === "Access & Accounts") {
     return { color: "purple", icon: "bi-shield-lock" };
   }
@@ -102,7 +131,14 @@ const emptyForm = {
   leaveTypeId: "",
   approverId: "",
   startDate: "",
-  endDate: ""
+  endDate: "",
+  isHalfDay: false,
+  halfDayPeriod: "First Half",
+  expenseCategory: "Travel & Cab",
+  claimAmount: "",
+  merchantName: "",
+  expenseDate: new Date().toISOString().split("T")[0],
+  wfhContact: "" 
 };
 
 const mapRequest = (request) => {
@@ -117,8 +153,14 @@ const mapRequest = (request) => {
     }),
     submitted: `Submitted ${request.request_date || ""}`.trim(),
     response: request.preferred_response || "Portal Notification",
-    assignedTo: request.assigned_to || "Pending assignment",
-    attachment: request.attachment_name || "",
+    assignedTo: request.assigned_to || (request.source_type === "expense" ? "Finance / Accounts" : "Pending assignment"),
+    attachment: request.attachment_name || request.receipt_filename || "",
+    receipt_url: request.receipt_url || "",
+    receipt_filename: request.receipt_filename || "",
+    claim_amount: request.claim_amount,
+    expense_category: request.expense_category,
+    merchant_name: request.merchant_name,
+    expense_date: request.expense_date,
     icon: style.icon,
     color: style.color
   };
@@ -131,15 +173,6 @@ export default function EmployeeRequests({ employeeProfile, currentUser }) {
   const lastName = profile.last_name || currentUser?.last_name || "Name";
   const employeeName = `${firstName} ${lastName}`.trim();
   const initials = `${firstName[0] || ""}${lastName[0] || ""}`.toUpperCase();
-  const [avatarError, setAvatarError] = useState(false);
-  const rawAvatar = employeeProfile?.profile_pic || employeeProfile?.avatar_url || profile?.profile_pic || profile?.avatar_url || "";
-  const dynamicAvatarUrl = rawAvatar
-    ? (/^(https?:\/\/|data:)/i.test(rawAvatar) ? rawAvatar : `${(import.meta.env.VITE_API_URL ? String(import.meta.env.VITE_API_URL).replace("f2ef", "fzef") : "https://hrms-backend-fzef.onrender.com")}/${rawAvatar.replace(/^\/+/, '')}`)
-    : "";
-
-  useEffect(() => {
-    setAvatarError(false);
-  }, [rawAvatar]);
 
   const [requests, setRequests] = useState([]);
   const [leaveTypes, setLeaveTypes] = useState([]);
@@ -388,7 +421,20 @@ export default function EmployeeRequests({ employeeProfile, currentUser }) {
           leaveTypeId: form.leaveTypeId,
           approverId: form.approverId,
           startDate: form.startDate,
-          endDate: form.endDate
+          endDate: form.isHalfDay ? form.startDate : form.endDate,
+          isHalfDay: form.isHalfDay,
+          halfDayPeriod: form.halfDayPeriod || "First Half"
+        }),
+        ...(form.category === "Work From Home (WFH)" && {
+          startDate: form.startDate,
+          endDate: form.endDate || form.startDate,
+          wfhContact: form.wfhContact || null
+        }),
+        ...(form.category === "Expenses & Claims" && {
+          claimAmount: form.claimAmount,
+          expenseCategory: form.expenseCategory,
+          merchantName: form.merchantName,
+          expenseDate: form.expenseDate
         })
       });
       setForm(emptyForm);
@@ -403,9 +449,9 @@ export default function EmployeeRequests({ employeeProfile, currentUser }) {
 
   const handleAttachmentChange = (event) => {
     const file = event.target.files?.[0] || null;
-    if (file && file.size > 5 * 1024 * 1024) {
+    if (file && file.size > 500 * 1024) {
       setAttachment(null);
-      setFileError("Choose a file smaller than 5 MB.");
+      setFileError("File size exceeds 500 KB limit. Please select a smaller file.");
       event.target.value = "";
       return;
     }
@@ -487,11 +533,12 @@ export default function EmployeeRequests({ employeeProfile, currentUser }) {
             <section className="esc-employee-bar" aria-label="Employee profile">
               <div className="esc-employee-main">
                 <div className="esc-avatar overflow-hidden">
-                  {dynamicAvatarUrl && !avatarError ? (
+                  {(employeeProfile?.profile_pic || employeeProfile?.avatar_url || profile?.profile_pic) ? (
                     <img
-                      src={dynamicAvatarUrl}
+                      src={/^https?:\/\//i.test(employeeProfile?.profile_pic || employeeProfile?.avatar_url || profile?.profile_pic)
+                        ? (employeeProfile?.profile_pic || employeeProfile?.avatar_url || profile?.profile_pic)
+                        : `${import.meta.env.VITE_API_URL || 'https://hrms-backend-5xo8.onrender.com'}/${(employeeProfile?.profile_pic || employeeProfile?.avatar_url || profile?.profile_pic).replace(/^\/+/, '')}`}
                       alt={employeeName}
-                      onError={() => setAvatarError(true)}
                       style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: "17px" }}
                     />
                   ) : (
@@ -804,7 +851,7 @@ export default function EmployeeRequests({ employeeProfile, currentUser }) {
         aria-labelledby="raise-request-title"
         aria-hidden="true"
       >
-        <div className="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable request-modal-dialog">
+        <div className="modal-dialog modal-dialog-centered modal-dialog-scrollable request-modal-dialog">
           <section className="modal-content request-modal">
             <header className="request-modal-header">
               <div>
@@ -949,24 +996,198 @@ export default function EmployeeRequests({ employeeProfile, currentUser }) {
                           ))}
                         </select>
                       </div>
+                      <div className="request-form-group full">
+                        <div className="d-flex align-items-center justify-content-between p-2 rounded-2" style={{ background: '#f8fafc', border: '1px solid #e2e8f0' }}>
+                          <label className="form-check-label d-flex align-items-center gap-2 mb-0 fw-semibold text-dark" style={{ cursor: 'pointer', fontSize: '13px' }}>
+                            <input
+                              type="checkbox"
+                              className="form-check-input mt-0"
+                              style={{ width: '16px', height: '16px', cursor: 'pointer' }}
+                              checked={form.isHalfDay || false}
+                              onChange={(e) => {
+                                const checked = e.target.checked;
+                                setForm(prev => ({
+                                  ...prev,
+                                  isHalfDay: checked,
+                                  endDate: checked ? prev.startDate : prev.endDate,
+                                  halfDayPeriod: prev.halfDayPeriod || 'First Half'
+                                }));
+                              }}
+                            />
+                            Apply for Half Day
+                          </label>
+                          {form.isHalfDay && (
+                            <div className="d-flex align-items-center gap-1.5">
+                              <span className="text-muted" style={{ fontSize: '12px' }}>Period:</span>
+                              <div className="btn-group btn-group-sm" role="group">
+                                <button
+                                  type="button"
+                                  className={`btn btn-sm ${form.halfDayPeriod === 'First Half' ? 'btn-primary' : 'btn-outline-secondary'}`}
+                                  style={{ fontSize: '11.5px', padding: '2px 8px', fontWeight: form.halfDayPeriod === 'First Half' ? '600' : '400' }}
+                                  onClick={() => setForm(prev => ({ ...prev, halfDayPeriod: 'First Half' }))}
+                                >
+                                  1st Half (Morning)
+                                </button>
+                                <button
+                                  type="button"
+                                  className={`btn btn-sm ${form.halfDayPeriod === 'Second Half' ? 'btn-primary' : 'btn-outline-secondary'}`}
+                                  style={{ fontSize: '11.5px', padding: '2px 8px', fontWeight: form.halfDayPeriod === 'Second Half' ? '600' : '400' }}
+                                  onClick={() => setForm(prev => ({ ...prev, halfDayPeriod: 'Second Half' }))}
+                                >
+                                  2nd Half (Afternoon)
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
                       <div className="request-form-group">
-                        <label htmlFor="request-start-date">From Date</label>
+                        <label htmlFor="request-start-date">{form.isHalfDay ? "Date" : "From Date"}</label>
                         <input
                           id="request-start-date"
                           type="date"
                           value={form.startDate}
-                          onChange={(event) => setForm({ ...form, startDate: event.target.value })}
+                          onChange={(event) => {
+                            const val = event.target.value;
+                            setForm(prev => ({
+                              ...prev,
+                              startDate: val,
+                              ...(prev.isHalfDay ? { endDate: val } : {})
+                            }));
+                          }}
+                          required
+                        />
+                      </div>
+                      {!form.isHalfDay ? (
+                        <div className="request-form-group">
+                          <label htmlFor="request-end-date">To Date</label>
+                          <input
+                            id="request-end-date"
+                            type="date"
+                            min={form.startDate || undefined}
+                            value={form.endDate}
+                            onChange={(event) => setForm({ ...form, endDate: event.target.value })}
+                            required
+                          />
+                        </div>
+                      ) : (
+                        <div className="request-form-group">
+                          <label>Duration</label>
+                          <input
+                            type="text"
+                            readOnly
+                            value={`0.50 Day · ${form.halfDayPeriod === 'Second Half' ? '2nd Half' : '1st Half'}`}
+                            style={{ backgroundColor: '#f8fafc', fontWeight: '500', color: '#4338ca' }}
+                          />
+                        </div>
+                      )}
+                    </>
+                  )}
+                  {form.category === "Work From Home (WFH)" && (
+                    <>
+                      <div className="request-form-group">
+                        <label htmlFor="wfh-start-date">From Date <span className="text-danger">*</span></label>
+                        <input
+                          id="wfh-start-date"
+                          type="date"
+                          value={form.startDate}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setForm(prev => ({
+                              ...prev,
+                              startDate: val,
+                              endDate: prev.endDate && prev.endDate >= val ? prev.endDate : val
+                            }));
+                          }}
                           required
                         />
                       </div>
                       <div className="request-form-group">
-                        <label htmlFor="request-end-date">To Date</label>
+                        <label htmlFor="wfh-end-date">To Date <span className="text-danger">*</span></label>
                         <input
-                          id="request-end-date"
+                          id="wfh-end-date"
                           type="date"
                           min={form.startDate || undefined}
-                          value={form.endDate}
-                          onChange={(event) => setForm({ ...form, endDate: event.target.value })}
+                          value={form.endDate || form.startDate}
+                          onChange={(e) => setForm({ ...form, endDate: e.target.value })}
+                          required
+                        />
+                      </div>
+                      <div className="request-form-group">
+                        <label htmlFor="wfh-days-display">Total WFH Days</label>
+                        <input
+                          id="wfh-days-display"
+                          type="text"
+                          readOnly
+                          style={{ backgroundColor: '#f8fafc', fontWeight: '600', color: '#4e36f5' }}
+                          value={
+                            form.startDate
+                              ? `${Math.max(1, Math.floor((new Date(form.endDate || form.startDate) - new Date(form.startDate)) / 86400000) + 1)} Day(s)`
+                              : '--'
+                          }
+                        />
+                      </div>
+                      <div className="request-form-group">
+                        <label htmlFor="wfh-contact">Contact Phone during WFH</label>
+                        <input
+                          id="wfh-contact"
+                          type="tel"
+                          placeholder="e.g. +91 98765 43210"
+                          value={form.wfhContact || ""}
+                          onChange={(e) => setForm({ ...form, wfhContact: e.target.value })}
+                        />
+                      </div>
+                    </>
+                  )}
+                  {form.category === "Expenses & Claims" && (
+                    <>
+                      <div className="request-form-group">
+                        <label htmlFor="request-expense-category">Expense Category</label>
+                        <select
+                          id="request-expense-category"
+                          value={form.expenseCategory || "Travel & Cab"}
+                          onChange={(event) => setForm({ ...form, expenseCategory: event.target.value })}
+                          required
+                        >
+                          <option value="Travel & Cab">Travel & Cab</option>
+                          <option value="Food & Meals">Food & Meals</option>
+                          <option value="Internet / Mobile">Internet / Mobile</option>
+                          <option value="Office Supplies">Office Supplies</option>
+                          <option value="Certification Fees">Certification Fees</option>
+                        </select>
+                      </div>
+                      <div className="request-form-group">
+                        <label htmlFor="request-claim-amount">Claim Amount (₹)</label>
+                        <input
+                          id="request-claim-amount"
+                          type="number"
+                          step="0.01"
+                          min="0.01"
+                          placeholder="e.g. 1500.00"
+                          value={form.claimAmount || ""}
+                          onChange={(event) => setForm({ ...form, claimAmount: event.target.value })}
+                          required
+                        />
+                      </div>
+                      <div className="request-form-group">
+                        <label htmlFor="request-merchant-name">Merchant / Vendor Name</label>
+                        <input
+                          id="request-merchant-name"
+                          type="text"
+                          placeholder="e.g. Uber, Airtel, Crossword"
+                          value={form.merchantName || ""}
+                          onChange={(event) => setForm({ ...form, merchantName: event.target.value })}
+                          required
+                        />
+                      </div>
+                      <div className="request-form-group">
+                        <label htmlFor="request-expense-date">Expense Date</label>
+                        <input
+                          id="request-expense-date"
+                          type="date"
+                          max={new Date().toISOString().split("T")[0]}
+                          value={form.expenseDate || ""}
+                          onChange={(event) => setForm({ ...form, expenseDate: event.target.value })}
                           required
                         />
                       </div>
@@ -1019,7 +1240,7 @@ export default function EmployeeRequests({ employeeProfile, currentUser }) {
                       />
                       <i className="bi bi-cloud-arrow-up" aria-hidden="true"></i>
                       <strong>{attachment ? attachment.name : "Click to upload a file"}</strong>
-                      <span>PDF, JPG, PNG or DOCX · Maximum 5 MB</span>
+                      <span>PDF, JPG, PNG or DOCX · Maximum 500 KB</span>
                     </label>
                     {fileError && <span className="request-file-error" role="alert">{fileError}</span>}
                   </div>
@@ -1115,8 +1336,26 @@ export default function EmployeeRequests({ employeeProfile, currentUser }) {
                   {selectedRequest.leave_type && (
                     <>
                       <div><span>Leave Type</span><strong>{selectedRequest.leave_type}</strong></div>
-                      <div><span>Leave Dates</span><strong>{selectedRequest.start_date} – {selectedRequest.end_date}</strong></div>
-                      <div><span>Days Requested</span><strong>{selectedRequest.days_requested}</strong></div>
+                      <div><span>Leave Dates</span><strong>{selectedRequest.start_date}{selectedRequest.is_half_day ? "" : ` – ${selectedRequest.end_date}`}</strong></div>
+                      <div><span>Days Requested</span><strong>{selectedRequest.is_half_day ? `0.50 Day (${selectedRequest.half_day_period === 'Second Half' ? '2nd Half' : '1st Half'})` : `${selectedRequest.days_requested} Day(s)`}</strong></div>
+                    </>
+                  )}
+                  {(selectedRequest.category === "Work From Home (WFH)" || selectedRequest.wfh_start_date) && (
+                    <>
+                      <div><span>Request Type</span><strong>Work From Home (WFH)</strong></div>
+                      <div>
+                        <span>WFH Date(s)</span>
+                        <strong>
+                          {selectedRequest.wfh_start_date
+                            ? (selectedRequest.wfh_start_date === selectedRequest.wfh_end_date || !selectedRequest.wfh_end_date
+                                ? new Date(selectedRequest.wfh_start_date).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })
+                                : `${new Date(selectedRequest.wfh_start_date).toLocaleDateString("en-GB", { day: "2-digit", month: "short" })} – ${new Date(selectedRequest.wfh_end_date).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}`)
+                            : "--"}
+                        </strong>
+                      </div>
+                      {selectedRequest.wfh_contact && (
+                        <div><span>Contact Phone</span><strong>{selectedRequest.wfh_contact}</strong></div>
+                      )}
                     </>
                   )}
                   {selectedRequest.asset_type && (
@@ -1135,6 +1374,43 @@ export default function EmployeeRequests({ employeeProfile, currentUser }) {
                   )}
                   {selectedRequest.attachment && (
                     <div><span>Attachment</span><strong>{selectedRequest.attachment}</strong></div>
+                  )}
+                  {(selectedRequest.claim_amount || selectedRequest.category === "Expenses & Claims") && (
+                    <>
+                      {selectedRequest.claim_amount && (
+                        <div>
+                          <span>Claim Amount</span>
+                          <strong style={{ color: "#16a34a", fontWeight: "700" }}>
+                            ₹{parseFloat(selectedRequest.claim_amount).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </strong>
+                        </div>
+                      )}
+                      {selectedRequest.expense_category && (
+                        <div><span>Expense Category</span><strong>{selectedRequest.expense_category}</strong></div>
+                      )}
+                      {selectedRequest.merchant_name && (
+                        <div><span>Merchant / Store</span><strong>{selectedRequest.merchant_name}</strong></div>
+                      )}
+                      {selectedRequest.expense_date && (
+                        <div><span>Expense Date</span><strong>{selectedRequest.expense_date}</strong></div>
+                      )}
+                      {selectedRequest.receipt_url && (
+                        <div>
+                          <span>Receipt Document</span>
+                          <strong>
+                            <a
+                              href={selectedRequest.receipt_url.startsWith('http') ? selectedRequest.receipt_url : `${API_BASE}${selectedRequest.receipt_url}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              style={{ color: "#4e36f5", textDecoration: "none", fontWeight: 600 }}
+                            >
+                              <i className="bi bi-paperclip me-1"></i>
+                              {selectedRequest.receipt_filename || "View Receipt"}
+                            </a>
+                          </strong>
+                        </div>
+                      )}
+                    </>
                   )}
                 </div>
                 {selectedRequest.admin_remarks && (
