@@ -150,7 +150,6 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
         aadhaarNumber: "",
         panNumber: "",
         passportNumber: "",
-        drivingLicenseNumber: "",
         uanNumber: "",
         reason: "",
     });
@@ -320,9 +319,15 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
                 );
                 const data = await readApiResponse(response);
                 if (!response.ok) {
+                    if (response.status === 404) {
+                        setBankInfo({});
+                        setBankInfoError("");
+                        return;
+                    }
                     throw new Error(data.message || "Unable to load bank information.");
                 }
-                setBankInfo(data);
+                setBankInfo(data || {});
+                setBankInfoError("");
             } catch (error) {
                 setBankInfoError(error.message || "Unable to load bank information.");
             } finally {
@@ -347,9 +352,15 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
                 );
                 const data = await readApiResponse(response);
                 if (!response.ok) {
+                    if (response.status === 404) {
+                        setIdentityInfo({});
+                        setIdentityInfoError("");
+                        return;
+                    }
                     throw new Error(data.message || "Unable to load identity information.");
                 }
-                setIdentityInfo(data);
+                setIdentityInfo(data || {});
+                setIdentityInfoError("");
             } catch (error) {
                 setIdentityInfoError(error.message || "Unable to load identity information.");
             } finally {
@@ -792,7 +803,7 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
             ifscCode: info.ifsc_code || "",
             branchName: info.branch_name || "",
             accountType: info.account_type || "Savings",
-            reason: info.change_reason || "",
+            reason: "",
         });
         setBankEditFeedback("");
         setIsBankEditOpen(true);
@@ -818,9 +829,6 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
             ["Account Number", bankEditForm.accountNumber],
             ["Confirm Account Number", bankEditForm.confirmAccountNumber],
             ["IFSC Code", bankEditForm.ifscCode],
-            ["Branch Name", bankEditForm.branchName],
-            ["Account Type", bankEditForm.accountType],
-            ["Reason for Change", bankEditForm.reason],
         ];
         const missingFields = requiredFields
             .filter(([, value]) => !String(value ?? "").trim())
@@ -856,7 +864,6 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
                         ifscCode: bankEditForm.ifscCode,
                         branchName: bankEditForm.branchName,
                         accountType: bankEditForm.accountType,
-                        reason: bankEditForm.reason,
                     }),
                 }
             );
@@ -880,9 +887,8 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
             aadhaarNumber: identityInfo?.aadhaar_last_four ? `XXXX XXXX ${identityInfo.aadhaar_last_four}` : "",
             panNumber: identityInfo?.pan_number_masked || "",
             passportNumber: identityInfo?.passport_number_masked || "",
-            drivingLicenseNumber: identityInfo?.driving_license_masked || "",
-            uanNumber: "",
-            reason: identityInfo?.change_reason || "",
+            uanNumber: identityInfo?.uan_last_four ? `•••• •••• ${identityInfo.uan_last_four}` : "",
+            reason: "",
         });
         setIdentityEditTouched({});
         setIdentityEditFeedback("");
@@ -909,13 +915,16 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
         const panNumber = identityEditTouched.panNumber
             ? identityEditForm.panNumber.trim().toUpperCase()
             : "";
-        const missingFields = [
-            !aadhaarNumber && "Aadhaar Number",
-            !panNumber && "PAN Number",
-        ].filter(Boolean);
+        const passportNumber = identityEditTouched.passportNumber
+            ? identityEditForm.passportNumber.trim()
+            : "";
+        const uanNumber = identityEditTouched.uanNumber
+            ? identityEditForm.uanNumber.replace(/\D/g, "")
+            : "";
 
-        if (missingFields.length) {
-            setIdentityEditFeedback(`Please enter ${missingFields.join(" and ")}.`);
+        const hasAnyInput = aadhaarNumber || panNumber || passportNumber || uanNumber;
+        if (!hasAnyInput) {
+            setIdentityEditFeedback("Please enter at least one identity number (Aadhaar, PAN, Passport, or UAN).");
             return;
         }
 
@@ -935,10 +944,8 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
                     body: JSON.stringify({
                         aadhaarNumber,
                         panNumber,
-                        passportNumber: identityEditTouched.passportNumber ? identityEditForm.passportNumber : "",
-                        drivingLicenseNumber: identityEditTouched.drivingLicenseNumber ? identityEditForm.drivingLicenseNumber : "",
-                        uanNumber: identityEditTouched.uanNumber ? identityEditForm.uanNumber : "",
-                        reason: identityEditForm.reason,
+                        passportNumber,
+                        uanNumber,
                     }),
                 }
             );
@@ -1323,10 +1330,6 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
                     <div className="es-info-item">
                         <span>Passport Number</span>
                         <strong>{displayValue(identityInfo?.passport_number_masked)}</strong>
-                    </div>
-                    <div className="es-info-item">
-                        <span>Driving License</span>
-                        <strong>{displayValue(identityInfo?.driving_license_masked)}</strong>
                     </div>
                     <div className="es-info-item">
                         <span>UAN Number</span>
@@ -1927,10 +1930,6 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
                         <input id="identityEditPassport" className="form-control" name="passportNumber" value={identityEditForm.passportNumber} onFocus={focusIdentityNumberField} onChange={updateIdentityEditField} maxLength="30" placeholder="Enter passport number" />
                     </div>
                     <div className="col-12 col-md-6 es-edit-field">
-                        <label htmlFor="identityEditDrivingLicense">Driving License Number</label>
-                        <input id="identityEditDrivingLicense" className="form-control" name="drivingLicenseNumber" value={identityEditForm.drivingLicenseNumber} onFocus={focusIdentityNumberField} onChange={updateIdentityEditField} maxLength="30" placeholder="Enter driving license number" />
-                    </div>
-                    <div className="col-12 col-md-6 es-edit-field">
                         <label htmlFor="identityEditUan">UAN Number</label>
                         <input id="identityEditUan" type="text" inputMode="numeric" className="form-control" name="uanNumber" value={identityEditForm.uanNumber} onFocus={focusIdentityNumberField} onChange={updateIdentityEditField} maxLength="12" placeholder="Enter UAN number" />
                     </div>
@@ -1941,7 +1940,7 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
                 </div>
                 <div className="es-security-note mt-3">
                     <i className="bi bi-shield-lock"></i>
-                    <span>Aadhaar and PAN are required. Passport, Driving License, UAN, and reason are optional. Focus a masked number to replace it.</span>
+                    <span>Identity details will require HR verification. Focus a masked number to replace it.</span>
                 </div>
                 {identityEditFeedback && <p className="text-danger mt-3 mb-0" role="alert">{identityEditFeedback}</p>}
             </div>
