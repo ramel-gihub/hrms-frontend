@@ -349,12 +349,13 @@ export default function App() {
         try {
           const empList = await adminRes.json();
           if (Array.isArray(empList)) {
-            const matched = empList.find(
-              (e) =>
-                (e.email && currentUser.email && e.email.toLowerCase() === currentUser.email.toLowerCase()) ||
-                Number(e.id) === Number(currentUser.id) ||
-                Number(e.user_id) === Number(currentUser.id)
-            );
+            const matched =
+              empList.find(
+                (e) => e.email && currentUser.email && e.email.toLowerCase() === currentUser.email.toLowerCase()
+              ) ||
+              empList.find(
+                (e) => Number(e.user_id) === Number(currentUser.id)
+              );
             if (matched) {
               const nameParts = (matched.full_name || '').trim().split(' ');
               profileData = {
@@ -517,6 +518,7 @@ export default function App() {
     localStorage.removeItem('hrms_user');
 
     setCurrentUser(null);
+    setEmployeeProfile(null);
     setEmployees([]);
     setLoginEmail('');
     setLoginPassword('');
