@@ -51,7 +51,9 @@ export default function EmployeeTemplate({
   const [selectedShortcutIds, setSelectedShortcutIds] = useState([]);
   const [shortcutsLoading, setShortcutsLoading] = useState(true);
 
-  const API_BASE = import.meta.env.VITE_API_URL || "https://hrms-backend-5xo8.onrender.com";
+  const API_BASE = (import.meta.env.VITE_API_URL && !import.meta.env.VITE_API_URL.includes('f2ef'))
+    ? import.meta.env.VITE_API_URL
+    : "https://hrms-backend-5xo8.onrender.com";
   const rawAvatar = employeeProfile?.profile_pic || employeeProfile?.avatar_url || "";
   const dynamicAvatarUrl = rawAvatar
     ? (/^https?:\/\//i.test(rawAvatar) ? rawAvatar : `${API_BASE}/${rawAvatar.replace(/^\/+/, "")}`)
@@ -71,8 +73,7 @@ export default function EmployeeTemplate({
   useEffect(() => {
     const targetId = currentUser?.id || employeeProfile?.employee_id;
     if (!targetId) return;
-    const API_URL = import.meta.env.VITE_API_URL || 'https://hrms-backend-5xo8.onrender.com';
-    fetch(`${API_URL}/api/attendance/today/${targetId}`)
+    fetch(`${API_BASE}/api/attendance/today/${targetId}`)
       .then(res => res.json())
       .then(data => {
         if (data?.today?.work_mode) {
