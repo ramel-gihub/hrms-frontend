@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { jsPDF } from "jspdf";
 
-const API_BASE = import.meta.env.VITE_API_URL || "https://hrms-backend-5xo8.onrender.com";
+const API_BASE = import.meta.env.VITE_API_URL || "https://hrms-backend-f2ef.onrender.com";
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const DAY_MS = 24 * 60 * 60 * 1000;
 

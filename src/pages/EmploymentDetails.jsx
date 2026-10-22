@@ -18,7 +18,7 @@ export default function EmploymentDetails({ employeeProfile, currentUser, onProf
   useEffect(() => {
     const targetId = currentUser?.id || profile?.employee_id;
     if (!targetId) return;
-    const API_URL = import.meta.env.VITE_API_URL || "https://hrms-backend-5xo8.onrender.com";
+    const API_URL = import.meta.env.VITE_API_URL || "https://hrms-backend-f2ef.onrender.com";
     fetch(`${API_URL}/api/attendance/today/${targetId}`)
       .then(res => res.json())
       .then(data => {
@@ -74,7 +74,7 @@ export default function EmploymentDetails({ employeeProfile, currentUser, onProf
     if (!empId) return;
 
     setLoadingPayslips(true);
-    fetch(`${import.meta.env.VITE_API_URL || "https://hrms-backend-5xo8.onrender.com"}/api/employee/payslips/${empId}?financialYear=${selectedFY}`)
+    fetch(`${import.meta.env.VITE_API_URL || "https://hrms-backend-f2ef.onrender.com"}/api/employee/payslips/${empId}?financialYear=${selectedFY}`)
       .then(res => res.json())
       .then(data => {
         if (data && Array.isArray(data.payslips)) {
@@ -156,7 +156,7 @@ export default function EmploymentDetails({ employeeProfile, currentUser, onProf
     setWorkMode(mode);
     setUpdating(true);
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL || "https://hrms-backend-5xo8.onrender.com"}/api/employee/${targetId}/work-mode`, {
+      const response = await fetch(`${import.meta.env.VITE_API_URL || "https://hrms-backend-f2ef.onrender.com"}/api/employee/${targetId}/work-mode`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ work_mode: mode })
@@ -308,7 +308,7 @@ export default function EmploymentDetails({ employeeProfile, currentUser, onProf
                           <img
                             src={/^https?:\/\//i.test(employeeProfile?.profile_pic || employeeProfile?.avatar_url || profile?.profile_pic)
                               ? (employeeProfile?.profile_pic || employeeProfile?.avatar_url || profile?.profile_pic)
-                              : `${import.meta.env.VITE_API_URL || 'https://hrms-backend-5xo8.onrender.com'}/${(employeeProfile?.profile_pic || employeeProfile?.avatar_url || profile?.profile_pic).replace(/^\/+/, '')}`}
+                              : `${import.meta.env.VITE_API_URL || 'https://hrms-backend-f2ef.onrender.com'}/${(employeeProfile?.profile_pic || employeeProfile?.avatar_url || profile?.profile_pic).replace(/^\/+/, '')}`}
                             alt="Employee"
                             style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: "17px" }}
                           />

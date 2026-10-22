@@ -17,7 +17,7 @@ export default function Calendar({ employeeProfile, currentUser }) {
     const eid = profile.employee_id || 1;
 
     // Fetch Employees (for birthdays and anniversaries)
-    fetch(`${import.meta.env.VITE_API_URL || "https://hrms-backend-5xo8.onrender.com"}/api/admin/employees?orgId=1`)
+    fetch(`${import.meta.env.VITE_API_URL || "https://hrms-backend-f2ef.onrender.com"}/api/admin/employees?orgId=1`)
         .then(res => res.json())
         .then(data => {
             if (Array.isArray(data)) {
@@ -33,7 +33,7 @@ export default function Calendar({ employeeProfile, currentUser }) {
 
     if (uid) {
         // Fetch Holidays (the widgets endpoint still returns allHolidays safely)
-        fetch(`${import.meta.env.VITE_API_URL || "https://hrms-backend-5xo8.onrender.com"}/api/dashboard/widgets/${uid}`)
+        fetch(`${import.meta.env.VITE_API_URL || "https://hrms-backend-f2ef.onrender.com"}/api/dashboard/widgets/${uid}`)
             .then(res => res.json())
             .then(data => {
                 if (data.allHolidays) {
@@ -48,7 +48,7 @@ export default function Calendar({ employeeProfile, currentUser }) {
             .catch(console.error);
 
         // Fetch Leaves using UID (backend expects user_id for /api/leaves/data/)
-        fetch(`${import.meta.env.VITE_API_URL || "https://hrms-backend-5xo8.onrender.com"}/api/leaves/data/${uid}`)
+        fetch(`${import.meta.env.VITE_API_URL || "https://hrms-backend-f2ef.onrender.com"}/api/leaves/data/${uid}`)
             .then(res => res.json())
             .then(data => {
                 if (data.requests) {
@@ -143,7 +143,7 @@ export default function Calendar({ employeeProfile, currentUser }) {
                       <img
                         src={/^https?:\/\//i.test(employeeProfile?.profile_pic || employeeProfile?.avatar_url || profile?.profile_pic)
                           ? (employeeProfile?.profile_pic || employeeProfile?.avatar_url || profile?.profile_pic)
-                          : `${import.meta.env.VITE_API_URL || 'https://hrms-backend-5xo8.onrender.com'}/${(employeeProfile?.profile_pic || employeeProfile?.avatar_url || profile?.profile_pic).replace(/^\/+/, '')}`}
+                          : `${import.meta.env.VITE_API_URL || 'https://hrms-backend-f2ef.onrender.com'}/${(employeeProfile?.profile_pic || employeeProfile?.avatar_url || profile?.profile_pic).replace(/^\/+/, '')}`}
                         alt={profile?.preferred_name || profile?.first_name || "Employee"}
                         style={{ width: "100%", height: "100%", objectFit: "cover" }}
                       />

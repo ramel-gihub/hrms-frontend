@@ -25,11 +25,11 @@ export default function Attendance({ currentUser, employeeProfile, onNavigate, e
     const fetchReport = async () => {
       try {
         setLoading(true);
-        const res = await fetch(`${import.meta.env.VITE_API_URL || "https://hrms-backend-5xo8.onrender.com"}/api/attendance/page/${currentUser.id}?month=${month}`);
+        const res = await fetch(`${import.meta.env.VITE_API_URL || "https://hrms-backend-f2ef.onrender.com"}/api/attendance/page/${currentUser.id}?month=${month}`);
         const data = await res.json();
         setReport(data);
         // Fetch attendance corrections
-        fetch(`${import.meta.env.VITE_API_URL || "https://hrms-backend-5xo8.onrender.com"}/api/attendance/corrections/${currentUser.id}`)
+        fetch(`${import.meta.env.VITE_API_URL || "https://hrms-backend-f2ef.onrender.com"}/api/attendance/corrections/${currentUser.id}`)
           .then(r => r.json())
           .then(cData => { if (cData && cData.corrections) setCorrections(cData.corrections); })
           .catch(console.error);
@@ -263,7 +263,7 @@ export default function Attendance({ currentUser, employeeProfile, onNavigate, e
       <img
         src={/^https?:\/\//i.test(employeeProfile?.profile_pic || employeeProfile?.avatar_url)
           ? (employeeProfile?.profile_pic || employeeProfile?.avatar_url)
-          : `${import.meta.env.VITE_API_URL || 'https://hrms-backend-5xo8.onrender.com'}/${(employeeProfile?.profile_pic || employeeProfile?.avatar_url).replace(/^\/+/, '')}`}
+          : `${import.meta.env.VITE_API_URL || 'https://hrms-backend-f2ef.onrender.com'}/${(employeeProfile?.profile_pic || employeeProfile?.avatar_url).replace(/^\/+/, '')}`}
         alt="Employee"
         style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: "17px" }}
       />
