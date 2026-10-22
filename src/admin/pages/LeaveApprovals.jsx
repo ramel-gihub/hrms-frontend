@@ -144,7 +144,7 @@ export default function LeaveApprovals({
                       <div className="flex items-center gap-2 text-xs">
                         <FileTextIcon className="w-4 h-4 text-blue-500" />
                         <a
-                          href={leave.document_url.startsWith('http') ? leave.document_url : `${import.meta.env.VITE_API_URL || 'https://hrms-backend-f2ef.onrender.com'}${leave.document_url}`}
+                          href={leave.document_url.startsWith('http') ? leave.document_url : `${import.meta.env.VITE_API_URL || 'https://hrms-backend-5xo8.onrender.com'}${leave.document_url}`}
                           target="_blank"
                           rel="noreferrer"
                           className="text-[#3c50e0] font-semibold hover:underline"

@@ -45,7 +45,7 @@ export default function HRAssistant({ currentUser, employeeProfile }) {
     try {
       const userRole = currentUser?.role || employeeProfile?.role || "employee";
       const userId = currentUser?.id || employeeProfile?.user_id || employeeProfile?.id || 1;
-      const res = await fetch(`${import.meta.env.VITE_API_URL || "https://hrms-backend-f2ef.onrender.com"}/api/ask-hr`, {
+      const res = await fetch(`${import.meta.env.VITE_API_URL || "https://hrms-backend-5xo8.onrender.com"}/api/ask-hr`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

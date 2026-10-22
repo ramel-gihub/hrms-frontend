@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 
-const API_BASE = import.meta.env.VITE_API_URL || "https://hrms-backend-f2ef.onrender.com";
+const API_BASE = import.meta.env.VITE_API_URL || "https://hrms-backend-5xo8.onrender.com";
 
 const TYPE_META = {
   laptop: { icon: "bi-laptop", cls: "laptop", label: "Laptop" },
@@ -244,7 +244,7 @@ export default function Assets({ currentUser, employeeProfile, embedded = false 
                                     <img
                                         src={/^https?:\/\//i.test(employeeProfile?.profile_pic || employeeProfile?.avatar_url)
                                             ? (employeeProfile?.profile_pic || employeeProfile?.avatar_url)
-                                            : `${import.meta.env.VITE_API_URL || 'https://hrms-backend-f2ef.onrender.com'}/${(employeeProfile?.profile_pic || employeeProfile?.avatar_url).replace(/^\/+/, '')}`}
+                                            : `${import.meta.env.VITE_API_URL || 'https://hrms-backend-5xo8.onrender.com'}/${(employeeProfile?.profile_pic || employeeProfile?.avatar_url).replace(/^\/+/, '')}`}
                                         alt={fullName}
                                         style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: "17px" }}
                                     />
