@@ -40,6 +40,14 @@ export default function App() {
   const [loginError, setLoginError] = useState('');
   const [loadingAuth, setLoadingAuth] = useState(false);
 
+  // First-time login password change state
+  const [pendingFirstTimeUser, setPendingFirstTimeUser] = useState(null);
+  const [firstTimeNewPassword, setFirstTimeNewPassword] = useState('');
+  const [firstTimeConfirmPassword, setFirstTimeConfirmPassword] = useState('');
+  const [firstTimeShowPassword, setFirstTimeShowPassword] = useState(false);
+  const [firstTimeError, setFirstTimeError] = useState('');
+  const [firstTimeLoading, setFirstTimeLoading] = useState(false);
+
   // ============================================================
   // ADMIN EMPLOYEE DIRECTORY
   // ============================================================
@@ -517,6 +525,16 @@ export default function App() {
         );
       }
 
+      // Check if user is required to change password on first login
+      if (data.requirePasswordChange) {
+        setPendingFirstTimeUser(data.user);
+        setLoginPassword('');
+        setFirstTimeError('');
+        setFirstTimeNewPassword('');
+        setFirstTimeConfirmPassword('');
+        return;
+      }
+
       localStorage.setItem(
         'hrms_user',
         JSON.stringify(data.user)
@@ -545,6 +563,7 @@ export default function App() {
     localStorage.removeItem('hrms_user');
 
     setCurrentUser(null);
+    setPendingFirstTimeUser(null);
     setEmployeeProfile(null);
     setEmployees([]);
     setLoginEmail('');
@@ -552,6 +571,56 @@ export default function App() {
     setAttendanceStatus('Checked Out');
     setCheckInTime('--:--');
     setCheckOutTime('--:--');
+  };
+
+  const handleFirstTimePasswordSubmit = async (e) => {
+    e.preventDefault();
+    setFirstTimeError('');
+
+    if (!firstTimeNewPassword || firstTimeNewPassword.length < 6) {
+      setFirstTimeError('New password must be at least 6 characters long.');
+      return;
+    }
+
+    if (firstTimeNewPassword !== firstTimeConfirmPassword) {
+      setFirstTimeError('New password and confirm password do not match.');
+      return;
+    }
+
+    setFirstTimeLoading(true);
+
+    try {
+      const res = await fetch(`${API_BASE}/api/auth/first-time-change-password`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userId: pendingFirstTimeUser.id,
+          newPassword: firstTimeNewPassword,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.message || 'Failed to update password');
+      }
+
+      const activeUser = data.user || pendingFirstTimeUser;
+      activeUser.requirePasswordChange = false;
+
+      localStorage.setItem('hrms_user', JSON.stringify(activeUser));
+      setCurrentUser(activeUser);
+      setPendingFirstTimeUser(null);
+      setFirstTimeNewPassword('');
+      setFirstTimeConfirmPassword('');
+    } catch (err) {
+      console.error('First time password change error:', err);
+      setFirstTimeError(err.message || 'Unable to update password. Please try again.');
+    } finally {
+      setFirstTimeLoading(false);
+    }
   };
 
   // ============================================================
@@ -747,6 +816,90 @@ export default function App() {
                       <span>Ramel HR</span>
                     </div>
 
+                    {pendingFirstTimeUser ? (
+                      /* First Time Password Change Form */
+                      <div>
+                        <div className="login-heading">
+                          <h1 style={{ fontSize: '1.5rem', marginBottom: '8px' }}>Set New Password</h1>
+                          <p style={{ fontSize: '0.9rem', color: '#64748b' }}>
+                            First-time login required: please create a new password for <strong>{pendingFirstTimeUser.email}</strong>.
+                          </p>
+                        </div>
+
+                        {firstTimeError && (
+                          <div className="alert alert-danger mb-3" role="alert">
+                            {firstTimeError}
+                          </div>
+                        )}
+
+                        <form onSubmit={handleFirstTimePasswordSubmit} noValidate>
+                          <div className="form-group mb-3">
+                            <label className="form-label" style={{ fontWeight: 600, fontSize: '0.85rem' }}>
+                              New Password
+                            </label>
+                            <div className="input-wrapper" style={{ position: 'relative' }}>
+                              <i className="bi bi-lock input-icon"></i>
+                              <input
+                                type={firstTimeShowPassword ? 'text' : 'password'}
+                                className="form-control"
+                                placeholder="Enter new password (min. 6 characters)"
+                                value={firstTimeNewPassword}
+                                onChange={(e) => setFirstTimeNewPassword(e.target.value)}
+                                required
+                              />
+                              <button
+                                type="button"
+                                className="password-toggle"
+                                onClick={() => setFirstTimeShowPassword((prev) => !prev)}
+                                aria-label="Toggle password visibility"
+                              >
+                                <i className={`bi ${firstTimeShowPassword ? 'bi-eye-slash' : 'bi-eye'}`}></i>
+                              </button>
+                            </div>
+                          </div>
+
+                          <div className="form-group mb-3">
+                            <label className="form-label" style={{ fontWeight: 600, fontSize: '0.85rem' }}>
+                              Confirm New Password
+                            </label>
+                            <div className="input-wrapper">
+                              <i className="bi bi-shield-check input-icon"></i>
+                              <input
+                                type={firstTimeShowPassword ? 'text' : 'password'}
+                                className="form-control"
+                                placeholder="Re-enter new password"
+                                value={firstTimeConfirmPassword}
+                                onChange={(e) => setFirstTimeConfirmPassword(e.target.value)}
+                                required
+                              />
+                            </div>
+                          </div>
+
+                          <button
+                            type="submit"
+                            className="login-btn w-100 mb-2"
+                            disabled={firstTimeLoading}
+                            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+                          >
+                            <span>{firstTimeLoading ? 'Saving...' : 'Update Password & Continue'}</span>
+                            <i className="bi bi-arrow-right"></i>
+                          </button>
+
+                          <button
+                            type="button"
+                            className="btn btn-link w-100 text-center"
+                            style={{ textDecoration: 'none', color: '#64748b', fontSize: '0.875rem' }}
+                            onClick={() => {
+                              setPendingFirstTimeUser(null);
+                              setFirstTimeError('');
+                            }}
+                          >
+                            <i className="bi bi-arrow-left me-1"></i> Back to Sign In
+                          </button>
+                        </form>
+                      </div>
+                    ) : (
+                      <>
                     {/* Login Heading */}
                     <div className="login-heading">
                       <h1>Welcome back</h1>
@@ -871,6 +1024,8 @@ export default function App() {
                       <i className="bi bi-shield-lock-fill"></i>
                       <span>Your information is securely protected.</span>
                     </div>
+                      </>
+                    )}
                   </div>
                 </section>
               </div>
