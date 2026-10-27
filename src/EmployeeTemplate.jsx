@@ -1735,7 +1735,7 @@ export default function EmployeeTemplate({
                                             <i className="bi bi-calendar2-event" style={{ fontSize: "22px", color: "#4f46e5", display: "inline-block" }}></i>
                                             <h6 style={{ fontWeight: 700, fontSize: "15px", color: "#1e293b", marginTop: "14px", marginBottom: "3px" }}>Public Holidays</h6>
                                             <span style={{ color: "#8a90a2", fontSize: "13.5px" }}>
-                                                {widgetsData?.allHolidays?.length || 12} days per year
+                                                {dashHolidaysRemaining} pending ({dashTotalHolidays} days in {currentYear})
                                             </span>
                                         </div>
 

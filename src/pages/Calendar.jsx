@@ -22,13 +22,14 @@ export default function Calendar({ employeeProfile, currentUser, initialTab = "c
     const uid = currentUser?.id || profile.user_id || 1; 
     const eid = profile.employee_id || 1;
 
-    // Fetch Employees (for birthdays and anniversaries)
-    fetch(`${import.meta.env.VITE_API_URL || "https://hrms-backend-5xo8.onrender.com"}/api/admin/employees?orgId=1`)
+    const targetOrgId = currentUser?.tenant?.id || currentUser?.organization_id || profile?.organization_id || 1;
+    // Fetch Employees (for birthdays from employee_personal_info.date_of_birth and anniversaries from employee_employment_details.joining_date)
+    fetch(`${import.meta.env.VITE_API_URL || "https://hrms-backend-5xo8.onrender.com"}/api/admin/employees?orgId=${targetOrgId}`)
         .then(res => res.json())
         .then(data => {
             if (Array.isArray(data)) {
                 const mappedUsers = data.map(u => ({
-                    name: u.full_name,
+                    name: u.full_name || `${u.first_name || ''} ${u.last_name || ''}`.trim() || 'Employee',
                     dob: u.date_of_birth,
                     doj: u.joining_date
                 }));
@@ -99,15 +100,114 @@ export default function Calendar({ employeeProfile, currentUser, initialTab = "c
   const renderEvents = (date) => {
     const events = [];
     
+    // 1. Public Holiday event
     const hol = holidays.find(h => isSameDay(new Date(h.holiday_date), date));
     if (hol) {
         events.push(
-            <div key={`hol-${hol.id || hol.holiday_name}`} className="calendar-event holiday" title={`Holiday: ${hol.holiday_name}`} onClick={() => { setModalData({ title: 'Public Holiday', type: 'holiday', holidayName: hol.holiday_name, holidayDate: hol.holiday_date }); setShowModal(true); }} style={{cursor: 'pointer'}}>
+            <div key={`hol-${hol.id || hol.holiday_name}`} className="calendar-event holiday" title={`Holiday: ${hol.holiday_name}`} onClick={() => { setModalData({ title: 'Public Holiday', type: 'holiday', holidayName: hol.holiday_name, holidayDate: hol.holiday_date, list: [hol.holiday_name] }); setShowModal(true); }} style={{cursor: 'pointer'}}>
                 <i className="bi bi-flag-fill" style={{fontSize: '11px', color: '#b96816', marginRight: '4px'}}></i>
                 <span>{hol.holiday_name}</span>
             </div>
         );
     }
+
+    // 2. Birthday event (from employee_personal_info.date_of_birth)
+    const dayBdays = allUsers.filter(u => {
+      if (!u.dob) return false;
+      const d = new Date(u.dob);
+      return d.getDate() === date.getDate() && d.getMonth() === date.getMonth();
+    });
+
+    dayBdays.forEach((b, idx) => {
+      events.push(
+        <div
+          key={`bday-${idx}-${b.name}`}
+          className="calendar-event birthday"
+          title={`🎂 Birthday: ${b.name}`}
+          onClick={() => {
+            setModalData({
+              title: "Birthday Celebration",
+              type: "birthday",
+              personName: b.name,
+              eventDate: date,
+              list: [b.name]
+            });
+            setShowModal(true);
+          }}
+          style={{
+            cursor: "pointer",
+            backgroundColor: "#fff0f6",
+            color: "#c026d3",
+            borderLeft: "3px solid #d946ef",
+            padding: "2px 6px",
+            borderRadius: "4px",
+            fontSize: "11px",
+            fontWeight: 600,
+            marginTop: "2px",
+            display: "flex",
+            alignItems: "center",
+            gap: "4px",
+            whiteSpace: "nowrap",
+            overflow: "hidden",
+            textOverflow: "ellipsis"
+          }}
+        >
+          <i className="bi bi-gift-fill" style={{ fontSize: "10px", color: "#d946ef" }}></i>
+          <span>{b.name}'s Birthday</span>
+        </div>
+      );
+    });
+
+    // 3. Work Anniversary event (from employee_employment_details.joining_date)
+    const dayAnnivs = allUsers.filter(u => {
+      if (!u.doj) return false;
+      const d = new Date(u.doj);
+      return d.getDate() === date.getDate() && d.getMonth() === date.getMonth();
+    });
+
+    dayAnnivs.forEach((a, idx) => {
+      const joinYear = new Date(a.doj).getFullYear();
+      const yrs = date.getFullYear() - joinYear;
+      const label = yrs > 0 ? `${yrs}y Anniv: ${a.name}` : `Joined: ${a.name}`;
+      events.push(
+        <div
+          key={`anniv-${idx}-${a.name}`}
+          className="calendar-event anniversary"
+          title={`🏅 Work Anniversary: ${a.name} (${yrs > 0 ? `${yrs} Years` : 'Joined'})`}
+          onClick={() => {
+            setModalData({
+              title: "Work Anniversary",
+              type: "anniversary",
+              personName: a.name,
+              years: yrs,
+              eventDate: date,
+              list: [yrs > 0 ? `${a.name} (${yrs} Years)` : `${a.name} (Joined)`]
+            });
+            setShowModal(true);
+          }}
+          style={{
+            cursor: "pointer",
+            backgroundColor: "#fefce8",
+            color: "#ca8a04",
+            borderLeft: "3px solid #eab308",
+            padding: "2px 6px",
+            borderRadius: "4px",
+            fontSize: "11px",
+            fontWeight: 600,
+            marginTop: "2px",
+            display: "flex",
+            alignItems: "center",
+            gap: "4px",
+            whiteSpace: "nowrap",
+            overflow: "hidden",
+            textOverflow: "ellipsis"
+          }}
+        >
+          <i className="bi bi-award-fill" style={{ fontSize: "10px", color: "#eab308" }}></i>
+          <span>{label}</span>
+        </div>
+      );
+    });
 
     return events;
   };
@@ -115,13 +215,31 @@ export default function Calendar({ employeeProfile, currentUser, initialTab = "c
   const monthName = currentMonth.toLocaleDateString('en-GB', {month: 'long'});
   const yearName = currentMonth.getFullYear();
 
-  // Helper arrays for Overview Tab
-  const thisMonthBdays = allUsers.filter(u => u.dob && new Date(u.dob).getMonth() === month);
-  const thisMonthAnnivs = allUsers.filter(u => u.doj && new Date(u.doj).getMonth() === month && new Date(u.doj).getFullYear() < year);
+  // Helper arrays for Overview Tab (Birthdays & Work Anniversaries)
+  const thisMonthBdays = allUsers.filter(u => {
+    if (!u.dob) return false;
+    const d = new Date(u.dob);
+    return d.getMonth() === month;
+  });
+  const thisMonthAnnivs = allUsers.filter(u => {
+    if (!u.doj) return false;
+    const d = new Date(u.doj);
+    return d.getMonth() === month;
+  });
   
   const today = new Date();
   today.setHours(0,0,0,0);
-  const nextHoliday = upcomingHolidays.length > 0 ? upcomingHolidays[0] : null;
+  const currentCalendarYear = currentMonth.getFullYear();
+
+  // Public holidays: show only current year pending holidays
+  const pendingCurrentYearHolidays = holidays.filter(h => {
+    if (!h.holiday_date) return false;
+    const d = new Date(h.holiday_date);
+    d.setHours(0,0,0,0);
+    return d.getFullYear() === currentCalendarYear && d >= today;
+  }).sort((a,b) => new Date(a.holiday_date) - new Date(b.holiday_date));
+
+  const nextHoliday = pendingCurrentYearHolidays.length > 0 ? pendingCurrentYearHolidays[0] : null;
 
   return (
     <>
@@ -396,29 +514,34 @@ export default function Calendar({ employeeProfile, currentUser, initialTab = "c
                                                    </div>
                                                </li>
                                            ))}
-                                           {thisMonthAnnivs.map((u, i) => (
+                                           {thisMonthAnnivs.map((u, i) => {
+                                               const joinYear = new Date(u.doj).getFullYear();
+                                               const yrs = year - joinYear;
+                                               const annivLabel = yrs > 0 ? `${u.name}'s Work Anniversary (${yrs} ${yrs === 1 ? 'Year' : 'Years'})` : `${u.name} Joined the Team`;
+                                               return (
                                                <li key={`oanniv-${i}`} className="d-flex align-items-center gap-3">
                                                    <div style={{background: '#fff3cd', color: '#ffc107', width: '40px', height: '40px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center'}}>
                                                        <i className="bi bi-award-fill"></i>
                                                    </div>
                                                    <div>
-                                                       <h6 className="mb-0">{u.name}'s Work Anniversary</h6>
+                                                       <h6 className="mb-0">{annivLabel}</h6>
                                                        <small className="text-muted">{new Date(u.doj).toLocaleDateString('en-GB', {day: '2-digit', month: 'short'})}</small>
                                                    </div>
                                                </li>
-                                           ))}
+                                               );
+                                           })}
                                        </ul>
                                    )}
                                </div>
                            </div>
                        </div>
 
-                       {/* Upcoming Holidays Card */}
+                       {/* Upcoming Holidays Card - Current Year Pending Only */}
                        <div className="col-12 col-lg-6">
                            <div className="side-card h-100 mb-0">
                                <div className="side-card-header">
                                    <div>
-                                       <span className="section-label">UPCOMING</span>
+                                       <span className="section-label">{pendingCurrentYearHolidays.length} PENDING IN {currentCalendarYear}</span>
                                        <h3>Next Holidays</h3>
                                    </div>
                                    <div className="side-card-icon orange">
@@ -426,7 +549,7 @@ export default function Calendar({ employeeProfile, currentUser, initialTab = "c
                                    </div>
                                </div>
                                <div className="holiday-mini-list mt-3">
-                                  {upcomingHolidays.slice(0,5).map((h, i) => (
+                                  {pendingCurrentYearHolidays.map((h, i) => (
                                     <div className="holiday-mini-item" key={i}>
                                       <div className="mini-date">
                                         <strong>{new Date(h.holiday_date).toLocaleDateString('en-GB', {day: '2-digit'})}</strong>
@@ -438,7 +561,7 @@ export default function Calendar({ employeeProfile, currentUser, initialTab = "c
                                       </div>
                                     </div>
                                   ))}
-                                  {upcomingHolidays.length === 0 && <p className="text-muted">No upcoming holidays.</p>}
+                                  {pendingCurrentYearHolidays.length === 0 && <p className="text-muted">No pending holidays remaining in {currentCalendarYear}.</p>}
                                </div>
                            </div>
                        </div>
