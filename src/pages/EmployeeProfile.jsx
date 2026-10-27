@@ -35,7 +35,7 @@ export default function EmployeeProfile({ currentUser, employeeProfile, onProfil
     const API_BASE = import.meta.env.VITE_API_URL || "https://hrms-backend-5xo8.onrender.com";
     const rawAvatar = employeeProfile?.profile_pic || employeeProfile?.avatar_url || "";
     const dynamicAvatarUrl = rawAvatar
-        ? (/^https?:\/\//i.test(rawAvatar) ? rawAvatar : `${API_BASE}/${rawAvatar.replace(/^\/+/, "")}`)
+        ? (/^(https?:\/\/|data:|blob:)/i.test(rawAvatar) ? rawAvatar : `${API_BASE}/${rawAvatar.replace(/^\/+/, "")}`)
         : "";
   return (
     <>

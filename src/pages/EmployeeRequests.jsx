@@ -535,7 +535,7 @@ export default function EmployeeRequests({ employeeProfile, currentUser }) {
                 <div className="esc-avatar overflow-hidden">
                   {(employeeProfile?.profile_pic || employeeProfile?.avatar_url || profile?.profile_pic) ? (
                     <img
-                      src={/^https?:\/\//i.test(employeeProfile?.profile_pic || employeeProfile?.avatar_url || profile?.profile_pic)
+                      src={/^(https?:\/\/|data:|blob:)/i.test(employeeProfile?.profile_pic || employeeProfile?.avatar_url || profile?.profile_pic)
                         ? (employeeProfile?.profile_pic || employeeProfile?.avatar_url || profile?.profile_pic)
                         : `${import.meta.env.VITE_API_URL || 'https://hrms-backend-5xo8.onrender.com'}/${(employeeProfile?.profile_pic || employeeProfile?.avatar_url || profile?.profile_pic).replace(/^\/+/, '')}`}
                       alt={employeeName}

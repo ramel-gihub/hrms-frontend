@@ -383,7 +383,7 @@ export default function Expenses({ currentUser, employeeProfile, onNavigate, emb
             {employeeProfile?.profile_pic || employeeProfile?.avatar_url ? (
               <img
                 src={
-                  /^https?:\/\//i.test(employeeProfile?.profile_pic || employeeProfile?.avatar_url)
+                  /^(https?:\/\/|data:|blob:)/i.test(employeeProfile?.profile_pic || employeeProfile?.avatar_url)
                     ? employeeProfile?.profile_pic || employeeProfile?.avatar_url
                     : `${API_BASE}/${(employeeProfile?.profile_pic || employeeProfile?.avatar_url).replace(/^\/+/, "")}`
                 }

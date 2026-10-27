@@ -401,7 +401,7 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
     const displayValue = (value) => value || "—";
     const avatarUrl = personalInfo?.profile_pic || employeeProfile?.avatar_url || "";
     const employeeAvatar = avatarUrl
-        ? (/^https?:\/\//i.test(avatarUrl) ? avatarUrl : `${API_BASE}/${avatarUrl.replace(/^\/+/, "")}`)
+        ? (/^(https?:\/\/|data:|blob:)/i.test(avatarUrl) ? avatarUrl : `${API_BASE}/${avatarUrl.replace(/^\/+/, "")}`)
         : "";
     const uploadProfilePicture = async (event) => {
         const file = event.target.files?.[0];
