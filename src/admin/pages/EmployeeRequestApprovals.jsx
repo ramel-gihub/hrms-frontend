@@ -11,7 +11,7 @@ export default function EmployeeRequestApprovals({
   const [remarksModal, setRemarksModal] = useState({ open: false, reqId: null, action: null, remarks: '' });
   const [actionLoading, setActionLoading] = useState(false);
 
-  const categories = ['All', 'Work From Home (WFH)', 'Attendance Correction', 'Assets', 'Expenses & Claims', 'General'];
+  const categories = ['All', 'Commute & Travel', 'Work From Home (WFH)', 'Attendance Correction', 'Assets', 'Expenses & Claims', 'General'];
 
   const filtered = adminRequests.filter(req => {
     const st = (req.status || 'Pending').toLowerCase();
@@ -20,7 +20,8 @@ export default function EmployeeRequestApprovals({
     let catMatch = true;
     if (filterCategory !== 'All') {
       const cat = (req.category || req.request_type || '').toLowerCase();
-      if (filterCategory === 'Work From Home (WFH)') catMatch = cat.includes('wfh') || cat.includes('home');
+      if (filterCategory === 'Commute & Travel') catMatch = cat.includes('commute') || cat.includes('travel');
+      else if (filterCategory === 'Work From Home (WFH)') catMatch = cat.includes('wfh') || cat.includes('home');
       else if (filterCategory === 'Attendance Correction') catMatch = cat.includes('attendance') || cat.includes('correction');
       else if (filterCategory === 'Assets') catMatch = cat.includes('asset');
       else if (filterCategory === 'Expenses & Claims') catMatch = cat.includes('expense') || cat.includes('claim');

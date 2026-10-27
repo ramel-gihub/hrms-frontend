@@ -46,6 +46,8 @@ export default function Assets({ currentUser, employeeProfile, embedded = false 
   const [returnForm, setReturnForm] = useState(emptyReturn);
   const [returning, setReturning] = useState(false);
   const [requests, setRequests] = useState([]);
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deleting, setDeleting] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [notice, setNotice] = useState(null);
   const emptyForm = { assetType: "", priority: "", preferredModel: "", dateNeeded: "", justification: "", workLocation: "", additionalRequirements: "" };
@@ -454,22 +456,36 @@ export default function Assets({ currentUser, employeeProfile, embedded = false 
                                     <div className="ea-asset-list">
                                         {requests.map((r) => (
                                             <div className="ea-asset-row" key={r.id}>
-                                                <div className="ea-asset-main">
-                                                    <div className={`ea-asset-icon ${metaFor(r.asset_type).cls}`}>
-                                                        <i className={`bi ${metaFor(r.asset_type).icon}`}></i>
-                                                    </div>
-                                                    <div className="ea-asset-info">
-                                                        <div className="ea-asset-title-row">
-                                                            <h5>{metaFor(r.asset_type).label}{r.preferred_model ? ` · ${r.preferred_model}` : ""}</h5>
-                                                            <span className={`ea-asset-status ${r.status === "Approved" || r.status === "Fulfilled" ? "assigned" : r.status === "Rejected" ? "returned" : "maintenance"}`}>{r.status}</span>
+                                                <div className="ea-asset-main" style={{ display: "flex", width: "100%", justifyContent: "space-between", alignItems: "center" }}>
+                                                    <div style={{ display: "flex", gap: "14px", alignItems: "flex-start", flex: 1 }}>
+                                                        <div className={`ea-asset-icon ${metaFor(r.asset_type).cls}`}>
+                                                            <i className={`bi ${metaFor(r.asset_type).icon}`}></i>
                                                         </div>
-                                                        <p>{r.justification}</p>
-                                                        <div className="ea-asset-meta">
-                                                            <span><strong>Request:</strong> {r.request_code}</span>
-                                                            <span><strong>Priority:</strong> {r.priority}</span>
-                                                            <span><strong>Requested:</strong> {fmtDate(r.created_at)}</span>
+                                                        <div className="ea-asset-info">
+                                                            <div className="ea-asset-title-row">
+                                                                <h5>{metaFor(r.asset_type).label}{r.preferred_model ? ` · ${r.preferred_model}` : ""}</h5>
+                                                                <span className={`ea-asset-status ${r.status === "Approved" || r.status === "Fulfilled" ? "assigned" : r.status === "Rejected" ? "returned" : "maintenance"}`}>{r.status}</span>
+                                                            </div>
+                                                            <p>{r.justification}</p>
+                                                            <div className="ea-asset-meta">
+                                                                <span><strong>Request:</strong> {r.request_code}</span>
+                                                                <span><strong>Priority:</strong> {r.priority}</span>
+                                                                <span><strong>Requested:</strong> {fmtDate(r.created_at)}</span>
+                                                            </div>
                                                         </div>
                                                     </div>
+                                                    {r.status === "Pending" && (
+                                                        <div className="ea-asset-actions ms-3">
+                                                            <button
+                                                                type="button"
+                                                                className="btn btn-outline-danger btn-sm"
+                                                                style={{ borderRadius: "8px", fontWeight: 600, fontSize: "0.82rem", display: "inline-flex", alignItems: "center", gap: "6px", padding: "6px 12px" }}
+                                                                onClick={() => setDeleteTarget(r)}
+                                                            >
+                                                                <i className="bi bi-trash"></i> Delete
+                                                            </button>
+                                                        </div>
+                                                    )}
                                                 </div>
                                             </div>
                                         ))}
@@ -642,7 +658,19 @@ export default function Assets({ currentUser, employeeProfile, embedded = false 
 
                                                 <div className="col-md-6">
                                                     <label className="form-label">Date Needed</label>
-                                                    <input type="date" className="form-control" value={form.dateNeeded} onChange={setField("dateNeeded")} />
+                                                    <input
+                                                        type="date"
+                                                        className="form-control"
+                                                        value={form.dateNeeded}
+                                                        onChange={setField("dateNeeded")}
+                                                        onClick={(e) => {
+                                                            try { e.currentTarget.showPicker(); } catch (_) {}
+                                                        }}
+                                                        onFocus={(e) => {
+                                                            try { e.currentTarget.showPicker(); } catch (_) {}
+                                                        }}
+                                                        style={{ cursor: "pointer" }}
+                                                    />
                                                 </div>
 
                                                 <div className="col-12">
@@ -737,8 +765,20 @@ export default function Assets({ currentUser, employeeProfile, embedded = false 
                                     <div className="row g-3 mt-1">
                                         <div className="col-md-6">
                                             <label className="form-label">Return Date</label>
-                                            <input type="date" className="form-control" required value={returnForm.returnDate}
-                                                onChange={(e) => setReturnForm({ ...returnForm, returnDate: e.target.value })} />
+                                            <input
+                                                type="date"
+                                                className="form-control"
+                                                required
+                                                value={returnForm.returnDate}
+                                                onChange={(e) => setReturnForm({ ...returnForm, returnDate: e.target.value })}
+                                                onClick={(e) => {
+                                                    try { e.currentTarget.showPicker(); } catch (_) {}
+                                                }}
+                                                onFocus={(e) => {
+                                                    try { e.currentTarget.showPicker(); } catch (_) {}
+                                                }}
+                                                style={{ cursor: "pointer" }}
+                                            />
                                         </div>
 
                                         <div className="col-md-6">
@@ -784,6 +824,69 @@ export default function Assets({ currentUser, employeeProfile, embedded = false 
                         </div>
                     </div>
                     </>
+                    )}
+
+                    {deleteTarget && (
+                        <div className="modal show d-block" tabIndex="-1" style={{ backgroundColor: "rgba(0,0,0,0.5)", zIndex: 1060 }}>
+                            <div className="modal-dialog modal-dialog-centered" style={{ maxWidth: 440 }}>
+                                <div className="modal-content" style={{ borderRadius: 16, padding: "20px 24px", border: "none" }}>
+                                    <div style={{ textAlign: "center", marginBottom: 16 }}>
+                                        <div style={{ width: 56, height: 56, borderRadius: "50%", background: "#fee2e2", color: "#dc2626", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 26, margin: "0 auto 12px" }}>
+                                            <i className="bi bi-exclamation-triangle"></i>
+                                        </div>
+                                        <h5 style={{ fontWeight: 700, margin: "0 0 8px" }}>Delete Asset Request</h5>
+                                        <p style={{ color: "#6b7280", fontSize: "0.9rem", margin: 0, lineHeight: 1.5 }}>
+                                            Are you sure you want to delete your request for <strong>{metaFor(deleteTarget.asset_type).label}</strong> ({deleteTarget.request_code})? This cannot be undone.
+                                        </p>
+                                    </div>
+                                    <div style={{ display: "flex", gap: 12, justifyContent: "flex-end", marginTop: 20 }}>
+                                        <button
+                                            type="button"
+                                            className="btn btn-light"
+                                            disabled={deleting}
+                                            style={{ borderRadius: 10, padding: "8px 18px", fontWeight: 600 }}
+                                            onClick={() => setDeleteTarget(null)}
+                                        >
+                                            Cancel
+                                        </button>
+                                        <button
+                                            type="button"
+                                            className="btn btn-danger"
+                                            disabled={deleting}
+                                            style={{ borderRadius: 10, padding: "8px 20px", fontWeight: 600, background: "#dc2626", borderColor: "#dc2626" }}
+                                            onClick={async () => {
+                                                setDeleting(true);
+                                                try {
+                                                    const res = await fetch(`${API_BASE}/api/assets/requests/${user.id}/${deleteTarget.id}`, {
+                                                        method: "DELETE"
+                                                    });
+                                                    const data = await res.json();
+                                                    if (!res.ok) throw new Error(data.error || "Failed to delete asset request");
+                                                    setNotice({ type: "success", text: "Asset request deleted successfully." });
+                                                    setDeleteTarget(null);
+                                                    loadRequests();
+                                                } catch (err) {
+                                                    setNotice({ type: "danger", text: err.message });
+                                                } finally {
+                                                    setDeleting(false);
+                                                }
+                                            }}
+                                        >
+                                            {deleting ? (
+                                                <>
+                                                    <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                                                    Deleting...
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <i className="bi bi-trash me-1"></i> Delete
+                                                </>
+                                            )}
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     )}
 
                     <div className="toast-container position-fixed bottom-0 end-0 p-4" id="eaToastContainer">

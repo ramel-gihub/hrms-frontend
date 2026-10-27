@@ -332,15 +332,27 @@ export default function App() {
   const fetchEmployeeProfile = async () => {
     if (!currentUser || isAdmin) return;
     try {
-      const [res, personalRes, adminRes] = await Promise.all([
+      const [res, personalRes, contactRes, adminRes] = await Promise.all([
         fetch(`${API_BASE}/api/employee/profile/${currentUser.id}`).catch(() => null),
         fetch(`${API_BASE}/api/employee/personal-info/${currentUser.id}`).catch(() => null),
+        fetch(`${API_BASE}/api/employee/contact-info/${currentUser.id}`).catch(() => null),
         fetch(`${API_BASE}/api/admin/employees?orgId=${currentUser.orgId || 1}`).catch(() => null),
       ]);
       let profileData = {};
       if (res && res.ok) {
         try {
           profileData = await res.json();
+        } catch (_) {}
+      }
+
+      if (contactRes && contactRes.ok) {
+        try {
+          const contactData = await contactRes.json();
+          if (contactData && contactData.current_city) {
+            profileData.city = contactData.current_city;
+            profileData.location = contactData.current_city;
+            profileData.current_city = contactData.current_city;
+          }
         } catch (_) {}
       }
 
@@ -415,7 +427,7 @@ export default function App() {
       profileData.team = profileData.team || 'General';
       profileData.city = profileData.city || profileData.location || 'Nagpur';
       profileData.location = profileData.location || profileData.city || 'Nagpur';
-      profileData.profile_completion_percentage = Number(profileData.profile_completion_percentage) || 80;
+      profileData.profile_completion_percentage = Number.isFinite(Number(profileData.profile_completion_percentage)) ? Math.min(100, Math.max(0, Number(profileData.profile_completion_percentage))) : 0;
 
       setEmployeeProfile(profileData);
     } catch (error) {
@@ -435,6 +447,21 @@ export default function App() {
       console.error('Error fetching attendance stats:', error);
     }
   };
+
+  useEffect(() => {
+    const handleDateInputClick = (event) => {
+      const target = event.target;
+      if (target && target.tagName === 'INPUT' && target.type === 'date') {
+        try {
+          if (typeof target.showPicker === 'function') {
+            target.showPicker();
+          }
+        } catch (_) {}
+      }
+    };
+    document.addEventListener('click', handleDateInputClick, true);
+    return () => document.removeEventListener('click', handleDateInputClick, true);
+  }, []);
 
   useEffect(() => {
     if (currentUser) {

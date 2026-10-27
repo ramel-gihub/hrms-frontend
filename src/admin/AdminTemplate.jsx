@@ -151,7 +151,9 @@ export default function AdminTemplate({
       const err = await res.json();
       throw new Error(err.error || 'Failed to create tenant organization');
     }
+    const data = await res.json();
     await fetchTenants();
+    return data;
   };
 
   const currentTenant = tenants.find(t => t.id === currentTenantId) || {

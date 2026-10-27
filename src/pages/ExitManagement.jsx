@@ -35,6 +35,7 @@ export default function ExitManagement({ currentUser, employeeProfile, onNavigat
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState("");
   const [form, setForm] = useState({ resignationDate: toISO(new Date()), noticePeriod: 60, reason: "", comments: "", confirm: false });
+  const [checkboxAlert, setCheckboxAlert] = useState(false);
 
   const userId = currentUser?.id || employeeProfile?.user_id;
 
@@ -175,7 +176,15 @@ export default function ExitManagement({ currentUser, employeeProfile, onNavigat
   const submit = async () => {
     if (!form.resignationDate) return setFormError("Please select a resignation date.");
     if (!form.reason) return setFormError("Please select a reason for leaving.");
-    if (!form.confirm) return setFormError("Please confirm that you understand the exit process.");
+    if (!form.confirm) {
+      setFormError("Please confirm that you understand the exit process by selecting the checkbox below.");
+      setToast({
+        type: "error",
+        text: "Please select the required acknowledgment checkbox before submitting your resignation."
+      });
+      setCheckboxAlert(true);
+      return;
+    }
     setSaving(true);
     setFormError("");
     try {
@@ -606,7 +615,18 @@ export default function ExitManagement({ currentUser, employeeProfile, onNavigat
                 <div className="exit-form-grid">
                   <div className="exit-form-group">
                     <label>Resignation Date</label>
-                    <input type="date" value={form.resignationDate} onChange={(e) => setForm({ ...form, resignationDate: e.target.value })} />
+                    <input
+                      type="date"
+                      value={form.resignationDate}
+                      onChange={(e) => setForm({ ...form, resignationDate: e.target.value })}
+                      onClick={(e) => {
+                        try { e.currentTarget.showPicker(); } catch (_) {}
+                      }}
+                      onFocus={(e) => {
+                        try { e.currentTarget.showPicker(); } catch (_) {}
+                      }}
+                      style={{ cursor: "pointer" }}
+                    />
                   </div>
                   <div className="exit-form-group">
                     <label>Notice Period</label>
@@ -672,6 +692,13 @@ export default function ExitManagement({ currentUser, employeeProfile, onNavigat
                     min={toISO(new Date())}
                     value={interviewModal.date}
                     onChange={(e) => setInterviewModal((prev) => ({ ...prev, date: e.target.value }))}
+                    onClick={(e) => {
+                      try { e.currentTarget.showPicker(); } catch (_) {}
+                    }}
+                    onFocus={(e) => {
+                      try { e.currentTarget.showPicker(); } catch (_) {}
+                    }}
+                    style={{ cursor: "pointer" }}
                   />
                 </div>
               </div>
@@ -718,6 +745,30 @@ export default function ExitManagement({ currentUser, employeeProfile, onNavigat
                   {confirmDialog?.confirmLabel || "Yes, Proceed"}
                 </button>
               </div>
+            </div>
+          </div>
+
+          <div className={`exit-modal-overlay ${checkboxAlert ? "show" : ""}`} style={{ zIndex: 10003 }}>
+            <div className="exit-modal" style={{ maxWidth: 460, textAlign: "center", padding: "28px 24px" }}>
+              <div style={{ width: 56, height: 56, borderRadius: "50%", background: "#fef3c7", color: "#d97706", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 28, margin: "0 auto 14px" }}>
+                <i className="bi bi-exclamation-triangle"></i>
+              </div>
+              <h2 style={{ fontSize: "1.25rem", fontWeight: 700, margin: "0 0 10px", color: "#1e293b" }}>Acknowledgment Required</h2>
+              <p style={{ color: "#475569", fontSize: "0.92rem", lineHeight: 1.6, margin: "0 0 24px" }}>
+                Please select the required acknowledgment checkbox before submitting your resignation:
+                <br />
+                <span style={{ display: "inline-block", marginTop: 8, padding: "8px 12px", background: "#f8fafc", borderRadius: 8, fontStyle: "italic", border: "1px solid #e2e8f0" }}>
+                  &ldquo;I understand that submitting my resignation will initiate the employee exit process and notice period.&rdquo;
+                </span>
+              </p>
+              <button
+                type="button"
+                className="exit-primary-btn"
+                style={{ width: "100%", justifyContent: "center", height: 42, fontSize: "0.95rem" }}
+                onClick={() => setCheckboxAlert(false)}
+              >
+                Got It, Return to Form
+              </button>
             </div>
           </div>
 

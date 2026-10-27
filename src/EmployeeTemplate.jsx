@@ -40,7 +40,62 @@ export default function EmployeeTemplate({
   attendanceLoading, handleCheckIn, handleCheckOut, fetchAttendance, employeeProfile, fetchEmployeeProfile, attendanceStats, fetchAttendanceStats
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [dashboardNotifications, setDashboardNotifications] = useState([]);
+  const [unreadNotificationCount, setUnreadNotificationCount] = useState(0);
+  const [dynamicPolicies, setDynamicPolicies] = useState([]);
+  const [isPolicyModalOpen, setIsPolicyModalOpen] = useState(false);
+
+  useEffect(() => {
+    if (!currentUser?.id) return;
+    const fetchNotifications = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/api/notifications?userId=${encodeURIComponent(currentUser.id)}`);
+        if (res.ok) {
+          const data = await res.json();
+          const list = Array.isArray(data) ? data : data.notifications || [];
+          setDashboardNotifications(list);
+          setUnreadNotificationCount(list.filter(n => !n.is_read).length);
+        }
+      } catch (err) {
+        console.error("Dashboard notification fetch error:", err);
+      }
+    };
+    fetchNotifications();
+    const interval = setInterval(fetchNotifications, 20000);
+    return () => clearInterval(interval);
+  }, [currentUser?.id]);
+
+  useEffect(() => {
+    if (!currentUser?.id) return;
+    const fetchPolicies = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/api/leaves/data/${currentUser.id}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data.leaveTypes) && data.leaveTypes.length > 0) {
+            setDynamicPolicies(data.leaveTypes);
+          } else if (Array.isArray(data.balances) && data.balances.length > 0) {
+            setDynamicPolicies(data.balances.map(b => ({ id: b.leave_type_id, name: b.leave_type_name, default_days: b.total_days })));
+          }
+        }
+      } catch (e) {
+        console.error("Error fetching policies:", e);
+      }
+    };
+    fetchPolicies();
+  }, [currentUser?.id]);
+
+  const formatTimeAgo = (dateStr) => {
+    if (!dateStr) return "";
+    const diff = Math.floor((new Date() - new Date(dateStr)) / 1000);
+    if (diff < 60) return "Just now";
+    if (diff < 3600) return `${Math.floor(diff / 60)} minutes ago`;
+    if (diff < 86400) return `${Math.floor(diff / 3600)} hours ago`;
+    if (diff < 172800) return "Yesterday";
+    return `${Math.floor(diff / 86400)} days ago`;
+  };
   const [activePage, setActivePage] = useState("index");
+  const [calendarTab, setCalendarTab] = useState("calendar");
   const [statsPeriod, setStatsPeriod] = useState("week");
   const [leavesData, setLeavesData] = useState({ balances: [], requests: [] });
   const [assetRequests, setAssetRequests] = useState([]);
@@ -120,8 +175,11 @@ export default function EmployeeTemplate({
   };
 
   // Navigate helper: sets page, closes Bootstrap offcanvas + backdrop, updates URL
-  const navigateTo = (page) => {
+  const navigateTo = (page, tab) => {
     setActivePage(page);
+    if (page === "calendar") {
+      setCalendarTab(tab || "calendar");
+    }
     setMenuOpen(false);
     const offcanvasEl = document.getElementById("mainMenu");
     if (offcanvasEl) {
@@ -818,15 +876,15 @@ export default function EmployeeTemplate({
                             </div>
                         </div>
 
-                        <div className="es-profile-completion">
+                        <div className="es-profile-completion" style={{ cursor: "pointer" }} onClick={() => navigateTo("settings")} title="Click to complete your profile in Settings">
                             <div className="es-completion-top">
                                 <span>Profile Completion</span>
-                                <strong>{employeeProfile?.profile_completion_percentage || 85}%</strong>
+                                <strong>{employeeProfile?.profile_completion_percentage ?? 0}%</strong>
                             </div>
                             <div className="progress es-progress">
-                                <div className="progress-bar" style={{width: (employeeProfile?.profile_completion_percentage || 85) + "%"}}></div>
+                                <div className="progress-bar" style={{width: `${employeeProfile?.profile_completion_percentage ?? 0}%`}}></div>
                             </div>
-                            <small>Complete your remaining profile details.</small>
+                            <small>Complete your remaining profile details in Settings.</small>
                         </div>
                     </section>
 
@@ -1492,7 +1550,9 @@ export default function EmployeeTemplate({
                                         </div>
 
                                         <button
-                                            className="ed-text-action">
+                                            className="ed-text-action"
+                                            type="button"
+                                            onClick={() => navigateTo("calendar", "overview")}>
                                             View Team
                                             <i className="bi bi-arrow-up-right"></i>
                                         </button>
@@ -1544,68 +1604,35 @@ export default function EmployeeTemplate({
                                             <h3>Notifications</h3>
                                         </div>
 
-                                        <span className="ed-unread-count">3 New</span>
+                                        <span className="ed-unread-count">{unreadNotificationCount} New</span>
                                     </div>
 
                                     <div className="ed-notification-list">
-
-                                        <div className="ed-notification-item ed-unread">
-                                            <div className="ed-notification-icon ed-notify-purple">
-                                                <i className="bi bi-calendar-check"></i>
+                                        {dashboardNotifications.length > 0 ? (
+                                            dashboardNotifications.slice(0, 4).map((n) => (
+                                                <div
+                                                    className={`ed-notification-item${n.is_read ? "" : " ed-unread"}`}
+                                                    key={n.id}
+                                                    style={{ cursor: "pointer" }}
+                                                    onClick={() => navigateTo("notifications")}
+                                                >
+                                                    <div className={`ed-notification-icon ${n.category === "leave" || n.category === "Leave Request" ? "ed-notify-purple" : n.category === "asset" || n.category === "Asset Request" ? "ed-notify-orange" : "ed-notify-blue"}`}>
+                                                        <i className={`bi ${n.category === "leave" || n.category === "Leave Request" ? "bi-calendar-check" : n.category === "asset" || n.category === "Asset Request" ? "bi-laptop" : "bi-bell"}`}></i>
+                                                    </div>
+                                                    <div>
+                                                        <strong>{n.title}</strong>
+                                                        <p>{n.message}</p>
+                                                        <small>{formatTimeAgo(n.created_at)}</small>
+                                                    </div>
+                                                    {!n.is_read && <span className="ed-notification-new"></span>}
+                                                </div>
+                                            ))
+                                        ) : (
+                                            <div style={{ padding: "24px 0", textAlign: "center", color: "#85889b", fontSize: "13px" }}>
+                                                <i className="bi bi-bell-slash" style={{ fontSize: "24px", display: "block", marginBottom: "6px", color: "#b0b3c6" }}></i>
+                                                No notifications found.
                                             </div>
-
-                                            <div>
-                                                <strong>Leave approved</strong>
-                                                <p>Your leave request for 02 Oct has been approved.</p>
-                                                <small>12 minutes ago</small>
-                                            </div>
-
-                                            <span className="ed-notification-new"></span>
-                                        </div>
-
-
-                                        <div className="ed-notification-item ed-unread">
-                                            <div className="ed-notification-icon ed-notify-blue">
-                                                <i className="bi bi-megaphone"></i>
-                                            </div>
-
-                                            <div>
-                                                <strong>New HR announcement</strong>
-                                                <p>Quarterly employee town hall is scheduled for Friday.</p>
-                                                <small>2 hours ago</small>
-                                            </div>
-
-                                            <span className="ed-notification-new"></span>
-                                        </div>
-
-
-                                        <div className="ed-notification-item ed-unread">
-                                            <div className="ed-notification-icon ed-notify-orange">
-                                                <i className="bi bi-file-earmark-text"></i>
-                                            </div>
-
-                                            <div>
-                                                <strong>Document verification</strong>
-                                                <p>Your ID proof is waiting for verification.</p>
-                                                <small>Yesterday</small>
-                                            </div>
-
-                                            <span className="ed-notification-new"></span>
-                                        </div>
-
-
-                                        <div className="ed-notification-item">
-                                            <div className="ed-notification-icon ed-notify-green">
-                                                <i className="bi bi-person-check"></i>
-                                            </div>
-
-                                            <div>
-                                                <strong>Profile updated</strong>
-                                                <p>Your employment information was updated successfully.</p>
-                                                <small>2 days ago</small>
-                                            </div>
-                                        </div>
-
+                                        )}
                                     </div>
 
                                     <button className="ed-view-all-btn" onClick={() => navigateTo("notifications")}>
@@ -1645,7 +1672,7 @@ export default function EmployeeTemplate({
                                         </p>
                                     </div>
 
-                                    <button>
+                                    <button type="button" onClick={() => setIsPolicyModalOpen(true)}>
                                         View Policy
                                         <i className="bi bi-arrow-right"></i>
                                     </button>
@@ -1664,83 +1691,95 @@ export default function EmployeeTemplate({
                 
 
                 
-                <div className="modal fade" id="edLeavePolicyModal" tabIndex="-1">
-                    <div className="modal-dialog modal-dialog-centered modal-lg">
-                        <div className="modal-content ed-modal-content">
+                {isPolicyModalOpen && (
+                    <>
+                    <div className="modal-backdrop fade show" style={{ zIndex: 9998, backgroundColor: "rgba(0,0,0,0.5)" }} onClick={() => setIsPolicyModalOpen(false)}></div>
+                    <div className="modal fade show d-block" id="edLeavePolicyModal" tabIndex="-1" role="dialog" style={{ zIndex: 9999 }} onClick={(e) => { if (e.target === e.currentTarget) setIsPolicyModalOpen(false); }}>
+                        <div className="modal-dialog modal-dialog-centered" style={{ maxWidth: "680px" }}>
+                            <div className="modal-content" style={{ borderRadius: "20px", border: "none", boxShadow: "0 20px 45px rgba(0,0,0,0.12)", backgroundColor: "#ffffff", padding: "8px" }}>
 
-                            <div className="modal-header">
-                                <div>
-                                    <span className="ed-modal-label">HR POLICY</span>
-                                    <h5 className="modal-title">Leave Policy</h5>
+                                <div className="modal-header d-flex justify-content-between align-items-start" style={{ borderBottom: "none", padding: "20px 24px 10px 24px" }}>
+                                    <div>
+                                        <span style={{ color: "#4f46e5", fontSize: "11px", fontWeight: 700, letterSpacing: "0.8px", display: "block", marginBottom: "4px" }}>HR POLICY</span>
+                                        <h4 className="modal-title" style={{ fontWeight: 700, fontSize: "20px", color: "#1e293b", margin: 0 }}>Leave Policy</h4>
+                                    </div>
+
+                                    <button
+                                        type="button"
+                                        className="btn-close"
+                                        style={{ fontSize: "12px", opacity: 0.7 }}
+                                        onClick={() => setIsPolicyModalOpen(false)}>
+                                    </button>
                                 </div>
 
-                                <button
-                                    type="button"
-                                    className="btn-close"
-                                    data-bs-dismiss="modal">
-                                </button>
-                            </div>
+                                <div className="modal-body" style={{ padding: "10px 24px 20px 24px" }}>
 
-                            <div className="modal-body">
+                                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
+                                        <div style={{ padding: "20px", border: "1px solid #edf2f7", borderRadius: "16px", backgroundColor: "#ffffff" }}>
+                                            <i className="bi bi-calendar-heart" style={{ fontSize: "22px", color: "#4f46e5", display: "inline-block" }}></i>
+                                            <h6 style={{ fontWeight: 700, fontSize: "15px", color: "#1e293b", marginTop: "14px", marginBottom: "3px" }}>Annual Leave</h6>
+                                            <span style={{ color: "#8a90a2", fontSize: "13.5px" }}>
+                                                {dynamicPolicies.find(p => /annual/i.test(p.name))?.default_days || 18} days per year
+                                            </span>
+                                        </div>
 
-                                <div className="ed-policy-grid">
+                                        <div style={{ padding: "20px", border: "1px solid #edf2f7", borderRadius: "16px", backgroundColor: "#ffffff" }}>
+                                            <i className="bi bi-heart-pulse" style={{ fontSize: "22px", color: "#4f46e5", display: "inline-block" }}></i>
+                                            <h6 style={{ fontWeight: 700, fontSize: "15px", color: "#1e293b", marginTop: "14px", marginBottom: "3px" }}>Sick Leave</h6>
+                                            <span style={{ color: "#8a90a2", fontSize: "13.5px" }}>
+                                                {dynamicPolicies.find(p => /sick/i.test(p.name))?.default_days || 10} days per year
+                                            </span>
+                                        </div>
 
-                                    <div className="ed-policy-item">
-                                        <i className="bi bi-calendar-heart"></i>
-                                        <strong>Annual Leave</strong>
-                                        <span>18 days per year</span>
+                                        <div style={{ padding: "20px", border: "1px solid #edf2f7", borderRadius: "16px", backgroundColor: "#ffffff" }}>
+                                            <i className="bi bi-calendar2-event" style={{ fontSize: "22px", color: "#4f46e5", display: "inline-block" }}></i>
+                                            <h6 style={{ fontWeight: 700, fontSize: "15px", color: "#1e293b", marginTop: "14px", marginBottom: "3px" }}>Public Holidays</h6>
+                                            <span style={{ color: "#8a90a2", fontSize: "13.5px" }}>
+                                                {widgetsData?.allHolidays?.length || 12} days per year
+                                            </span>
+                                        </div>
+
+                                        <div style={{ padding: "20px", border: "1px solid #edf2f7", borderRadius: "16px", backgroundColor: "#ffffff" }}>
+                                            <i className="bi bi-arrow-repeat" style={{ fontSize: "22px", color: "#4f46e5", display: "inline-block" }}></i>
+                                            <h6 style={{ fontWeight: 700, fontSize: "15px", color: "#1e293b", marginTop: "14px", marginBottom: "3px" }}>Carry Forward</h6>
+                                            <span style={{ color: "#8a90a2", fontSize: "13.5px" }}>Up to 5 annual days</span>
+                                        </div>
                                     </div>
 
-                                    <div className="ed-policy-item">
-                                        <i className="bi bi-heart-pulse"></i>
-                                        <strong>Sick Leave</strong>
-                                        <span>10 days per year</span>
-                                    </div>
-
-                                    <div className="ed-policy-item">
-                                        <i className="bi bi-calendar2-event"></i>
-                                        <strong>Casual Leave</strong>
-                                        <span>7 days per year</span>
-                                    </div>
-
-                                    <div className="ed-policy-item">
-                                        <i className="bi bi-arrow-repeat"></i>
-                                        <strong>Carry Forward</strong>
-                                        <span>Up to 5 annual days</span>
+                                    <div style={{ marginTop: "24px" }}>
+                                        <h6 style={{ fontWeight: 700, fontSize: "15px", color: "#1e293b", marginBottom: "12px" }}>Important Guidelines</h6>
+                                        <ul style={{ margin: 0, paddingLeft: "20px", color: "#64748b", fontSize: "13.5px", lineHeight: 1.8 }}>
+                                            <li>Leave should be requested before the planned absence.</li>
+                                            <li>Unplanned absence should be communicated to the reporting manager.</li>
+                                            <li>Supporting documents may be required for certain leave types.</li>
+                                            <li>Leave approval depends on business and team requirements.</li>
+                                        </ul>
                                     </div>
 
                                 </div>
 
-                                <div className="ed-policy-text">
-                                    <h6>Important Guidelines</h6>
-
-                                    <ul>
-                                        <li>Leave should be requested before the planned absence.</li>
-                                        <li>Unplanned absence should be communicated to the reporting manager.</li>
-                                        <li>Supporting documents may be required for certain leave types.</li>
-                                        <li>Leave approval depends on business and team requirements.</li>
-                                    </ul>
+                                <div className="modal-footer d-flex justify-content-end gap-2" style={{ borderTop: "none", padding: "0 24px 20px 24px" }}>
+                                    <button
+                                        type="button"
+                                        className="btn btn-light"
+                                        style={{ borderRadius: "10px", padding: "8px 22px", fontWeight: 600, color: "#334155", backgroundColor: "#f8fafc", border: "1px solid #e2e8f0" }}
+                                        onClick={() => setIsPolicyModalOpen(false)}>
+                                        Close
+                                    </button>
+                                    <button
+                                        type="button"
+                                        className="btn text-white"
+                                        style={{ borderRadius: "10px", padding: "8px 22px", fontWeight: 600, backgroundColor: "#3c2fbc", border: "none", display: "inline-flex", alignItems: "center", gap: "8px" }}
+                                        onClick={() => { setIsPolicyModalOpen(false); navigateTo("leaves"); }}>
+                                        Apply Leave <i className="bi bi-arrow-right"></i>
+                                    </button>
                                 </div>
 
                             </div>
-
-                            <div className="modal-footer">
-                                <button
-                                    className="btn btn-light"
-                                    data-bs-dismiss="modal">
-                                    Close
-                                </button>
-
-                                <button
-                                    className="ed-modal-primary-btn">
-                                    Apply Leave
-                                    <i className="bi bi-arrow-right"></i>
-                                </button>
-                            </div>
-
                         </div>
                     </div>
-                </div>
+                    </>
+                )}
 
 
                 
@@ -1763,8 +1802,8 @@ export default function EmployeeTemplate({
             </div>
   </>
 )}
-{activePage === "employee-profile" && <EmployeeProfile currentUser={currentUser} employeeProfile={employeeProfile} onProfileUpdate={fetchEmployeeProfile} />}
-{activePage === "employement-details" && <EmploymentDetails employeeProfile={employeeProfile} currentUser={currentUser} onProfileUpdate={fetchEmployeeProfile} />}
+{activePage === "employee-profile" && <EmployeeProfile currentUser={currentUser} employeeProfile={employeeProfile} onProfileUpdate={fetchEmployeeProfile} onNavigate={navigateTo} />}
+{activePage === "employement-details" && <EmploymentDetails employeeProfile={employeeProfile} currentUser={currentUser} onProfileUpdate={fetchEmployeeProfile} onNavigate={navigateTo} />}
 {activePage === "documents" && <Documents employeeProfile={employeeProfile} currentUser={currentUser} />}
 {activePage === "skills-certifications" && <SkillsCertifications employeeProfile={employeeProfile} currentUser={currentUser} />}
 {activePage === "attendance" && <Attendance currentUser={currentUser} employeeProfile={employeeProfile} onNavigate={navigateTo} />}
@@ -1776,7 +1815,7 @@ export default function EmployeeTemplate({
 {activePage === "settings" && <Settings employeeProfile={employeeProfile} currentUser={currentUser} onProfileUpdate={fetchEmployeeProfile} />}
 {activePage === "exit-management" && <ExitManagement employeeProfile={employeeProfile} currentUser={currentUser} onNavigate={navigateTo} />}
 {activePage === "employee-requests" && <EmployeeRequests employeeProfile={employeeProfile} currentUser={currentUser} />}
-{activePage === "calendar" && <Calendar employeeProfile={employeeProfile} currentUser={currentUser} />}
+{activePage === "calendar" && <Calendar employeeProfile={employeeProfile} currentUser={currentUser} initialTab={calendarTab} />}
         </div>
     </main>
 

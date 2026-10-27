@@ -63,6 +63,34 @@ export default function SkillsCertifications({ currentUser, employeeProfile, emb
   const [certFeedback, setCertFeedback] = useState({ type: "", text: "" });
   const [certMode, setCertMode] = useState("add");
   const [selectedCert, setSelectedCert] = useState(null);
+
+  const handleOpenCertificate = (cert) => {
+    if (!cert) return;
+    if (cert.id) {
+      window.open(`${API_BASE}/api/employee/certifications/file/${cert.id}`, "_blank", "noopener,noreferrer");
+      return;
+    }
+    if (cert.file_path && cert.file_path.startsWith("data:")) {
+      try {
+        const parts = cert.file_path.split(",");
+        const byteString = atob(parts[1]);
+        const mimeString = parts[0].split(":")[1].split(";")[0];
+        const ab = new ArrayBuffer(byteString.length);
+        const ia = new Uint8Array(ab);
+        for (let i = 0; i < byteString.length; i++) ia[i] = byteString.charCodeAt(i);
+        const blob = new Blob([ab], { type: mimeString });
+        const blobUrl = URL.createObjectURL(blob);
+        window.open(blobUrl, "_blank", "noopener,noreferrer");
+        return;
+      } catch (e) {
+        console.error("Failed to open certificate:", e);
+      }
+    }
+    const targetUrl = cert.file_path && (cert.file_path.startsWith("http") || cert.file_path.startsWith("/"))
+      ? cert.file_path
+      : `${API_BASE}/uploads/certifications/${encodeURIComponent(cert.file_path)}`;
+    window.open(targetUrl, "_blank", "noopener,noreferrer");
+  };
   const [isCertDetailsOpen, setIsCertDetailsOpen] = useState(false);
   const [openCertActionsId, setOpenCertActionsId] = useState(null);
   const [certDeleteTarget, setCertDeleteTarget] = useState(null);
@@ -162,16 +190,15 @@ export default function SkillsCertifications({ currentUser, employeeProfile, emb
               {verified ? "Verified" : "Pending"}
             </span>
 
-            {cert.file_path && (
-              <a
+            {(cert.file_path || cert.id) && (
+              <button
+                type="button"
                 className="btn esc-cert-view-btn"
-                href={`${API_BASE}/uploads/certifications/${encodeURIComponent(cert.file_path)}`}
-                target="_blank"
-                rel="noopener noreferrer"
+                onClick={() => handleOpenCertificate(cert)}
               >
                 View Certificate
-                <i className="bi bi-arrow-up-right"></i>
-              </a>
+                <i className="bi bi-arrow-up-right ms-1"></i>
+              </button>
             )}
           </div>
         </div>
@@ -882,6 +909,13 @@ export default function SkillsCertifications({ currentUser, employeeProfile, emb
                                                 name="lastUsed"
                                                 value={skillForm.lastUsed}
                                                 onChange={updateSkillField}
+                                                onClick={(e) => {
+                                                    try { e.currentTarget.showPicker(); } catch (_) {}
+                                                }}
+                                                onFocus={(e) => {
+                                                    try { e.currentTarget.showPicker(); } catch (_) {}
+                                                }}
+                                                style={{ cursor: "pointer" }}
                                              />
                                         </div>
 
@@ -898,6 +932,16 @@ export default function SkillsCertifications({ currentUser, employeeProfile, emb
                                     <button
                                         type="button"
                                         className="btn esc-cancel-btn"
+                                        style={{
+                                            minHeight: 44,
+                                            padding: "10px 20px",
+                                            borderRadius: 12,
+                                            fontWeight: 600,
+                                            fontSize: "14px",
+                                            backgroundColor: "#f8f9fa",
+                                            border: "1px solid #ebecf3",
+                                            color: "#55586f"
+                                        }}
                                         onClick={closeSkill}
                                     >
                                         Cancel
@@ -907,11 +951,29 @@ export default function SkillsCertifications({ currentUser, employeeProfile, emb
                                         type="button"
                                         className="btn esc-btn-primary"
                                         id="escSaveSkillBtn"
+                                        style={{
+                                            display: "inline-flex",
+                                            alignItems: "center",
+                                            justifyContent: "center",
+                                            gap: 8,
+                                            minHeight: 44,
+                                            padding: "10px 22px",
+                                            borderRadius: 12,
+                                            fontWeight: 600,
+                                            fontSize: "14px",
+                                            backgroundColor: "#3c2fbc",
+                                            borderColor: "#3c2fbc",
+                                            color: "#fff",
+                                            boxShadow: "0 4px 14px rgba(60, 47, 188, 0.2)",
+                                            transition: "all .18s ease",
+                                            cursor: skillSubmitting ? "not-allowed" : "pointer",
+                                            opacity: skillSubmitting ? 0.75 : 1
+                                        }}
                                         onClick={saveSkill}
                                         disabled={skillSubmitting}
                                     >
-                                        <i className="bi bi-check-lg"></i>
-                                        {skillSubmitting ? "Saving..." : skillMode === "edit" ? "Save Changes" : "Save Skill"}
+                                        <i className={`bi ${skillSubmitting ? "bi-arrow-repeat spin" : "bi-check2"}`}></i>
+                                        {skillSubmitting ? "Saving Skill..." : skillMode === "edit" ? "Save Changes" : "Save Skill"}
                                     </button>
 
                                 </div>
@@ -1149,6 +1211,13 @@ export default function SkillsCertifications({ currentUser, employeeProfile, emb
                                                 name="issueDate"
                                                 value={certForm.issueDate}
                                                 onChange={updateCertField}
+                                                onClick={(e) => {
+                                                    try { e.currentTarget.showPicker(); } catch (_) {}
+                                                }}
+                                                onFocus={(e) => {
+                                                    try { e.currentTarget.showPicker(); } catch (_) {}
+                                                }}
+                                                style={{ cursor: "pointer" }}
                                              />
                                         </div>
 
@@ -1164,6 +1233,13 @@ export default function SkillsCertifications({ currentUser, employeeProfile, emb
                                                 name="expiryDate"
                                                 value={certForm.expiryDate}
                                                 onChange={updateCertField}
+                                                onClick={(e) => {
+                                                    try { e.currentTarget.showPicker(); } catch (_) {}
+                                                }}
+                                                onFocus={(e) => {
+                                                    try { e.currentTarget.showPicker(); } catch (_) {}
+                                                }}
+                                                style={{ cursor: "pointer" }}
                                              />
                                         </div>
 
@@ -1191,6 +1267,50 @@ export default function SkillsCertifications({ currentUser, employeeProfile, emb
 
                                             </label>
 
+                                            {certFile && (
+                                                <div className="mt-2 d-flex align-items-center justify-content-between p-2 rounded bg-light border">
+                                                    <span className="small text-truncate" style={{ maxWidth: '65%' }}>
+                                                        <i className="bi bi-file-earmark-check text-success me-1"></i>
+                                                        {certFile.name}
+                                                    </span>
+                                                    <button
+                                                        type="button"
+                                                        className="btn btn-sm btn-outline-primary py-1 px-2 d-inline-flex align-items-center gap-1"
+                                                        style={{ fontSize: "12px", borderRadius: "6px" }}
+                                                        onClick={(e) => {
+                                                            e.preventDefault();
+                                                            e.stopPropagation();
+                                                            const blobUrl = URL.createObjectURL(certFile);
+                                                            window.open(blobUrl, "_blank", "noopener,noreferrer");
+                                                        }}
+                                                        title="Open selected certificate in new window"
+                                                    >
+                                                        <i className="bi bi-box-arrow-up-right"></i> View in New Window
+                                                    </button>
+                                                </div>
+                                            )}
+
+                                            {certMode === "edit" && !certFile && selectedCert?.file_path && (
+                                                <div className="mt-2 d-flex align-items-center justify-content-between p-2 rounded bg-light border">
+                                                    <span className="small text-muted text-truncate" style={{ maxWidth: '65%' }}>
+                                                        <i className="bi bi-file-earmark-text text-primary me-1"></i>
+                                                        Current: {selectedCert.file_name || "Certificate"}
+                                                    </span>
+                                                    <button
+                                                        type="button"
+                                                        className="btn btn-sm btn-outline-primary py-1 px-2 d-inline-flex align-items-center gap-1"
+                                                        style={{ fontSize: "12px", borderRadius: "6px" }}
+                                                        onClick={(e) => {
+                                                            e.preventDefault();
+                                                            e.stopPropagation();
+                                                            handleOpenCertificate(selectedCert);
+                                                        }}
+                                                        title="Open current certificate in new window"
+                                                    >
+                                                        <i className="bi bi-box-arrow-up-right"></i> View in New Window
+                                                    </button>
+                                                </div>
+                                            )}
                                         </div>
 
                                     </div>
@@ -1204,6 +1324,16 @@ export default function SkillsCertifications({ currentUser, employeeProfile, emb
                                     <button
                                         type="button"
                                         className="btn esc-cancel-btn"
+                                        style={{
+                                            minHeight: 44,
+                                            padding: "10px 20px",
+                                            borderRadius: 12,
+                                            fontWeight: 600,
+                                            fontSize: "14px",
+                                            backgroundColor: "#f8f9fa",
+                                            border: "1px solid #ebecf3",
+                                            color: "#55586f"
+                                        }}
                                         onClick={closeCert}
                                     >
                                         Cancel
@@ -1213,11 +1343,29 @@ export default function SkillsCertifications({ currentUser, employeeProfile, emb
                                         type="button"
                                         className="btn esc-btn-primary"
                                         id="escSaveCertificationBtn"
+                                        style={{
+                                            display: "inline-flex",
+                                            alignItems: "center",
+                                            justifyContent: "center",
+                                            gap: 8,
+                                            minHeight: 44,
+                                            padding: "10px 22px",
+                                            borderRadius: 12,
+                                            fontWeight: 600,
+                                            fontSize: "14px",
+                                            backgroundColor: "#3c2fbc",
+                                            borderColor: "#3c2fbc",
+                                            color: "#fff",
+                                            boxShadow: "0 4px 14px rgba(60, 47, 188, 0.2)",
+                                            transition: "all .18s ease",
+                                            cursor: certSubmitting ? "not-allowed" : "pointer",
+                                            opacity: certSubmitting ? 0.75 : 1
+                                        }}
                                         onClick={saveCertification}
                                         disabled={certSubmitting}
                                     >
-                                        <i className="bi bi-check-lg"></i>
-                                        {certSubmitting ? "Saving..." : certMode === "edit" ? "Save Changes" : "Save Certification"}
+                                        <i className={`bi ${certSubmitting ? "bi-arrow-repeat spin" : "bi-check2"}`}></i>
+                                        {certSubmitting ? "Saving Certificate..." : certMode === "edit" ? "Save Changes" : "Save Certificate"}
                                     </button>
 
                                 </div>

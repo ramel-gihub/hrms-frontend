@@ -1,9 +1,15 @@
 import React, { useState, useEffect } from "react";
 
-export default function Calendar({ employeeProfile, currentUser }) {
+export default function Calendar({ employeeProfile, currentUser, initialTab = "calendar" }) {
   const profile = employeeProfile || {};
-  const [activeTab, setActiveTab] = useState("calendar");
+  const [activeTab, setActiveTab] = useState(initialTab || "calendar");
   const [currentMonth, setCurrentMonth] = useState(new Date());
+
+  useEffect(() => {
+    if (initialTab) {
+      setActiveTab(initialTab);
+    }
+  }, [initialTab]);
   
   const [holidays, setHolidays] = useState([]);
   const [leaves, setLeaves] = useState([]);

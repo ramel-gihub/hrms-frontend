@@ -14,24 +14,49 @@ export default function Tenants({
     subdomain: '',
     plan: 'Enterprise',
     contactEmail: '',
-    maxEmployees: 100
+    maxEmployees: 100,
+    adminPassword: '',
+    adminFirstName: '',
+    adminLastName: ''
   });
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+  const [createdAdminResult, setCreatedAdminResult] = useState(null);
+  const [copied, setCopied] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setErrorMsg('');
     setSubmitting(true);
     try {
-      await onCreateTenant(form);
+      const result = await onCreateTenant(form);
       setShowAddModal(false);
-      setForm({ companyName: '', subdomain: '', plan: 'Enterprise', contactEmail: '', maxEmployees: 100 });
+      setForm({ 
+        companyName: '', 
+        subdomain: '', 
+        plan: 'Enterprise', 
+        contactEmail: '', 
+        maxEmployees: 100,
+        adminPassword: '',
+        adminFirstName: '',
+        adminLastName: ''
+      });
+      if (result && result.adminAccount) {
+        setCreatedAdminResult(result);
+      }
     } catch (err) {
       setErrorMsg(err.message || 'Failed to create tenant organization');
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const handleCopyCredentials = () => {
+    if (!createdAdminResult) return;
+    const text = `Tenant: ${createdAdminResult.tenant?.company_name} (${createdAdminResult.tenant?.subdomain}.hrms.local)\nAdmin Email: ${createdAdminResult.adminAccount?.email}\nPassword: ${createdAdminResult.adminAccount?.password}\nRole: ${createdAdminResult.adminAccount?.roleName || 'Organization Admin'}`;
+    navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 3000);
   };
 
   return (
@@ -43,7 +68,7 @@ export default function Tenants({
             Multi-Tenant Organization Management
           </h2>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-            Manage SaaS tenant workspaces, subdomains, subscriptions, and quotas.
+            Manage SaaS tenant workspaces, subdomains, subscriptions, quotas, and default admin accounts.
           </p>
         </div>
 
@@ -104,13 +129,14 @@ export default function Tenants({
                 <th className="px-4 py-3">Plan</th>
                 <th className="px-4 py-3">Status</th>
                 <th className="px-4 py-3">Employees / Quota</th>
-                <th className="px-4 py-3">Contact</th>
+                <th className="px-4 py-3">Default Admin Account</th>
                 <th className="px-4 py-3 text-right rounded-r-xl">Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
               {tenants.map(tenant => {
                 const isCurrent = tenant.id === currentTenantId;
+                const adminEmail = tenant.admin_email || tenant.contact_email || `admin@${tenant.subdomain}.com`;
                 return (
                   <tr key={tenant.id} className="hover:bg-gray-50/50 dark:hover:bg-gray-800/40 transition-colors">
                     <td className="px-4 py-3.5 font-medium text-gray-900 dark:text-white">
@@ -147,8 +173,13 @@ export default function Tenants({
                       <b>{tenant.employee_count || 0}</b> / {tenant.max_employees || 100} Staff
                     </td>
 
-                    <td className="px-4 py-3.5 text-xs text-gray-500 dark:text-gray-400">
-                      {tenant.contact_email || `admin@${tenant.subdomain}.com`}
+                    <td className="px-4 py-3.5 text-xs">
+                      <div className="font-medium text-gray-800 dark:text-gray-200">
+                        {adminEmail}
+                      </div>
+                      <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold">
+                        Role: org_admin
+                      </span>
                     </td>
 
                     <td className="px-4 py-3.5 text-right">
@@ -257,17 +288,45 @@ export default function Tenants({
                 </div>
               </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">
-                  Primary Contact Email
-                </label>
-                <input
-                  type="email"
-                  placeholder="admin@acme.com"
-                  value={form.contactEmail}
-                  onChange={(e) => setForm({ ...form, contactEmail: e.target.value })}
-                  className="w-full rounded-xl border border-gray-200 p-2.5 text-xs text-gray-800 focus:border-[#3c50e0] focus:outline-none dark:border-gray-700 dark:bg-gray-800 dark:text-white"
-                />
+              {/* Default Admin Account Section */}
+              <div className="pt-2 border-t border-gray-100 dark:border-gray-800">
+                <span className="block text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-2">
+                  Default Organization Admin Account
+                </span>
+
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">
+                      Admin Email (Login ID)
+                    </label>
+                    <input
+                      type="email"
+                      placeholder={form.subdomain ? `admin@${form.subdomain}.com` : 'admin@company.com'}
+                      value={form.contactEmail}
+                      onChange={(e) => setForm({ ...form, contactEmail: e.target.value })}
+                      className="w-full rounded-xl border border-gray-200 p-2.5 text-xs text-gray-800 focus:border-[#3c50e0] focus:outline-none dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+                    />
+                    <span className="text-[10px] text-gray-400 mt-0.5 block">
+                      Leave blank to auto-generate: admin@{form.subdomain || 'subdomain'}.com
+                    </span>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">
+                      Admin Password
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Default: Admin@123"
+                      value={form.adminPassword}
+                      onChange={(e) => setForm({ ...form, adminPassword: e.target.value })}
+                      className="w-full rounded-xl border border-gray-200 p-2.5 text-xs text-gray-800 focus:border-[#3c50e0] focus:outline-none dark:border-gray-700 dark:bg-gray-800 dark:text-white font-mono"
+                    />
+                    <span className="text-[10px] text-gray-400 mt-0.5 block">
+                      Leave blank to default to: <span className="font-mono font-semibold">Admin@123</span>
+                    </span>
+                  </div>
+                </div>
               </div>
 
               <div className="flex items-center justify-end gap-3 pt-3 border-t border-gray-100 dark:border-gray-800">
@@ -283,10 +342,91 @@ export default function Tenants({
                   disabled={submitting}
                   className="rounded-xl bg-[#3c50e0] px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-[#3444be] disabled:opacity-50"
                 >
-                  {submitting ? 'Creating...' : 'Create Tenant'}
+                  {submitting ? 'Creating...' : 'Create Tenant & Admin'}
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Success Modal Showing Created Tenant Admin Credentials */}
+      {createdAdminResult && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl dark:bg-gray-900 border border-emerald-200 dark:border-emerald-800">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-100 text-emerald-600 dark:bg-emerald-950/60 dark:text-emerald-400">
+                <CheckCircleIcon className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-gray-900 dark:text-white">
+                  Tenant & Admin Created Successfully!
+                </h3>
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  Default Organization Admin has been provisioned.
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-5 space-y-3 rounded-xl bg-gray-50 p-4 dark:bg-gray-800/60 border border-gray-100 dark:border-gray-800">
+              <div>
+                <span className="text-[10px] uppercase font-bold text-gray-400">Organization</span>
+                <p className="text-xs font-semibold text-gray-900 dark:text-white">
+                  {createdAdminResult.tenant?.company_name} ({createdAdminResult.tenant?.subdomain}.hrms.local)
+                </p>
+              </div>
+
+              <div>
+                <span className="text-[10px] uppercase font-bold text-gray-400">Admin Login Email</span>
+                <p className="text-xs font-mono font-bold text-[#3c50e0] dark:text-[#607afb] select-all">
+                  {createdAdminResult.adminAccount?.email}
+                </p>
+              </div>
+
+              <div>
+                <span className="text-[10px] uppercase font-bold text-gray-400">Default Password</span>
+                <p className="text-xs font-mono font-bold text-gray-900 dark:text-white select-all">
+                  {createdAdminResult.adminAccount?.password}
+                </p>
+              </div>
+
+              <div>
+                <span className="text-[10px] uppercase font-bold text-gray-400">Assigned Role</span>
+                <p className="text-xs font-medium text-emerald-600 dark:text-emerald-400">
+                  {createdAdminResult.adminAccount?.roleName || 'Organization Admin'} ({createdAdminResult.adminAccount?.role || 'org_admin'})
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-5 flex items-center justify-between gap-3 pt-3 border-t border-gray-100 dark:border-gray-800">
+              <button
+                type="button"
+                onClick={handleCopyCredentials}
+                className="rounded-xl border border-gray-200 px-3.5 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-100 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800 transition-colors"
+              >
+                {copied ? '✓ Copied Credentials!' : 'Copy Login Details'}
+              </button>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    onSwitchTenant(createdAdminResult.tenant?.id);
+                    setCreatedAdminResult(null);
+                  }}
+                  className="rounded-xl bg-emerald-600 px-3.5 py-2 text-xs font-semibold text-white shadow-sm hover:bg-emerald-700 transition-colors"
+                >
+                  Switch Context
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCreatedAdminResult(null)}
+                  className="rounded-xl bg-gray-800 px-3.5 py-2 text-xs font-semibold text-white hover:bg-gray-900 dark:bg-gray-700 dark:hover:bg-gray-600 transition-colors"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

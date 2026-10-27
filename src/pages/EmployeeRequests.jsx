@@ -198,7 +198,31 @@ export default function EmployeeRequests({ employeeProfile, currentUser }) {
   const [fileError, setFileError] = useState("");
   const [contactForm, setContactForm] = useState({ subject: "", message: "" });
   const [toast, setToast] = useState("");
+  const [deleteConfirmTarget, setDeleteConfirmTarget] = useState(null);
+  const [deletingRequest, setDeletingRequest] = useState(false);
   const pageSize = 5;
+
+  const handleDeleteRequest = async () => {
+    if (!deleteConfirmTarget || !userId) return;
+    setDeletingRequest(true);
+    try {
+      const response = await fetch(`${API_BASE}/api/employee-requests/${userId}/${deleteConfirmTarget.id}`, {
+        method: "DELETE"
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Unable to delete request.");
+      setToast("Request deleted successfully.");
+      if (selectedRequest && selectedRequest.id === deleteConfirmTarget.id) {
+        setSelectedRequest(null);
+      }
+      setDeleteConfirmTarget(null);
+      loadRequests();
+    } catch (err) {
+      alert(err.message || "Failed to delete request.");
+    } finally {
+      setDeletingRequest(false);
+    }
+  };
 
   const loadRequests = async (signal, showLoading = false) => {
     if (!userId) {
@@ -709,6 +733,25 @@ export default function EmployeeRequests({ employeeProfile, currentUser }) {
                                 {request.priority} Priority
                               </span>
                             )}
+                            {request.status === "Pending" && (
+                              <button
+                                className="btn btn-outline-danger btn-sm"
+                                style={{
+                                  borderRadius: "8px",
+                                  padding: "6px 12px",
+                                  fontWeight: 600,
+                                  fontSize: "0.82rem",
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  gap: "6px"
+                                }}
+                                type="button"
+                                onClick={() => setDeleteConfirmTarget(request)}
+                              >
+                                <i className="bi bi-trash" aria-hidden="true"></i>
+                                Delete
+                              </button>
+                            )}
                             <button
                               className="request-view-btn"
                               type="button"
@@ -925,6 +968,13 @@ export default function EmployeeRequests({ employeeProfile, currentUser }) {
                           type="date"
                           value={form.dateNeeded}
                           onChange={(event) => setForm({ ...form, dateNeeded: event.target.value })}
+                          onClick={(e) => {
+                            try { e.currentTarget.showPicker(); } catch (_) {}
+                          }}
+                          onFocus={(e) => {
+                            try { e.currentTarget.showPicker(); } catch (_) {}
+                          }}
+                          style={{ cursor: "pointer" }}
                         />
                       </div>
                       <div className="request-form-group">
@@ -1055,6 +1105,13 @@ export default function EmployeeRequests({ employeeProfile, currentUser }) {
                               ...(prev.isHalfDay ? { endDate: val } : {})
                             }));
                           }}
+                          onClick={(e) => {
+                            try { e.currentTarget.showPicker(); } catch (_) {}
+                          }}
+                          onFocus={(e) => {
+                            try { e.currentTarget.showPicker(); } catch (_) {}
+                          }}
+                          style={{ cursor: "pointer" }}
                           required
                         />
                       </div>
@@ -1067,6 +1124,13 @@ export default function EmployeeRequests({ employeeProfile, currentUser }) {
                             min={form.startDate || undefined}
                             value={form.endDate}
                             onChange={(event) => setForm({ ...form, endDate: event.target.value })}
+                            onClick={(e) => {
+                              try { e.currentTarget.showPicker(); } catch (_) {}
+                            }}
+                            onFocus={(e) => {
+                              try { e.currentTarget.showPicker(); } catch (_) {}
+                            }}
+                            style={{ cursor: "pointer" }}
                             required
                           />
                         </div>
@@ -1099,6 +1163,13 @@ export default function EmployeeRequests({ employeeProfile, currentUser }) {
                               endDate: prev.endDate && prev.endDate >= val ? prev.endDate : val
                             }));
                           }}
+                          onClick={(e) => {
+                            try { e.currentTarget.showPicker(); } catch (_) {}
+                          }}
+                          onFocus={(e) => {
+                            try { e.currentTarget.showPicker(); } catch (_) {}
+                          }}
+                          style={{ cursor: "pointer" }}
                           required
                         />
                       </div>
@@ -1110,6 +1181,13 @@ export default function EmployeeRequests({ employeeProfile, currentUser }) {
                           min={form.startDate || undefined}
                           value={form.endDate || form.startDate}
                           onChange={(e) => setForm({ ...form, endDate: e.target.value })}
+                          onClick={(e) => {
+                            try { e.currentTarget.showPicker(); } catch (_) {}
+                          }}
+                          onFocus={(e) => {
+                            try { e.currentTarget.showPicker(); } catch (_) {}
+                          }}
+                          style={{ cursor: "pointer" }}
                           required
                         />
                       </div>
@@ -1188,6 +1266,13 @@ export default function EmployeeRequests({ employeeProfile, currentUser }) {
                           max={new Date().toISOString().split("T")[0]}
                           value={form.expenseDate || ""}
                           onChange={(event) => setForm({ ...form, expenseDate: event.target.value })}
+                          onClick={(e) => {
+                            try { e.currentTarget.showPicker(); } catch (_) {}
+                          }}
+                          onFocus={(e) => {
+                            try { e.currentTarget.showPicker(); } catch (_) {}
+                          }}
+                          style={{ cursor: "pointer" }}
                           required
                         />
                       </div>
@@ -1425,12 +1510,80 @@ export default function EmployeeRequests({ employeeProfile, currentUser }) {
                 <div className="request-description-box">{selectedRequest.description}</div>
               </section>
             </div>
-            <footer className="request-modal-footer">
+            <footer className="request-modal-footer" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              {selectedRequest.status === "Pending" ? (
+                <button
+                  className="btn btn-outline-danger"
+                  style={{
+                    borderRadius: "10px",
+                    fontWeight: 600,
+                    fontSize: "0.875rem",
+                    padding: "8px 16px",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "6px"
+                  }}
+                  type="button"
+                  onClick={() => setDeleteConfirmTarget(selectedRequest)}
+                >
+                  <i className="bi bi-trash" aria-hidden="true"></i> Delete Request
+                </button>
+              ) : <div />}
               <button className="requests-secondary-btn" type="button" onClick={() => setSelectedRequest(null)}>
                 Close
               </button>
             </footer>
           </section>
+        </div>
+      )}
+
+      {deleteConfirmTarget && (
+        <div
+          className="request-modal-overlay show"
+          style={{ zIndex: 1060, display: "flex", alignItems: "center", justifyContent: "center" }}
+          onClick={() => !deletingRequest && setDeleteConfirmTarget(null)}
+        >
+          <div
+            className="request-detail-panel"
+            style={{ maxWidth: 460, margin: "auto", borderRadius: 16, padding: 24, textAlign: "center", background: "#ffffff", boxShadow: "0 10px 25px rgba(0,0,0,0.2)" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ width: 56, height: 56, borderRadius: "50%", background: "#fee2e2", color: "#dc2626", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 26, margin: "0 auto 12px" }}>
+              <i className="bi bi-exclamation-triangle"></i>
+            </div>
+            <h3 style={{ fontSize: "1.2rem", fontWeight: 700, margin: "0 0 8px" }}>Delete Request</h3>
+            <p style={{ color: "#6b7280", fontSize: "0.9rem", margin: 0, lineHeight: 1.5 }}>
+              Are you sure you want to delete request <strong>{deleteConfirmTarget.id}</strong> ({deleteConfirmTarget.subject})? This action cannot be undone.
+            </p>
+            <div style={{ display: "flex", gap: 12, justifyContent: "flex-end", marginTop: 24 }}>
+              <button
+                className="requests-secondary-btn"
+                disabled={deletingRequest}
+                onClick={() => setDeleteConfirmTarget(null)}
+                type="button"
+              >
+                Cancel
+              </button>
+              <button
+                className="btn btn-danger"
+                disabled={deletingRequest}
+                style={{ borderRadius: 10, padding: "8px 20px", fontWeight: 600, background: "#dc2626", borderColor: "#dc2626" }}
+                onClick={handleDeleteRequest}
+                type="button"
+              >
+                {deletingRequest ? (
+                  <>
+                    <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                    Deleting...
+                  </>
+                ) : (
+                  <>
+                    <i className="bi bi-trash me-1"></i> Delete
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

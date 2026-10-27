@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 
-export default function EmploymentDetails({ employeeProfile, currentUser, onProfileUpdate, embedded = false }) {
+export default function EmploymentDetails({ employeeProfile, currentUser, onProfileUpdate, onNavigate, embedded = false }) {
   const [profile, setProfile] = useState(employeeProfile || {});
   const [workMode, setWorkMode] = useState(employeeProfile?.work_mode || 'Hybrid');
   const [updating, setUpdating] = useState(false);
@@ -296,7 +296,7 @@ export default function EmploymentDetails({ employeeProfile, currentUser, onProf
                       <h1>Employment Details</h1>
                       <p>Employment profile and organizational details for this employee.</p>
                     </div>
-                    <button type="button" className="epd-upload-btn" id="epdHeaderUploadBtn">
+                    <button type="button" className="epd-upload-btn" id="epdHeaderUploadBtn" onClick={() => onNavigate?.("employee-profile")}>
                       <i className="bi bi-eye"></i> View-only profile
                     </button>
                   </div>

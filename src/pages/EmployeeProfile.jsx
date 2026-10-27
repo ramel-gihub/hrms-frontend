@@ -7,7 +7,7 @@ import Leaves from "./Leaves";
 import Assets from "./Assets";
 import Expenses from "./Expenses";
 
-export default function EmployeeProfile({ currentUser, employeeProfile, onProfileUpdate }) {
+export default function EmployeeProfile({ currentUser, employeeProfile, onProfileUpdate, onNavigate }) {
     const [activeProfileTab, setActiveProfileTab] = useState("overview");
     const firstName = employeeProfile?.first_name || "";
     const lastName = employeeProfile?.last_name || "";
@@ -420,20 +420,21 @@ export default function EmployeeProfile({ currentUser, employeeProfile, onProfil
                                         </div>
 
                                         <div className="ep-completion-percentage">
-                                            92%
+                                            {employeeProfile?.profile_completion_percentage ?? 0}%
                                         </div>
 
                                     </div>
 
 
                                     <div className="ep-completion-bar">
-                                        <span style={{width: "92%"}}></span>
+                                        <span style={{width: `${employeeProfile?.profile_completion_percentage ?? 0}%`}}></span>
                                     </div>
 
 
                                     <p>
-                                        Your employee profile is almost complete.
-                                        Add the remaining information to reach 100%.
+                                        {(employeeProfile?.profile_completion_percentage ?? 0) >= 100
+                                            ? "Your employee profile is complete!"
+                                            : "Add remaining details in Settings to reach 100% completion."}
                                     </p>
 
 
@@ -459,14 +460,14 @@ export default function EmployeeProfile({ currentUser, employeeProfile, onProfil
                                             Emergency contact
                                         </div>
 
-                                        <div className="ep-completion-item pending">
-                                            <i className="bi bi-clock-fill text-danger"></i>
-                                            Documents
+                                        <div className="ep-completion-item completed">
+                                            <i className="bi bi-check-circle-fill"></i>
+                                            Bank & Identity details
                                         </div>
 
                                     </div>
 
-                                    <button type="button" className="btn ep-complete-profile-btn">
+                                    <button type="button" className="btn ep-complete-profile-btn" onClick={() => onNavigate?.("settings")}>
                                         Complete Profile
                                         <i className="bi bi-arrow-right"></i>
                                     </button>

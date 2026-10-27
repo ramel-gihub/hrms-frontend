@@ -27,6 +27,121 @@ const statusKind = (status) => {
   return { cls: "pending", icon: "bi-clock-fill", label: "Pending" };
 };
 const API_BASE = import.meta.env.VITE_API_URL || "https://hrms-backend-5xo8.onrender.com";
+
+const dataURItoBlob = (dataURI) => {
+  try {
+    const parts = dataURI.split(",");
+    const byteString = atob(parts[1]);
+    const mimeString = parts[0].split(":")[1].split(";")[0];
+    const ab = new ArrayBuffer(byteString.length);
+    const ia = new Uint8Array(ab);
+    for (let i = 0; i < byteString.length; i++) {
+      ia[i] = byteString.charCodeAt(i);
+    }
+    return new Blob([ab], { type: mimeString });
+  } catch (e) {
+    console.error("Failed to convert data URI to Blob:", e);
+    return null;
+  }
+};
+
+const getDocFileType = (doc) => {
+  if (!doc) return { isPdf: false, isImage: false, ext: "FILE" };
+  const mime = (doc.file_mime_type || "").toLowerCase();
+  const pathOrData = (doc.file_path || "").toLowerCase();
+  const name = (doc.file_name || "").toLowerCase();
+
+  const isPdf =
+    mime === "application/pdf" ||
+    pathOrData.startsWith("data:application/pdf") ||
+    name.endsWith(".pdf") ||
+    (pathOrData.endsWith(".pdf") && !pathOrData.startsWith("data:"));
+
+  const isImage =
+    mime.startsWith("image/") ||
+    pathOrData.startsWith("data:image/") ||
+    /\.(jpe?g|png|webp|gif|svg)$/i.test(name) ||
+    (/\.(jpe?g|png|webp|gif|svg)$/i.test(pathOrData) && !pathOrData.startsWith("data:"));
+
+  let ext = "FILE";
+  if (name.includes(".")) {
+    ext = name.split(".").pop().toUpperCase();
+  } else if (mime.includes("/")) {
+    ext = mime.split("/")[1].toUpperCase();
+  } else if (isPdf) {
+    ext = "PDF";
+  } else if (isImage) {
+    ext = "IMAGE";
+  }
+
+  return { isPdf, isImage, ext };
+};
+
+const handleDownloadDocument = (doc) => {
+  if (!doc) return;
+  const rawName = doc.file_name || doc.document_name || "document";
+  let fileName = rawName;
+  const { ext } = getDocFileType(doc);
+  if (!fileName.includes(".") && ext && ext !== "FILE") {
+    fileName = `${fileName}.${ext.toLowerCase()}`;
+  }
+
+  if (doc.file_path && doc.file_path.startsWith("data:")) {
+    const blob = dataURItoBlob(doc.file_path);
+    if (blob) {
+      const blobUrl = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = blobUrl;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 1500);
+      return;
+    }
+  }
+
+  if (doc.id) {
+    const downloadUrl = `${API_BASE}/api/employee/documents/file/${doc.id}?download=1`;
+    const link = document.createElement("a");
+    link.href = downloadUrl;
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    return;
+  }
+
+  const link = document.createElement("a");
+  link.href = `${API_BASE}/uploads/documents/${encodeURIComponent(doc.file_path)}`;
+  link.download = fileName;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+};
+
+const handleOpenInNewTab = (doc) => {
+  if (!doc) return;
+
+  if (doc.file_path && doc.file_path.startsWith("data:")) {
+    const blob = dataURItoBlob(doc.file_path);
+    if (blob) {
+      const blobUrl = URL.createObjectURL(blob);
+      window.open(blobUrl, "_blank", "noopener,noreferrer");
+      return;
+    }
+  }
+
+  if (doc.id) {
+    window.open(`${API_BASE}/api/employee/documents/file/${doc.id}`, "_blank", "noopener,noreferrer");
+    return;
+  }
+
+  const targetUrl = doc.file_path && (doc.file_path.startsWith("http") || doc.file_path.startsWith("/"))
+    ? doc.file_path
+    : `${API_BASE}/uploads/documents/${encodeURIComponent(doc.file_path)}`;
+  window.open(targetUrl, "_blank", "noopener,noreferrer");
+};
 const readApiResponse = async (response) => {
     const contentType = response.headers.get("content-type") || "";
     if (contentType.includes("application/json")) return response.json();
@@ -197,6 +312,15 @@ export default function Documents({ currentUser, employeeProfile, embedded = fal
           <div className="epd-actions">
             <button type="button" className="epd-view-btn" title="View details" onClick={() => setViewDoc(doc)}>
               <i className="bi bi-eye"></i>
+            </button>
+            <button
+              type="button"
+              className="epd-view-btn"
+              title="Open document in new window"
+              onClick={() => handleOpenInNewTab(doc)}
+              style={{ color: "#3c2fbc" }}
+            >
+              <i className="bi bi-box-arrow-up-right"></i>
             </button>
             {doc.verification_status !== "Verified" && (
               <>
@@ -634,7 +758,7 @@ export default function Documents({ currentUser, employeeProfile, embedded = fal
                             if (event.target === event.currentTarget) setViewDoc(null);
                         }}
                     >
-                        <div className="modal-dialog modal-dialog-centered">
+                        <div className="modal-dialog modal-dialog-centered modal-lg">
                             <div className="modal-content epd-modal">
                                 <div className="modal-header">
                                     <div>
@@ -656,7 +780,7 @@ export default function Documents({ currentUser, employeeProfile, embedded = fal
                                             </div>
                                         </div>
 
-                                        <div className="row g-3 epd-detail-grid">
+                                        <div className="row g-3 epd-detail-grid mb-3">
                                             {[
                                                 ["Document Category", viewDoc.document_category],
                                                 ["Document Type", viewDoc.document_type],
@@ -671,21 +795,78 @@ export default function Documents({ currentUser, employeeProfile, embedded = fal
                                                 </div>
                                             ))}
                                         </div>
+
+                                        {/* In-Browser Document Viewer */}
+                                        {(viewDoc.file_path || viewDoc.id) && (() => {
+                                            const { isPdf, isImage, ext } = getDocFileType(viewDoc);
+                                            const previewSrc = viewDoc.file_path && viewDoc.file_path.startsWith("data:image/")
+                                                ? viewDoc.file_path
+                                                : `${API_BASE}/api/employee/documents/file/${viewDoc.id}`;
+
+                                            return (
+                                                <div className="epd-document-preview-container p-2 rounded-3" style={{ border: "1px solid #ebecf3", backgroundColor: "#f9fafb" }}>
+                                                    <div className="d-flex align-items-center justify-content-between mb-2 px-1">
+                                                        <span className="small text-muted fw-semibold d-flex align-items-center gap-1">
+                                                            <i className="bi bi-file-earmark-text text-primary"></i>
+                                                            Document Preview
+                                                        </span>
+                                                        <span className="badge bg-primary-subtle text-primary text-uppercase px-2 py-1" style={{ fontSize: "11px" }}>
+                                                            {ext}
+                                                        </span>
+                                                    </div>
+
+                                                    {isPdf ? (
+                                                        <iframe
+                                                            src={`${API_BASE}/api/employee/documents/file/${viewDoc.id}#toolbar=1`}
+                                                            title={viewDoc.document_name || "PDF Document"}
+                                                            width="100%"
+                                                            height="460px"
+                                                            style={{ border: "1px solid #e2e4ef", borderRadius: 8, backgroundColor: "#fff" }}
+                                                        />
+                                                    ) : isImage ? (
+                                                        <div className="text-center p-3 bg-white rounded-2" style={{ border: "1px solid #e2e4ef", maxHeight: 460, overflow: "auto" }}>
+                                                            <img
+                                                                src={previewSrc}
+                                                                alt={viewDoc.document_name || "Document Preview"}
+                                                                style={{ maxWidth: "100%", maxHeight: "420px", objectFit: "contain", borderRadius: 6 }}
+                                                            />
+                                                        </div>
+                                                    ) : (
+                                                        <div className="text-center py-4 bg-white rounded-2" style={{ border: "1px solid #e2e4ef" }}>
+                                                            <i className="bi bi-file-earmark-arrow-down fs-1 text-primary mb-2 d-block"></i>
+                                                            <p className="text-muted mb-2">This document format is best viewed by opening or downloading.</p>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            );
+                                        })()}
                                     </div>
                                 )}
 
-                                <div className="modal-footer">
-                                    {viewDoc && (
-                                        <a
-                                            className="epd-modal-save text-decoration-none"
-                                            href={`${API_BASE}/uploads/documents/${encodeURIComponent(viewDoc.file_path)}`}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                        >
-                                            <i className="bi bi-box-arrow-up-right"></i> Open File
-                                        </a>
-                                    )}
-                                    <button type="button" className="epd-modal-cancel" onClick={() => setViewDoc(null)}>Close</button>
+                                <div className="modal-footer d-flex justify-content-between">
+                                    <div className="d-flex gap-2">
+                                        {viewDoc && (viewDoc.file_path || viewDoc.id) && (
+                                            <button
+                                                type="button"
+                                                className="btn btn-outline-primary px-3 rounded-3 d-inline-flex align-items-center gap-2"
+                                                onClick={() => handleDownloadDocument(viewDoc)}
+                                                title="Download document to your device"
+                                            >
+                                                <i className="bi bi-download"></i> Download
+                                            </button>
+                                        )}
+                                        {viewDoc && (viewDoc.file_path || viewDoc.id) && (
+                                            <button
+                                                type="button"
+                                                className="btn btn-light border px-3 rounded-3 d-inline-flex align-items-center gap-2"
+                                                onClick={() => handleOpenInNewTab(viewDoc)}
+                                                title="Open in a new browser tab"
+                                            >
+                                                <i className="bi bi-box-arrow-up-right"></i> Open in New Tab
+                                            </button>
+                                        )}
+                                    </div>
+                                    <button type="button" className="btn btn-secondary px-4 rounded-3" onClick={() => setViewDoc(null)}>Close</button>
                                 </div>
                             </div>
                         </div>
@@ -776,16 +957,34 @@ export default function Documents({ currentUser, employeeProfile, embedded = fal
                                     {fileError && <p className="text-danger small mt-2">{fileError}</p>}
 
                                     {editingDoc && !selectedFile && (
-                                        <p className="small text-muted mt-2 mb-0">
-                                            Current file: {editingDoc.file_name}. Choose a new file only if you want to replace it.
-                                        </p>
+                                        <div className="d-flex align-items-center justify-content-between p-2 rounded bg-light border mt-2">
+                                            <span className="small text-muted text-truncate" style={{ maxWidth: '70%' }}>
+                                                <i className="bi bi-file-earmark-text text-primary me-1"></i>
+                                                Current file: {editingDoc.file_name}
+                                            </span>
+                                            {editingDoc.file_path && (
+                                                <button
+                                                    type="button"
+                                                    className="btn btn-sm btn-outline-primary py-1 px-2 d-inline-flex align-items-center gap-1"
+                                                    style={{ fontSize: "12px", borderRadius: "6px" }}
+                                                    onClick={(e) => {
+                                                        e.preventDefault();
+                                                        e.stopPropagation();
+                                                        handleOpenInNewTab(editingDoc);
+                                                    }}
+                                                    title="Open current file in new window"
+                                                >
+                                                    <i className="bi bi-box-arrow-up-right"></i> View in New Window
+                                                </button>
+                                            )}
+                                        </div>
                                     )}
 
                                     <div id="epdSelectedFile" className={`epd-selected-file${selectedFile ? "" : " d-none"}`}>
 
                                         <i className="bi bi-file-earmark-text"></i>
 
-                                        <div>
+                                        <div className="flex-grow-1">
 
                                             <strong id="epdFileName">
                                                 {selectedFile?.name}
@@ -796,6 +995,23 @@ export default function Documents({ currentUser, employeeProfile, embedded = fal
                                             </span>
 
                                         </div>
+
+                                        {selectedFile && (
+                                            <button
+                                                type="button"
+                                                className="btn btn-sm btn-outline-primary py-1 px-2 me-2 d-inline-flex align-items-center gap-1"
+                                                style={{ fontSize: "12px", borderRadius: "6px" }}
+                                                onClick={(e) => {
+                                                    e.preventDefault();
+                                                    e.stopPropagation();
+                                                    const blobUrl = URL.createObjectURL(selectedFile);
+                                                    window.open(blobUrl, "_blank", "noopener,noreferrer");
+                                                }}
+                                                title="Open selected document in new window"
+                                            >
+                                                <i className="bi bi-box-arrow-up-right"></i> View in New Window
+                                            </button>
+                                        )}
 
                                         <button type="button" id="epdRemoveFile" onClick={() => setSelectedFile(null)}>
 
@@ -971,9 +1187,28 @@ export default function Documents({ currentUser, employeeProfile, embedded = fal
 
                                                 <div className="epd-input-icon">
 
-                                                    <i className="bi bi-calendar3"></i>
+                                                    <i
+                                                        className="bi bi-calendar3"
+                                                        style={{ cursor: "pointer", zIndex: 3 }}
+                                                        title="Click to open calendar"
+                                                        onClick={() => {
+                                                            const el = document.getElementById("epdIssuedDate");
+                                                            try { el?.showPicker(); } catch (_) { el?.focus(); }
+                                                        }}
+                                                    ></i>
 
-                                                    <input type="date" className="form-control epd-input" id="epdIssuedDate" name="issuedDate" value={form.issuedDate} onChange={updateField} />
+                                                    <input
+                                                        type="date"
+                                                        className="form-control epd-input"
+                                                        id="epdIssuedDate"
+                                                        name="issuedDate"
+                                                        value={form.issuedDate}
+                                                        onChange={updateField}
+                                                        onClick={(e) => {
+                                                            try { e.currentTarget.showPicker(); } catch (_) {}
+                                                        }}
+                                                        style={{ cursor: "pointer" }}
+                                                    />
 
                                                 </div>
 
@@ -988,9 +1223,28 @@ export default function Documents({ currentUser, employeeProfile, embedded = fal
 
                                                 <div className="epd-input-icon">
 
-                                                    <i className="bi bi-calendar3"></i>
+                                                    <i
+                                                        className="bi bi-calendar3"
+                                                        style={{ cursor: "pointer", zIndex: 3 }}
+                                                        title="Click to open calendar"
+                                                        onClick={() => {
+                                                            const el = document.getElementById("epdExpiryDate");
+                                                            try { el?.showPicker(); } catch (_) { el?.focus(); }
+                                                        }}
+                                                    ></i>
 
-                                                    <input type="date" className="form-control epd-input" id="epdExpiryDate" name="expiryDate" value={form.expiryDate} onChange={updateField} />
+                                                    <input
+                                                        type="date"
+                                                        className="form-control epd-input"
+                                                        id="epdExpiryDate"
+                                                        name="expiryDate"
+                                                        value={form.expiryDate}
+                                                        onChange={updateField}
+                                                        onClick={(e) => {
+                                                            try { e.currentTarget.showPicker(); } catch (_) {}
+                                                        }}
+                                                        style={{ cursor: "pointer" }}
+                                                    />
 
                                                 </div>
 

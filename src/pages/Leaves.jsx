@@ -101,6 +101,36 @@ export default function Leaves({ currentUser, employeeProfile, embedded = false 
   });
   const [daysCalculated, setDaysCalculated] = useState(0);
 
+  const handleOpenLeaveDocument = (leaveId, docUrl, docName) => {
+    if (leaveId) {
+      const fullUrl = `${import.meta.env.VITE_API_URL || "https://hrms-backend-5xo8.onrender.com"}/api/leaves/file/${leaveId}`;
+      window.open(fullUrl, '_blank', 'noopener,noreferrer');
+      return;
+    }
+    if (docUrl && docUrl.startsWith('data:')) {
+      try {
+        const parts = docUrl.split(',');
+        const byteString = atob(parts[1]);
+        const mimeString = parts[0].split(':')[1].split(';')[0];
+        const ab = new ArrayBuffer(byteString.length);
+        const ia = new Uint8Array(ab);
+        for (let i = 0; i < byteString.length; i++) ia[i] = byteString.charCodeAt(i);
+        const blob = new Blob([ab], { type: mimeString });
+        const blobUrl = URL.createObjectURL(blob);
+        window.open(blobUrl, '_blank', 'noopener,noreferrer');
+        return;
+      } catch (e) {
+        console.error('Error opening blob document:', e);
+      }
+    }
+    if (docUrl) {
+      const fullUrl = docUrl.startsWith('http')
+        ? docUrl
+        : `${import.meta.env.VITE_API_URL || "https://hrms-backend-5xo8.onrender.com"}${docUrl.startsWith('/') ? '' : '/'}${docUrl}`;
+      window.open(fullUrl, '_blank', 'noopener,noreferrer');
+    }
+  };
+
   const fetchData = async () => {
     if (!currentUser) return;
     try {
@@ -1110,7 +1140,18 @@ export default function Leaves({ currentUser, employeeProfile, embedded = false 
                                             From Date
                                         </label>
 
-                                        <input type="date" id="eplApplyFrom" className="form-control" />
+                                        <input
+                                            type="date"
+                                            id="eplApplyFrom"
+                                            className="form-control"
+                                            onClick={(e) => {
+                                                try { e.currentTarget.showPicker(); } catch (_) {}
+                                            }}
+                                            onFocus={(e) => {
+                                                try { e.currentTarget.showPicker(); } catch (_) {}
+                                            }}
+                                            style={{ cursor: "pointer" }}
+                                        />
 
                                     </div>
 
@@ -1121,7 +1162,18 @@ export default function Leaves({ currentUser, employeeProfile, embedded = false 
                                             To Date
                                         </label>
 
-                                        <input type="date" id="eplApplyTo" className="form-control" />
+                                        <input
+                                            type="date"
+                                            id="eplApplyTo"
+                                            className="form-control"
+                                            onClick={(e) => {
+                                                try { e.currentTarget.showPicker(); } catch (_) {}
+                                            }}
+                                            onFocus={(e) => {
+                                                try { e.currentTarget.showPicker(); } catch (_) {}
+                                            }}
+                                            style={{ cursor: "pointer" }}
+                                        />
 
                                     </div>
 
@@ -1278,6 +1330,13 @@ export default function Leaves({ currentUser, employeeProfile, embedded = false 
                             ...(prev.isHalfDay ? { endDate: val } : {})
                           }));
                         }}
+                        onClick={(e) => {
+                          try { e.currentTarget.showPicker(); } catch (_) {}
+                        }}
+                        onFocus={(e) => {
+                          try { e.currentTarget.showPicker(); } catch (_) {}
+                        }}
+                        style={{ cursor: "pointer" }}
                       />
                     </div>
                     {!formData.isHalfDay ? (
@@ -1291,6 +1350,13 @@ export default function Leaves({ currentUser, employeeProfile, embedded = false 
                           max={maxSelectableDate}
                           value={formData.endDate}
                           onChange={e => setFormData({...formData, endDate: e.target.value})}
+                          onClick={(e) => {
+                            try { e.currentTarget.showPicker(); } catch (_) {}
+                          }}
+                          onFocus={(e) => {
+                            try { e.currentTarget.showPicker(); } catch (_) {}
+                          }}
+                          style={{ cursor: "pointer" }}
                         />
                       </div>
                     ) : (
@@ -1332,6 +1398,28 @@ export default function Leaves({ currentUser, employeeProfile, embedded = false 
                           setFormData(prev => ({ ...prev, documentFile: file }));
                         }}
                       />
+                      {formData.documentFile && (
+                        <div className="mt-2 d-flex align-items-center justify-content-between p-2 rounded bg-light border">
+                          <span className="small text-truncate" style={{ maxWidth: '65%' }}>
+                            <i className="bi bi-file-earmark-check text-success me-1"></i>
+                            {formData.documentFile.name}
+                          </span>
+                          <button
+                            type="button"
+                            className="btn btn-sm btn-outline-primary py-1 px-2 d-inline-flex align-items-center gap-1"
+                            style={{ fontSize: "12px", borderRadius: "6px" }}
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              const blobUrl = URL.createObjectURL(formData.documentFile);
+                              window.open(blobUrl, "_blank", "noopener,noreferrer");
+                            }}
+                            title="Open document in new window"
+                          >
+                            <i className="bi bi-box-arrow-up-right"></i> View in New Window
+                          </button>
+                        </div>
+                      )}
                     </div>
                     <div className="col-12">
                       <label className="form-label">Reason <span className="text-danger">*</span></label>
@@ -1377,11 +1465,23 @@ export default function Leaves({ currentUser, employeeProfile, embedded = false 
                           <div className="p-3 rounded" style={{ border: '1px solid #eaeaea' }}>
                               <small className="text-muted d-block mb-1" style={{ fontSize: '13px' }}>From Date</small>
                               {isEditMode ? (
-                                  <input type="date" className="form-control form-control-sm border-0 px-0 fw-bold shadow-none" value={viewLeave.start_date ? (viewLeave.start_date.includes('T') ? viewLeave.start_date.split('T')[0] : new Date(viewLeave.start_date).toISOString().split('T')[0]) : ''} onChange={(e) => {
-                                      const newStart = e.target.value;
-                                      const newDays = calculateWorkingDays(newStart, viewLeave.end_date);
-                                      setViewLeave({...viewLeave, start_date: newStart, days_requested: newDays});
-                                  }} />
+                                  <input
+                                      type="date"
+                                      className="form-control form-control-sm border-0 px-0 fw-bold shadow-none"
+                                      value={viewLeave.start_date ? (viewLeave.start_date.includes('T') ? viewLeave.start_date.split('T')[0] : new Date(viewLeave.start_date).toISOString().split('T')[0]) : ''}
+                                      onChange={(e) => {
+                                          const newStart = e.target.value;
+                                          const newDays = calculateWorkingDays(newStart, viewLeave.end_date);
+                                          setViewLeave({...viewLeave, start_date: newStart, days_requested: newDays});
+                                      }}
+                                      onClick={(e) => {
+                                          try { e.currentTarget.showPicker(); } catch (_) {}
+                                      }}
+                                      onFocus={(e) => {
+                                          try { e.currentTarget.showPicker(); } catch (_) {}
+                                      }}
+                                      style={{ cursor: "pointer" }}
+                                  />
                               ) : (
                                   <strong className="d-block text-dark">{viewLeave.start_date ? new Date(viewLeave.start_date).toLocaleDateString('en-GB', {day:'2-digit', month:'short', year:'numeric'}).replace(/ /g, '-') : '--'}</strong>
                               )}
@@ -1391,11 +1491,23 @@ export default function Leaves({ currentUser, employeeProfile, embedded = false 
                           <div className="p-3 rounded" style={{ border: '1px solid #eaeaea' }}>
                               <small className="text-muted d-block mb-1" style={{ fontSize: '13px' }}>To Date</small>
                               {isEditMode ? (
-                                  <input type="date" className="form-control form-control-sm border-0 px-0 fw-bold shadow-none" value={viewLeave.end_date ? (viewLeave.end_date.includes('T') ? viewLeave.end_date.split('T')[0] : new Date(viewLeave.end_date).toISOString().split('T')[0]) : ''} onChange={(e) => {
-                                      const newEnd = e.target.value;
-                                      const newDays = calculateWorkingDays(viewLeave.start_date, newEnd);
-                                      setViewLeave({...viewLeave, end_date: newEnd, days_requested: newDays});
-                                  }} />
+                                  <input
+                                      type="date"
+                                      className="form-control form-control-sm border-0 px-0 fw-bold shadow-none"
+                                      value={viewLeave.end_date ? (viewLeave.end_date.includes('T') ? viewLeave.end_date.split('T')[0] : new Date(viewLeave.end_date).toISOString().split('T')[0]) : ''}
+                                      onChange={(e) => {
+                                          const newEnd = e.target.value;
+                                          const newDays = calculateWorkingDays(viewLeave.start_date, newEnd);
+                                          setViewLeave({...viewLeave, end_date: newEnd, days_requested: newDays});
+                                      }}
+                                      onClick={(e) => {
+                                          try { e.currentTarget.showPicker(); } catch (_) {}
+                                      }}
+                                      onFocus={(e) => {
+                                          try { e.currentTarget.showPicker(); } catch (_) {}
+                                      }}
+                                      style={{ cursor: "pointer" }}
+                                  />
                               ) : (
                                   <strong className="d-block text-dark">{viewLeave.end_date ? new Date(viewLeave.end_date).toLocaleDateString('en-GB', {day:'2-digit', month:'short', year:'numeric'}).replace(/ /g, '-') : '--'}</strong>
                               )}
@@ -1450,31 +1562,47 @@ export default function Leaves({ currentUser, employeeProfile, embedded = false 
                                           }}
                                       />
                                       {viewLeave.document_url && !editDocFile && (
-                                          <a 
-                                              href={viewLeave.document_url.startsWith('http') ? viewLeave.document_url : `${import.meta.env.VITE_API_URL || "https://hrms-backend-5xo8.onrender.com"}${viewLeave.document_url}`} 
-                                              target="_blank" 
-                                              rel="noopener noreferrer" 
-                                              className="text-primary text-truncate d-inline-flex align-items-center gap-1 mt-1 text-decoration-none" 
-                                              style={{ fontSize: '11px', maxWidth: '140px', cursor: 'pointer' }} 
-                                              title={viewLeave.document_name || 'View current document in new tab'}
+                                          <button 
+                                              type="button"
+                                              onClick={() => handleOpenLeaveDocument(viewLeave.id, viewLeave.document_url, viewLeave.document_name)}
+                                              className="btn btn-link text-primary text-truncate d-inline-flex align-items-center gap-1 mt-1 p-0 text-decoration-none" 
+                                              style={{ fontSize: '11px', maxWidth: '200px', cursor: 'pointer' }} 
+                                              title={viewLeave.document_name || 'View current document in new window'}
                                           >
                                               <i className="bi bi-box-arrow-up-right"></i> Current: {viewLeave.document_name || 'Document'}
-                                          </a>
+                                          </button>
+                                      )}
+                                      {editDocFile && (
+                                          <div className="mt-1 d-flex align-items-center justify-content-between p-1 px-2 rounded bg-light border">
+                                              <span className="small text-truncate" style={{ fontSize: '11px', maxWidth: '120px' }}>
+                                                  {editDocFile.name}
+                                              </span>
+                                              <button
+                                                  type="button"
+                                                  className="btn btn-sm btn-outline-primary py-0 px-1"
+                                                  style={{ fontSize: '10px' }}
+                                                  onClick={() => {
+                                                      const blobUrl = URL.createObjectURL(editDocFile);
+                                                      window.open(blobUrl, '_blank', 'noopener,noreferrer');
+                                                  }}
+                                              >
+                                                  <i className="bi bi-box-arrow-up-right"></i> View
+                                              </button>
+                                          </div>
                                       )}
                                   </div>
                               ) : (
                                   viewLeave.document_url ? (
                                       <div className="d-flex align-items-center gap-1 mt-1">
-                                          <a 
-                                              href={viewLeave.document_url.startsWith('http') ? viewLeave.document_url : `${import.meta.env.VITE_API_URL || "https://hrms-backend-5xo8.onrender.com"}${viewLeave.document_url}`} 
-                                              target="_blank" 
-                                              rel="noopener noreferrer" 
+                                          <button 
+                                              type="button"
+                                              onClick={() => handleOpenLeaveDocument(viewLeave.id, viewLeave.document_url, viewLeave.document_name)}
                                               className="btn btn-sm btn-outline-primary d-inline-flex align-items-center gap-1 py-1 px-2" 
                                               style={{ fontSize: '12px', borderRadius: '6px' }}
-                                              title="Open document in new tab"
+                                              title="Open document in new window"
                                           >
-                                              <i className="bi bi-box-arrow-up-right"></i> View Attachment
-                                          </a>
+                                              <i className="bi bi-box-arrow-up-right"></i> View Document in New Window
+                                          </button>
                                       </div>
                                   ) : (
                                       <strong className="d-block text-muted">Not Required</strong>
@@ -1587,9 +1715,14 @@ export default function Leaves({ currentUser, employeeProfile, embedded = false 
                   <span className="text-truncate" style={{ maxWidth: '550px' }}>{previewDoc.name || 'Document Attachment'}</span>
                 </h6>
                 <div className="d-flex align-items-center gap-2">
-                  <a href={previewDoc.url} target="_blank" rel="noopener noreferrer" className="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1" title="Open in new window">
-                    <i className="bi bi-box-arrow-up-right"></i> Open
-                  </a>
+                  <button
+                    type="button"
+                    onClick={() => handleOpenLeaveDocument(null, previewDoc.url, previewDoc.name)}
+                    className="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1"
+                    title="Open in new window"
+                  >
+                    <i className="bi bi-box-arrow-up-right"></i> Open in New Window
+                  </button>
                   <button type="button" className="btn-close" onClick={() => setPreviewDoc(null)}></button>
                 </div>
               </div>

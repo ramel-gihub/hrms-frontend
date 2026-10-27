@@ -13,6 +13,45 @@ export default function Attendance({ currentUser, employeeProfile, onNavigate, e
   const [selectedDate, setSelectedDate] = useState(null);
   const [showModal, setShowModal] = useState(false);
   const [corrections, setCorrections] = useState([]);
+  const [editingCorrection, setEditingCorrection] = useState(null);
+  const [editForm, setEditForm] = useState({ attendanceDate: "", issueType: "", reason: "" });
+  const [savingCorrection, setSavingCorrection] = useState(false);
+
+  const openEditCorrection = (req) => {
+    const d = req.attendance_date ? new Date(req.attendance_date) : (req.created_at ? new Date(req.created_at) : new Date());
+    const dateStr = !isNaN(d) ? d.toISOString().split("T")[0] : new Date().toISOString().split("T")[0];
+    setEditForm({
+      attendanceDate: dateStr,
+      issueType: req.issue_type || req.subject || "Check-out missing",
+      reason: req.reason || ""
+    });
+    setEditingCorrection(req);
+  };
+
+  const saveCorrectionEdit = async (e) => {
+    if (e) e.preventDefault();
+    if (!editingCorrection || !currentUser) return;
+    setSavingCorrection(true);
+    try {
+      const res = await fetch(`${import.meta.env.VITE_API_URL || "https://hrms-backend-5xo8.onrender.com"}/api/attendance/correction/${currentUser.id}/${editingCorrection.id || editingCorrection.request_code}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(editForm)
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to update attendance request");
+
+      const cRes = await fetch(`${import.meta.env.VITE_API_URL || "https://hrms-backend-5xo8.onrender.com"}/api/attendance/corrections/${currentUser.id}`);
+      const cData = await cRes.json();
+      if (cData && cData.corrections) setCorrections(cData.corrections);
+
+      setEditingCorrection(null);
+    } catch (err) {
+      alert(err.message || "Failed to update request");
+    } finally {
+      setSavingCorrection(false);
+    }
+  };
 
   useEffect(() => {
     const today = new Date();
@@ -742,6 +781,118 @@ export default function Attendance({ currentUser, employeeProfile, onNavigate, e
   document.body
 )}
 
+{editingCorrection && createPortal(
+  <>
+    <div className="modal-backdrop fade show" style={{ zIndex: 9998, position: "fixed", top: 0, left: 0, width: "100vw", height: "100vh", backgroundColor: "rgba(0,0,0,0.5)" }}></div>
+    <div className="modal fade show d-block" tabIndex="-1" style={{ zIndex: 9999, position: "fixed", top: 0, left: 0, width: "100%", height: "100%", overflowX: "hidden", overflowY: "auto", display: "flex", alignItems: "center", justifyContent: "center" }} onClick={() => !savingCorrection && setEditingCorrection(null)}>
+      <div className="modal-dialog modal-dialog-centered" style={{ width: "100%", maxWidth: "520px", margin: "1.75rem auto" }} onClick={e => e.stopPropagation()}>
+        <div className="modal-content" style={{ border: 'none', borderRadius: '14px', backgroundColor: '#fff', boxShadow: '0 12px 36px rgba(0,0,0,0.15)', overflow: "hidden" }}>
+          <div className="modal-header d-flex justify-content-between align-items-center" style={{ borderBottom: '1px solid #f1f5f9', padding: '18px 24px' }}>
+            <div>
+              <span className="badge rounded-pill mb-1" style={{ backgroundColor: '#eff6ff', color: '#2563eb', fontWeight: 600, fontSize: '11px', letterSpacing: '0.5px' }}>
+                ATTENDANCE CORRECTION
+              </span>
+              <h5 className="modal-title mb-0" style={{ fontWeight: 700, fontSize: '17px', color: '#1e293b' }}>
+                Edit Attendance Request
+              </h5>
+            </div>
+            <button type="button" className="btn-close" disabled={savingCorrection} onClick={() => setEditingCorrection(null)}></button>
+          </div>
+          
+          <form onSubmit={saveCorrectionEdit}>
+            <div className="modal-body" style={{ padding: '24px' }}>
+              <div className="mb-3">
+                <label className="form-label" style={{ fontWeight: 600, fontSize: "13px", color: "#334155" }}>
+                  Attendance Date
+                </label>
+                <input
+                  type="date"
+                  className="form-control"
+                  style={{ borderRadius: "8px", padding: "9px 12px", border: "1px solid #cbd5e1", cursor: "pointer" }}
+                  value={editForm.attendanceDate}
+                  onChange={(e) => setEditForm(prev => ({ ...prev, attendanceDate: e.target.value }))}
+                  onClick={(e) => {
+                    try { e.currentTarget.showPicker(); } catch (_) {}
+                  }}
+                  onFocus={(e) => {
+                    try { e.currentTarget.showPicker(); } catch (_) {}
+                  }}
+                  required
+                />
+              </div>
+
+              <div className="mb-3">
+                <label className="form-label" style={{ fontWeight: 600, fontSize: "13px", color: "#334155" }}>
+                  Issue Type
+                </label>
+                <select
+                  className="form-select"
+                  style={{ borderRadius: "8px", padding: "9px 12px", border: "1px solid #cbd5e1" }}
+                  value={editForm.issueType}
+                  onChange={(e) => setEditForm(prev => ({ ...prev, issueType: e.target.value }))}
+                  required
+                >
+                  <option value="Check-out missing">Check-out missing</option>
+                  <option value="Check-in missing">Check-in missing</option>
+                  <option value="Wrong punch time">Wrong punch time</option>
+                  <option value="Biometric error">Biometric error</option>
+                  <option value="Technical issue">Technical issue</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+
+              <div className="mb-2">
+                <label className="form-label" style={{ fontWeight: 600, fontSize: "13px", color: "#334155" }}>
+                  Reason / Justification
+                </label>
+                <textarea
+                  className="form-control"
+                  rows="3"
+                  style={{ borderRadius: "8px", padding: "9px 12px", border: "1px solid #cbd5e1" }}
+                  placeholder="Explain why correction is required..."
+                  value={editForm.reason}
+                  onChange={(e) => setEditForm(prev => ({ ...prev, reason: e.target.value }))}
+                  required
+                ></textarea>
+              </div>
+            </div>
+            
+            <div className="modal-footer d-flex justify-content-end gap-2" style={{ borderTop: '1px solid #f1f5f9', padding: '16px 24px', backgroundColor: '#f8fafc' }}>
+              <button
+                type="button"
+                className="btn btn-light"
+                style={{ borderRadius: '8px', padding: '8px 18px', fontWeight: 600 }}
+                disabled={savingCorrection}
+                onClick={() => setEditingCorrection(null)}
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="btn text-white"
+                style={{ borderRadius: '8px', padding: '8px 22px', fontWeight: 600, backgroundColor: "#3c2fbc", border: "none" }}
+                disabled={savingCorrection}
+              >
+                {savingCorrection ? (
+                  <>
+                    <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                    Saving...
+                  </>
+                ) : (
+                  <>
+                    <i className="bi bi-check2 me-1"></i> Save Changes
+                  </>
+                )}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </>,
+  document.body
+)}
+
                         <div className="row g-4 epa-bottom-row">
 
                             {/* ATTENDANCE INSIGHTS */}
@@ -839,21 +990,53 @@ export default function Attendance({ currentUser, employeeProfile, onNavigate, e
                                                 const d = req.attendance_date ? new Date(req.attendance_date) : (req.created_at ? new Date(req.created_at) : null);
                                                 const reqDate = d && !isNaN(d) ? `${String(d.getDate()).padStart(2, '0')}-${d.toLocaleDateString('en-US', { month: 'short' })}-${d.getFullYear()}` : "--";
                                                 const isApproved = (req.status || '').toLowerCase() === 'approved';
+                                                const isPending = !req.status || req.status.toLowerCase() === 'pending';
                                                 const issueText = req.issue_type || req.reason || req.subject || 'Check-out missing';
                                                 return (
                                                     <div className="epa-request-row" key={req.id || idx}>
-                                                        <div className="epa-request-icon">
+                                                        <div
+                                                            className="epa-request-icon"
+                                                            style={isPending ? { cursor: "pointer" } : {}}
+                                                            title={isPending ? "Click to edit request" : undefined}
+                                                            onClick={isPending ? () => openEditCorrection(req) : undefined}
+                                                        >
                                                             <i className={`bi ${isApproved ? 'bi-check2-circle' : 'bi-pencil-square'}`}></i>
                                                         </div>
 
-                                                        <div className="epa-request-content">
+                                                        <div
+                                                            className="epa-request-content"
+                                                            style={isPending ? { cursor: "pointer" } : {}}
+                                                            onClick={isPending ? () => openEditCorrection(req) : undefined}
+                                                        >
                                                             <strong>Attendance Correction</strong>
                                                             <span>{reqDate} &bull; {issueText}</span>
                                                         </div>
 
-                                                        <span className={`epa-request-status ${isApproved ? 'approved' : 'pending'}`}>
-                                                            {req.status || 'Pending'}
-                                                        </span>
+                                                        <div className="d-flex align-items-center gap-2">
+                                                            <span className={`epa-request-status ${isApproved ? 'approved' : 'pending'}`}>
+                                                                {req.status || 'Pending'}
+                                                            </span>
+                                                            {isPending && (
+                                                                <button
+                                                                    type="button"
+                                                                    title="Edit attendance request"
+                                                                    className="btn btn-sm btn-light text-primary"
+                                                                    style={{
+                                                                        width: 30,
+                                                                        height: 30,
+                                                                        padding: 0,
+                                                                        borderRadius: "6px",
+                                                                        display: "flex",
+                                                                        alignItems: "center",
+                                                                        justifyContent: "center",
+                                                                        border: "1px solid #e2e8f0"
+                                                                    }}
+                                                                    onClick={() => openEditCorrection(req)}
+                                                                >
+                                                                    <i className="bi bi-pencil"></i>
+                                                                </button>
+                                                            )}
+                                                        </div>
                                                     </div>
                                                 );
                                             })

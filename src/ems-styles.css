@@ -25,6 +25,10 @@
     --radius: 20px;
     --radius-lg: 25px;
 }
+
+input[type="date"] {
+    cursor: pointer;
+}
 * {
     box-sizing: border-box;
 }
@@ -5655,9 +5659,20 @@ button {
     transform: translateY(-50%);
     color: #85889b;
     z-index: 2;
+    cursor: pointer;
 }
 .epd-input-icon .epd-input {
     padding-left: 38px;
+    cursor: pointer;
+}
+.epd-input-icon input[type="date"]::-webkit-calendar-picker-indicator {
+    cursor: pointer;
+    font-size: 16px;
+    opacity: 0.75;
+    transition: opacity 0.2s;
+}
+.epd-input-icon input[type="date"]::-webkit-calendar-picker-indicator:hover {
+    opacity: 1;
 }
 .epd-textarea {
     resize: vertical;
@@ -18821,6 +18836,8 @@ a {
     border-radius: 12px;
     color: #5f6178;
     text-decoration: none;
+    cursor: pointer;
+    user-select: none;
     transition: .2s ease;
 }
 
@@ -18902,7 +18919,7 @@ a {
     border-radius: 22px;
     background: var(--card-bg, #fff);
     box-shadow: var(--card-shadow, 0 10px 35px rgba(31,35,69,.06));
-    scroll-margin-top: 20px;
+    scroll-margin-top: 85px;
 }
 
 .es-section-header {
@@ -18949,23 +18966,85 @@ a {
     color: var(--muted-color, #85889b);
 }
 
-.es-edit-btn {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 7px;
-    border: 1px solid #e3e0fa;
-    border-radius: 10px;
-    background: #f8f7ff;
-    color: var(--primary, #3c2fbc);
-    padding: 9px 13px;
-    font-weight: 650;
-    white-space: nowrap;
+.es-commute-form { display: flex; flex-direction: column; gap: 16px; }
+.es-commute-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.es-commute-field { display: flex; flex-direction: column; gap: 9px; min-width: 0; }
+.es-commute-field > span { color: var(--text-dark, #24263d); font-size: 14px; font-weight: 650; }
+.es-commute-field select,
+.es-commute-field input {
+    width: 100%;
+    min-height: 47px;
+    padding: 0 13px;
+    border: 1px solid #e2e4ef;
+    border-radius: 12px;
+    background: #fff;
+    color: var(--text-dark, #24263d);
+    font: inherit;
+}
+.es-commute-field select:focus,
+.es-commute-field input:focus { border-color: var(--primary, #3c2fbc); outline: 3px solid rgba(60, 47, 188, .12); }
+.es-commute-field input::placeholder { color: #85889b; }
+.es-commute-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 14px; }
+.es-commute-save,
+button.es-commute-save,
+.btn.es-commute-save {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 7px !important;
+    padding: 8px 14px !important;
+    border: 1px solid #ded8ff !important;
+    border-radius: 10px !important;
+    background: #faf9ff !important;
+    color: #3c2fbc !important;
+    font-weight: 650 !important;
+    font-size: 13px !important;
+    line-height: 1.2 !important;
+    cursor: pointer !important;
+    transition: background-color .18s ease, border-color .18s ease, color .18s ease !important;
+}
+.es-commute-save:hover,
+button.es-commute-save:hover,
+.btn.es-commute-save:hover {
+    background: #3c2fbc !important;
+    border-color: #3c2fbc !important;
+    color: #fff !important;
+}
+.es-commute-note,
+.es-commute-feedback { color: #85889b; font-size: 13px; }
+.es-commute-note i { color: #5144cc; margin-right: 4px; }
+.es-commute-feedback { color: #198754; }
+
+@media (max-width: 767px) {
+    .es-commute-fields { grid-template-columns: 1fr; }
 }
 
-.es-edit-btn:hover {
-    background: var(--primary, #3c2fbc);
-    color: #fff;
+.es-edit-btn,
+button.es-edit-btn,
+.btn.es-edit-btn {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 7px !important;
+    border: 1px solid #ded8ff !important;
+    border-radius: 10px !important;
+    background: #faf9ff !important;
+    color: #3c2fbc !important;
+    padding: 8px 14px !important;
+    font-weight: 650 !important;
+    font-size: 13px !important;
+    line-height: 1.2 !important;
+    white-space: nowrap !important;
+    cursor: pointer !important;
+    transition: background-color .18s ease, border-color .18s ease, color .18s ease !important;
+}
+
+.es-edit-btn:hover,
+button.es-edit-btn:hover,
+.btn.es-edit-btn:hover {
+    background: #3c2fbc !important;
+    border-color: #3c2fbc !important;
+    color: #fff !important;
 }
 
 /* Information Grid */

@@ -1222,8 +1222,14 @@ export default function Expenses({ currentUser, employeeProfile, onNavigate, emb
                           max={todayStr}
                           value={formData.expense_date}
                           onChange={(e) => setFormData({ ...formData, expense_date: e.target.value })}
+                          onClick={(e) => {
+                            try { e.currentTarget.showPicker(); } catch (_) {}
+                          }}
+                          onFocus={(e) => {
+                            try { e.currentTarget.showPicker(); } catch (_) {}
+                          }}
                           required
-                          style={{ borderRadius: "10px", borderColor: "#e2e8f0", fontSize: "14px", padding: "10px 14px" }}
+                          style={{ borderRadius: "10px", borderColor: "#e2e8f0", fontSize: "14px", padding: "10px 14px", cursor: "pointer" }}
                         />
                         <small className="text-muted" style={{ fontSize: "11px" }}>
                           Cannot be future date (up to today: {todayStr})

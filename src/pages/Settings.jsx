@@ -12,9 +12,12 @@ const EDIT_TRIGGER_STYLE = {
     borderRadius: 10,
     backgroundColor: "#faf9ff",
     color: "#3c2fbc",
-    padding: "11px 14px",
+    padding: "8px 14px",
     fontWeight: 650,
+    fontSize: "13px",
+    lineHeight: "1.2",
     whiteSpace: "nowrap",
+    cursor: "pointer",
     transition: "background-color .18s ease, border-color .18s ease, color .18s ease",
 };
 
@@ -23,6 +26,32 @@ const setEditTriggerHover = (event, isHovered) => {
         backgroundColor: isHovered ? "#3c2fbc" : "#faf9ff",
         borderColor: isHovered ? "#3c2fbc" : "#ded8ff",
         color: isHovered ? "#fff" : "#3c2fbc",
+    });
+};
+
+const TOP_ACTION_STYLE = {
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    border: "1px solid #ebecf3",
+    borderRadius: 12,
+    backgroundColor: "#ffffff",
+    color: "#55586f",
+    padding: "8px 16px",
+    fontWeight: 600,
+    fontSize: "13px",
+    lineHeight: "1.2",
+    whiteSpace: "nowrap",
+    cursor: "pointer",
+    transition: "all .18s ease",
+};
+
+const setTopActionHover = (event, isHovered) => {
+    Object.assign(event.currentTarget.style, {
+        backgroundColor: isHovered ? "#f7f6ff" : "#ffffff",
+        borderColor: isHovered ? "#ded8ff" : "#ebecf3",
+        color: isHovered ? "#3c2fbc" : "#55586f",
     });
 };
 
@@ -54,6 +83,19 @@ const EMPLOYEE_SHORTCUTS = [
     { id: "exit-management", label: "Resignation & Exit", description: "View exit information", icon: "bi-box-arrow-right", color: "orange" },
 ];
 
+const SETTINGS_NAV_ITEMS = [
+    { id: "esPersonal", label: "Personal Information", icon: "bi-person" },
+    { id: "esContact", label: "Contact Information", icon: "bi-telephone" },
+    { id: "esEmployment", label: "Employment Details", icon: "bi-briefcase" },
+    { id: "esCommute", label: "Commute & Travel", icon: "bi-bus-front" },
+    { id: "esBank", label: "Bank Details", icon: "bi-bank", badge: "Sensitive" },
+    { id: "esIdentity", label: "Identity Information", icon: "bi-fingerprint" },
+    { id: "esEmergency", label: "Emergency Contact", icon: "bi-person-hearts" },
+    { id: "esAccount", label: "Account & Security", icon: "bi-shield-lock" },
+    { id: "esPreferences", label: "Preferences", icon: "bi-sliders" },
+    { id: "esShortcuts", label: "Shortcut Selection", icon: "bi-command" },
+];
+
 const getLatestEligibleDateOfBirth = () => {
     const date = new Date();
     date.setFullYear(date.getFullYear() - 18);
@@ -63,6 +105,100 @@ const getLatestEligibleDateOfBirth = () => {
 };
 
 export default function Settings({ currentUser, employeeProfile, onProfileUpdate }) {
+    const [activeSection, setActiveSection] = useState(() => {
+        if (typeof window !== "undefined" && window.location.hash) {
+            const hash = window.location.hash.replace("#", "");
+            if (SETTINGS_NAV_ITEMS.some((item) => item.id === hash)) {
+                return hash;
+            }
+        }
+        return "esPersonal";
+    });
+    const isManualScrollRef = useRef(false);
+    const scrollTimerRef = useRef(null);
+
+    const scrollToSection = (sectionId, event) => {
+        if (event) {
+            event.preventDefault();
+        }
+        isManualScrollRef.current = true;
+        setActiveSection(sectionId);
+
+        if (window.history.pushState) {
+            window.history.pushState(null, null, `#${sectionId}`);
+        } else {
+            window.location.hash = sectionId;
+        }
+
+        const targetElement = document.getElementById(sectionId);
+        if (targetElement) {
+            const headerOffset = 85;
+            const elementPosition = targetElement.getBoundingClientRect().top;
+            const offsetPosition = elementPosition + window.pageYOffset - headerOffset;
+
+            window.scrollTo({
+                top: Math.max(0, offsetPosition),
+                behavior: "smooth"
+            });
+
+            targetElement.setAttribute("tabindex", "-1");
+            targetElement.focus({ preventScroll: true });
+        }
+
+        if (scrollTimerRef.current) clearTimeout(scrollTimerRef.current);
+        scrollTimerRef.current = setTimeout(() => {
+            isManualScrollRef.current = false;
+        }, 800);
+    };
+
+    // Auto-scroll on initial mount if hash is present in URL
+    useEffect(() => {
+        const hash = window.location.hash?.replace("#", "");
+        if (hash && SETTINGS_NAV_ITEMS.some((item) => item.id === hash)) {
+            setActiveSection(hash);
+            const timer = setTimeout(() => {
+                const el = document.getElementById(hash);
+                if (el) {
+                    const headerOffset = 85;
+                    const elementPosition = el.getBoundingClientRect().top;
+                    const offsetPosition = elementPosition + window.pageYOffset - headerOffset;
+                    window.scrollTo({
+                        top: Math.max(0, offsetPosition),
+                        behavior: "smooth"
+                    });
+                }
+            }, 300);
+            return () => clearTimeout(timer);
+        }
+    }, []);
+
+    // Scroll spy: auto-update active sidebar link as user scrolls through sections
+    useEffect(() => {
+        const handleScroll = () => {
+            if (isManualScrollRef.current) return;
+
+            const headerOffset = 130;
+            const scrollPosition = window.pageYOffset + headerOffset;
+
+            for (let i = SETTINGS_NAV_ITEMS.length - 1; i >= 0; i--) {
+                const section = document.getElementById(SETTINGS_NAV_ITEMS[i].id);
+                if (section) {
+                    const top = section.offsetTop;
+                    if (scrollPosition >= top) {
+                        setActiveSection(SETTINGS_NAV_ITEMS[i].id);
+                        break;
+                    }
+                }
+            }
+        };
+
+        window.addEventListener("scroll", handleScroll, { passive: true });
+        return () => {
+            window.removeEventListener("scroll", handleScroll);
+            if (scrollTimerRef.current) clearTimeout(scrollTimerRef.current);
+        };
+    }, []);
+
     const firstName = employeeProfile?.first_name || "";
     const lastName = employeeProfile?.last_name || "";
     const employeeName = `${firstName} ${lastName}`.trim() || currentUser?.email || "Employee";
@@ -169,10 +305,202 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
         secondPhoneNumber: "",
         secondAddress: "",
     });
+    const [commuteForm, setCommuteForm] = useState({
+        mode: "",
+        distance: "",
+        transportType: "",
+        routeDetails: "",
+        vehicleType: "",
+        vehicleMakeModel: "",
+        vehicleMileage: "",
+        fuelType: "",
+        status: ""
+    });
+    const [commuteLoading, setCommuteLoading] = useState(true);
+    const [commuteSaving, setCommuteSaving] = useState(false);
+    const [commuteFeedback, setCommuteFeedback] = useState("");
     const [selectedShortcutIds, setSelectedShortcutIds] = useState([]);
     const [shortcutSelectionsLoading, setShortcutSelectionsLoading] = useState(true);
     const [shortcutSelectionsSaving, setShortcutSelectionsSaving] = useState(false);
     const [shortcutSelectionError, setShortcutSelectionError] = useState("");
+
+    // Change Password States
+    const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
+    const [passwordForm, setPasswordForm] = useState({ currentPassword: "", newPassword: "", confirmPassword: "" });
+    const [passwordFeedback, setPasswordFeedback] = useState("");
+    const [passwordSuccess, setPasswordSuccess] = useState("");
+    const [passwordSubmitting, setPasswordSubmitting] = useState(false);
+    const [showCurrentPassword, setShowCurrentPassword] = useState(false);
+    const [showNewPassword, setShowNewPassword] = useState(false);
+    const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
+    // Preferences States
+    const [preferencesForm, setPreferencesForm] = useState({
+        preferredLanguage: "English",
+        dateFormat: "DD MMM YYYY",
+        theme: "light",
+        emailNotifications: true,
+        pushNotifications: true,
+        celebrationNotifications: true
+    });
+    const [preferencesLoading, setPreferencesLoading] = useState(false);
+    const [preferencesSaving, setPreferencesSaving] = useState(false);
+    const [preferencesFeedback, setPreferencesFeedback] = useState("");
+    const [preferencesSuccess, setPreferencesSuccess] = useState("");
+
+    // Shortcut Limit Toast
+    const [shortcutLimitToast, setShortcutLimitToast] = useState(false);
+    const shortcutToastTimerRef = useRef(null);
+
+    // Load preferences
+    useEffect(() => {
+        if (!currentUser?.id) return;
+        setPreferencesLoading(true);
+        fetch(`${API_BASE}/api/employee/preferences/${currentUser.id}`)
+            .then(res => res.json())
+            .then(data => {
+                if (data) {
+                    setPreferencesForm({
+                        preferredLanguage: data.preferred_language || "English",
+                        dateFormat: data.date_format || "DD MMM YYYY",
+                        theme: data.theme || "light",
+                        emailNotifications: data.email_notifications !== false,
+                        pushNotifications: data.push_notifications !== false,
+                        celebrationNotifications: data.celebration_notifications !== false
+                    });
+                }
+            })
+            .catch(err => console.error("Error loading preferences:", err))
+            .finally(() => setPreferencesLoading(false));
+    }, [currentUser?.id]);
+
+    const savePreferences = async () => {
+        if (!currentUser?.id || preferencesSaving) return;
+        setPreferencesSaving(true);
+        setPreferencesFeedback("");
+        setPreferencesSuccess("");
+        try {
+            const res = await fetch(`${API_BASE}/api/employee/preferences/${currentUser.id}`, {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(preferencesForm)
+            });
+            const data = await res.json();
+            if (!res.ok) {
+                throw new Error(data.message || "Failed to save preferences");
+            }
+            setPreferencesSuccess("✓ Preferences saved successfully!");
+            setTimeout(() => setPreferencesSuccess(""), 4000);
+        } catch (err) {
+            setPreferencesFeedback(err.message || "Failed to save preferences");
+        } finally {
+            setPreferencesSaving(false);
+        }
+    };
+
+    const submitPasswordChange = async (e) => {
+        e.preventDefault();
+        setPasswordFeedback("");
+        setPasswordSuccess("");
+
+        if (!passwordForm.currentPassword) {
+            setPasswordFeedback("Please enter your current password.");
+            return;
+        }
+        if (!passwordForm.newPassword) {
+            setPasswordFeedback("Please enter a new password.");
+            return;
+        }
+        if (passwordForm.newPassword.length < 6) {
+            setPasswordFeedback("New password must be at least 6 characters long.");
+            return;
+        }
+        if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+            setPasswordFeedback("New password and confirm password do not match.");
+            return;
+        }
+
+        setPasswordSubmitting(true);
+        try {
+            const res = await fetch(`${API_BASE}/api/auth/change-password`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    userId: currentUser?.id,
+                    currentPassword: passwordForm.currentPassword,
+                    newPassword: passwordForm.newPassword
+                })
+            });
+            const data = await res.json();
+            if (!res.ok) {
+                throw new Error(data.message || "Unable to change password.");
+            }
+            setPasswordSuccess("✓ Password changed successfully!");
+            setPasswordForm({ currentPassword: "", newPassword: "", confirmPassword: "" });
+            setTimeout(() => {
+                setIsPasswordModalOpen(false);
+                setPasswordSuccess("");
+            }, 1800);
+        } catch (err) {
+            setPasswordFeedback(err.message || "Unable to change password.");
+        } finally {
+            setPasswordSubmitting(false);
+        }
+    };
+
+    useEffect(() => {
+        if (!currentUser?.id) {
+            setCommuteForm({ mode: "", distance: "" });
+            setCommuteLoading(false);
+            setCommuteFeedback("Unable to identify the current employee.");
+            return;
+        }
+
+        let isCurrent = true;
+        setCommuteLoading(true);
+        setCommuteFeedback("");
+        const loadCommuteDetails = async () => {
+            try {
+                const response = await fetch(`${API_BASE}/api/employee/commute-travel/${currentUser.id}`);
+                const data = await readApiResponse(response);
+                if (!response.ok) {
+                    throw new Error(data.message || "Unable to load commute details.");
+                }
+                if (isCurrent) {
+                    const loadedMode = data.mode || "";
+                    const isPersonal = loadedMode === "Personal vehicle" || loadedMode === "Car" || loadedMode === "Bike" || loadedMode === "Two-wheeler";
+                    const isPublic = loadedMode === "Public transport" || loadedMode === "Public transportation" || loadedMode === "Bus" || loadedMode === "Train / Metro";
+                    const normalizedMode = isPersonal ? "Personal vehicle" : isPublic ? "Public transport" : "";
+
+                    let vType = data.vehicle_type || "";
+                    if (loadedMode === "Car") vType = "Car";
+                    else if (loadedMode === "Bike" || loadedMode === "Two-wheeler") vType = "Bike";
+                    else if (vType !== "Car" && vType !== "Bike") vType = "";
+
+                    setCommuteForm({
+                        mode: normalizedMode,
+                        distance: data.distance == null ? "" : String(data.distance),
+                        transportType: isPublic ? (data.transport_type || "") : "",
+                        routeDetails: isPublic ? (data.route_details || "") : "",
+                        vehicleType: isPersonal ? vType : "",
+                        vehicleMakeModel: isPersonal ? (data.vehicle_make_model || "") : "",
+                        vehicleMileage: isPersonal && data.vehicle_mileage != null ? String(data.vehicle_mileage) : "",
+                        fuelType: isPersonal ? (data.fuel_type || "") : "",
+                        status: data.status || "Pending"
+                    });
+                }
+            } catch (error) {
+                if (isCurrent) {
+                    setCommuteFeedback(error.message || "Unable to load commute details.");
+                }
+            } finally {
+                if (isCurrent) setCommuteLoading(false);
+            }
+        };
+
+        loadCommuteDetails();
+        return () => { isCurrent = false; };
+    }, [currentUser?.id]);
 
     useEffect(() => {
         if (!currentUser?.id) {
@@ -454,7 +782,12 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
             ? previousShortcutIds.filter((id) => id !== shortcutId)
             : [...previousShortcutIds, shortcutId];
         if (nextShortcutIds.length > 6) {
-            setShortcutSelectionError("Select up to 6 shortcuts.");
+            setShortcutLimitToast(true);
+            setShortcutSelectionError("Maximum 6 shortcuts allowed. Please unselect one before adding another.");
+            if (shortcutToastTimerRef.current) clearTimeout(shortcutToastTimerRef.current);
+            shortcutToastTimerRef.current = setTimeout(() => {
+                setShortcutLimitToast(false);
+            }, 4500);
             return;
         }
 
@@ -628,6 +961,10 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
 
             setPersonalInfo(data);
             setIsPersonalEditOpen(false);
+            if (typeof onProfileUpdate === "function") {
+                onProfileUpdate();
+            }
+            window.dispatchEvent(new CustomEvent('profileUpdated', { detail: { userId: currentUser.id } }));
         } catch (error) {
             setPersonalEditFeedback(error.message || "Unable to update personal information.");
         } finally {
@@ -786,6 +1123,10 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
 
             setContactInfo(data);
             setIsContactEditOpen(false);
+            if (typeof onProfileUpdate === "function") {
+                onProfileUpdate();
+            }
+            window.dispatchEvent(new CustomEvent('profileUpdated', { detail: { userId: currentUser.id } }));
         } catch (error) {
             setContactEditFeedback(error.message || "Unable to update contact information.");
         } finally {
@@ -1011,6 +1352,56 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
     };
     const dateOfBirth = formatDate(personalInfo?.date_of_birth);
 
+    const saveCommuteDetails = async (event) => {
+        event.preventDefault();
+        if (!currentUser?.id) {
+            setCommuteFeedback("Unable to identify the current employee.");
+            return;
+        }
+
+        const isPersonal = commuteForm.mode === "Personal vehicle";
+        const isPublic = commuteForm.mode === "Public transport";
+
+        setCommuteSaving(true);
+        setCommuteFeedback("");
+        try {
+            const response = await fetch(`${API_BASE}/api/employee/commute-travel/${currentUser.id}`, {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    mode: commuteForm.mode,
+                    distance: commuteForm.distance,
+                    transport_type: isPublic ? commuteForm.transportType : null,
+                    route_details: isPublic ? commuteForm.routeDetails : null,
+                    vehicle_type: isPersonal ? commuteForm.vehicleType : null,
+                    vehicle_make_model: isPersonal ? commuteForm.vehicleMakeModel : null,
+                    vehicle_mileage: isPersonal ? commuteForm.vehicleMileage : null,
+                    fuel_type: isPersonal ? commuteForm.fuelType : null
+                }),
+            });
+            const data = await readApiResponse(response);
+            if (!response.ok) {
+                throw new Error(data.message || "Unable to save commute details.");
+            }
+            setCommuteForm({
+                mode: "",
+                distance: "",
+                transportType: "",
+                routeDetails: "",
+                vehicleType: "",
+                vehicleMakeModel: "",
+                vehicleMileage: "",
+                fuelType: "",
+                status: data.status || "Pending"
+            });
+            setCommuteFeedback("Travel details submitted (Status: Pending admin approval).");
+        } catch (error) {
+            setCommuteFeedback(error.message || "Unable to save commute details.");
+        } finally {
+            setCommuteSaving(false);
+        }
+    };
+
   return (
     <>
 <div className="px-0 px-md-5 employee-dashboard">
@@ -1024,7 +1415,13 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
             <h2>My Settings</h2>
             <p>Manage your personal information, bank details, and account preferences.</p>
         </div>
-        <button className="btn es-btn-light">
+        <button
+            className="btn es-btn-light"
+            type="button"
+            style={TOP_ACTION_STYLE}
+            onMouseEnter={(e) => setTopActionHover(e, true)}
+            onMouseLeave={(e) => setTopActionHover(e, false)}
+        >
             <i className="bi bi-shield-check"></i> Privacy & Security
         </button>
     </div>
@@ -1058,7 +1455,7 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
             <p>{employeeProfile?.designation || employeeProfile?.role_name || "Position not set"} · {employeeProfile?.department || "Department not set"}{employeeProfile?.team ? ` / ${employeeProfile.team}` : ""}</p>
             <div className="es-profile-tags">
                 <span><i className="bi bi-person-badge"></i> {employeeProfile?.employee_code || "Not assigned"}</span>
-                <span><i className="bi bi-geo-alt"></i> {employeeProfile?.city || employeeProfile?.location || "Location not set"}</span>
+                <span><i className="bi bi-geo-alt"></i> {contactInfo?.current_city || employeeProfile?.city || employeeProfile?.location || "Location not set"}</span>
                 <span className={employeeStatus.toLowerCase() === "active" ? "es-active-tag" : ""}><i className="bi bi-check-circle-fill"></i> {employeeStatus}</span>
             </div>
             {profilePictureError && <p className="text-danger mb-0" role="alert">{profilePictureError}</p>}
@@ -1082,34 +1479,18 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
         <aside className="es-navigation">
             <div className="es-nav-heading">SETTINGS MENU</div>
 
-            <a href="#esPersonal" className="es-nav-link active">
-                <i className="bi bi-person"></i><span>Personal Information</span>
-            </a>
-            <a href="#esContact" className="es-nav-link">
-                <i className="bi bi-telephone"></i><span>Contact Information</span>
-            </a>
-            <a href="#esEmployment" className="es-nav-link">
-                <i className="bi bi-briefcase"></i><span>Employment Details</span>
-            </a>
-            <a href="#esBank" className="es-nav-link">
-                <i className="bi bi-bank"></i><span>Bank Details</span>
-                <span className="es-nav-badge">Sensitive</span>
-            </a>
-            <a href="#esIdentity" className="es-nav-link">
-                <i className="bi bi-fingerprint"></i><span>Identity Information</span>
-            </a>
-            <a href="#esEmergency" className="es-nav-link">
-                <i className="bi bi-person-hearts"></i><span>Emergency Contact</span>
-            </a>
-            <a href="#esAccount" className="es-nav-link">
-                <i className="bi bi-shield-lock"></i><span>Account & Security</span>
-            </a>
-            <a href="#esPreferences" className="es-nav-link">
-                <i className="bi bi-sliders"></i><span>Preferences</span>
-            </a>
-            <a href="#esShortcuts" className="es-nav-link">
-                <i className="bi bi-command"></i><span>Shortcut Selection</span>
-            </a>
+            {SETTINGS_NAV_ITEMS.map((item) => (
+                <a
+                    key={item.id}
+                    href={`#${item.id}`}
+                    className={`es-nav-link ${activeSection === item.id ? "active" : ""}`}
+                    onClick={(e) => scrollToSection(item.id, e)}
+                >
+                    <i className={`bi ${item.icon}`}></i>
+                    <span>{item.label}</span>
+                    {item.badge && <span className="es-nav-badge">{item.badge}</span>}
+                </a>
+            ))}
 
             <div className="es-nav-help">
                 <div className="es-help-icon"><i className="bi bi-headset"></i></div>
@@ -1219,6 +1600,217 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
                 </div>
                 {employmentInfoLoading && <p role="status">Loading employment information...</p>}
                 {employmentInfoError && <p role="alert">{employmentInfoError}</p>}
+            </section>
+
+
+            <section className="es-section-card" id="esCommute">
+                <div className="es-section-header">
+                    <div className="es-section-title">
+                        <div className="es-section-icon es-green"><i className="bi bi-bus-front"></i></div>
+                        <div>
+                            <h4>Commute &amp; Travel</h4>
+                            <p>Tell us how you usually travel to the office</p>
+                        </div>
+                    </div>
+                    {(commuteForm.status || commuteForm.mode) && (
+                        <span className={`badge ${
+                            commuteForm.status === 'Approved' ? 'bg-success' :
+                            commuteForm.status === 'Rejected' ? 'bg-danger' :
+                            'bg-warning text-dark'
+                        }`} style={{ padding: '6px 12px', borderRadius: '8px', fontSize: '12px', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+                            <i className={`bi ${
+                                commuteForm.status === 'Approved' ? 'bi-check-circle-fill' :
+                                commuteForm.status === 'Rejected' ? 'bi-x-circle-fill' :
+                                'bi-clock-history'
+                            }`}></i>
+                            {commuteForm.status || 'Pending'}
+                        </span>
+                    )}
+                </div>
+
+                {commuteLoading && <p role="status">Loading travel details...</p>}
+                <form className="es-commute-form" onSubmit={saveCommuteDetails}>
+                    {(() => {
+                        const isPublicTransport = commuteForm.mode === "Public transport";
+                        const isPersonalVehicle = commuteForm.mode === "Personal vehicle";
+
+                        return (
+                            <div className="es-commute-fields">
+                                <label className="es-commute-field">
+                                    <span>Usual mode of travel</span>
+                                    <select
+                                        value={commuteForm.mode}
+                                        onChange={(event) => {
+                                            const selectedMode = event.target.value;
+                                            setCommuteForm((form) => {
+                                                if (selectedMode === "Public transport") {
+                                                    return {
+                                                        ...form,
+                                                        mode: selectedMode,
+                                                        vehicleType: "",
+                                                        vehicleMakeModel: "",
+                                                        vehicleMileage: "",
+                                                        fuelType: ""
+                                                    };
+                                                }
+                                                if (selectedMode === "Personal vehicle") {
+                                                    return {
+                                                        ...form,
+                                                        mode: "Personal vehicle",
+                                                        transportType: "",
+                                                        routeDetails: "",
+                                                        vehicleType: form.vehicleType === "Car" || form.vehicleType === "Bike" ? form.vehicleType : ""
+                                                    };
+                                                }
+                                                return {
+                                                    ...form,
+                                                    mode: selectedMode,
+                                                    transportType: "",
+                                                    routeDetails: "",
+                                                    vehicleType: "",
+                                                    vehicleMakeModel: "",
+                                                    vehicleMileage: "",
+                                                    fuelType: ""
+                                                };
+                                            });
+                                            setCommuteFeedback("");
+                                        }}
+                                        required
+                                    >
+                                        <option value="" disabled>Select a travel mode</option>
+                                        <option value="Personal vehicle">Personal vehicle</option>
+                                        <option value="Public transport">Public transport</option>
+                                    </select>
+                                </label>
+                                <label className="es-commute-field">
+                                    <span>One-way commute distance (km)</span>
+                                    <input
+                                        type="number"
+                                        min="0"
+                                        step="0.1"
+                                        placeholder="e.g. 12.5"
+                                        value={commuteForm.distance}
+                                        onChange={(event) => {
+                                            setCommuteForm((form) => ({ ...form, distance: event.target.value }));
+                                            setCommuteFeedback("");
+                                        }}
+                                    />
+                                </label>
+
+                                {isPublicTransport && (
+                                    <>
+                                        <label className="es-commute-field">
+                                            <span>Public transport type</span>
+                                            <select
+                                                value={commuteForm.transportType}
+                                                onChange={(event) => {
+                                                    setCommuteForm((form) => ({ ...form, transportType: event.target.value }));
+                                                    setCommuteFeedback("");
+                                                }}
+                                                required
+                                            >
+                                                <option value="" disabled>Select a transport type</option>
+                                                <option value="Bus">Bus</option>
+                                                <option value="Train / Metro">Train / Metro</option>
+                                                <option value="Auto rickshaw">Auto rickshaw</option>
+                                                <option value="Other">Other</option>
+                                            </select>
+                                        </label>
+                                        <label className="es-commute-field">
+                                            <span>Route or service details (optional)</span>
+                                            <input
+                                                type="text"
+                                                placeholder="e.g. Bus route or metro line"
+                                                value={commuteForm.routeDetails}
+                                                onChange={(event) => {
+                                                    setCommuteForm((form) => ({ ...form, routeDetails: event.target.value }));
+                                                    setCommuteFeedback("");
+                                                }}
+                                            />
+                                        </label>
+                                    </>
+                                )}
+
+                                {isPersonalVehicle && (
+                                    <>
+                                        <label className="es-commute-field">
+                                            <span>Vehicle type</span>
+                                            <select
+                                                value={commuteForm.vehicleType}
+                                                onChange={(event) => {
+                                                    setCommuteForm((form) => ({ ...form, vehicleType: event.target.value }));
+                                                    setCommuteFeedback("");
+                                                }}
+                                                required
+                                            >
+                                                <option value="" disabled>Select a vehicle type</option>
+                                                <option value="Car">Car</option>
+                                                <option value="Bike">Bike</option>
+                                            </select>
+                                        </label>
+                                        <label className="es-commute-field">
+                                            <span>Vehicle make and model</span>
+                                            <input
+                                                type="text"
+                                                placeholder="e.g. Honda Activa"
+                                                value={commuteForm.vehicleMakeModel}
+                                                onChange={(event) => {
+                                                    setCommuteForm((form) => ({ ...form, vehicleMakeModel: event.target.value }));
+                                                    setCommuteFeedback("");
+                                                }}
+                                            />
+                                        </label>
+                                        <label className="es-commute-field">
+                                            <span>Mileage (km/L, if applicable)</span>
+                                            <input
+                                                type="number"
+                                                min="0"
+                                                step="0.1"
+                                                placeholder="e.g. 45"
+                                                value={commuteForm.vehicleMileage}
+                                                onChange={(event) => {
+                                                    setCommuteForm((form) => ({ ...form, vehicleMileage: event.target.value }));
+                                                    setCommuteFeedback("");
+                                                }}
+                                            />
+                                        </label>
+                                        <label className="es-commute-field">
+                                            <span>Fuel type</span>
+                                            <select
+                                                value={commuteForm.fuelType}
+                                                onChange={(event) => {
+                                                    setCommuteForm((form) => ({ ...form, fuelType: event.target.value }));
+                                                    setCommuteFeedback("");
+                                                }}
+                                            >
+                                                <option value="" disabled>Select a fuel type</option>
+                                                <option value="Petrol">Petrol</option>
+                                                <option value="Diesel">Diesel</option>
+                                                <option value="Electric">Electric</option>
+                                                <option value="CNG">CNG</option>
+                                                <option value="Hybrid">Hybrid</option>
+                                            </select>
+                                        </label>
+                                    </>
+                                )}
+                            </div>
+                        );
+                    })()}
+                    <div className="es-commute-actions">
+                        <button
+                            type="submit"
+                            className="btn es-commute-save"
+                            style={EDIT_TRIGGER_STYLE}
+                            onMouseEnter={(event) => setEditTriggerHover(event, true)}
+                            onMouseLeave={(event) => setEditTriggerHover(event, false)}
+                            disabled={commuteLoading || commuteSaving}
+                        >
+                            <i className={`bi ${commuteSaving ? "bi-arrow-repeat" : "bi-check2"}`}></i> {commuteSaving ? "Saving..." : "Save Travel Details"}
+                        </button>
+                        <span className="es-commute-note"><i className="bi bi-info-circle"></i> Your details are saved to your employee profile.</span>
+                        {commuteFeedback && <span className="es-commute-feedback" role="status">{commuteFeedback}</span>}
+                    </div>
+                </form>
             </section>
 
             
@@ -1386,7 +1978,7 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
                         <div className="es-security-row-icon"><i className="bi bi-envelope-check"></i></div>
                         <div className="es-security-row-content">
                             <strong>Corporate Email</strong>
-                            <span>Anil.kumar@ramel.com</span>
+                            <span>{contactInfo?.work_email || currentUser?.email || "Email not set"}</span>
                         </div>
                         <span className="es-verified-badge">Verified</span>
                     </div>
@@ -1395,9 +1987,23 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
                         <div className="es-security-row-icon"><i className="bi bi-key"></i></div>
                         <div className="es-security-row-content">
                             <strong>Password</strong>
-                            <span>Last changed 30 days ago</span>
+                            <span>••••••••</span>
                         </div>
-                        <button className="btn es-edit-btn">Change</button>
+                        <button 
+                            className="btn es-edit-btn"
+                            type="button"
+                            style={EDIT_TRIGGER_STYLE}
+                            onMouseEnter={(event) => setEditTriggerHover(event, true)}
+                            onMouseLeave={(event) => setEditTriggerHover(event, false)}
+                            onClick={() => {
+                                setIsPasswordModalOpen(true);
+                                setPasswordFeedback("");
+                                setPasswordSuccess("");
+                                setPasswordForm({ currentPassword: "", newPassword: "", confirmPassword: "" });
+                            }}
+                        >
+                            Change
+                        </button>
                     </div>
 
                     <div className="es-security-row">
@@ -1413,9 +2019,17 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
                         <div className="es-security-row-icon"><i className="bi bi-laptop"></i></div>
                         <div className="es-security-row-content">
                             <strong>Active Sessions</strong>
-                            <span>Current browser · Windows · Chennai</span>
+                            <span>Current browser · Windows · Active Session</span>
                         </div>
-                        <button className="btn es-edit-btn">Manage</button>
+                        <button
+                            className="btn es-edit-btn"
+                            type="button"
+                            style={EDIT_TRIGGER_STYLE}
+                            onMouseEnter={(event) => setEditTriggerHover(event, true)}
+                            onMouseLeave={(event) => setEditTriggerHover(event, false)}
+                        >
+                            Manage
+                        </button>
                     </div>
                 </div>
             </section>
@@ -1430,33 +2044,71 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
                             <p>Personalize your employee workspace</p>
                         </div>
                     </div>
-                    <button className="btn es-edit-btn">
-                        <i className="bi bi-check2"></i> Save Preferences
+                    <button 
+                        className="btn es-edit-btn"
+                        type="button"
+                        style={EDIT_TRIGGER_STYLE}
+                        onMouseEnter={(event) => setEditTriggerHover(event, true)}
+                        onMouseLeave={(event) => setEditTriggerHover(event, false)}
+                        onClick={savePreferences}
+                        disabled={preferencesSaving}
+                    >
+                        <i className={`bi ${preferencesSaving ? "bi-arrow-repeat" : "bi-check2"}`}></i>
+                        {preferencesSaving ? "Saving..." : "Save Preferences"}
                     </button>
                 </div>
+
+                {preferencesSuccess && (
+                    <div className="alert alert-success py-2 px-3 mb-3 d-flex align-items-center gap-2" style={{ borderRadius: 10, fontSize: 13 }}>
+                        <i className="bi bi-check-circle-fill"></i>
+                        <span>{preferencesSuccess}</span>
+                    </div>
+                )}
+                {preferencesFeedback && (
+                    <div className="alert alert-danger py-2 px-3 mb-3 d-flex align-items-center gap-2" style={{ borderRadius: 10, fontSize: 13 }}>
+                        <i className="bi bi-exclamation-circle-fill"></i>
+                        <span>{preferencesFeedback}</span>
+                    </div>
+                )}
 
                 <div className="es-preference-grid">
                     <div className="es-preference-field">
                         <label htmlFor="esLanguage">Language</label>
-                        <select className="form-select" id="esLanguage">
-                            <option>English</option>
-                            <option>Hindi</option>
-                            <option>Telugu</option>
-                            <option>Tamil</option>
+                        <select 
+                            className="form-select" 
+                            id="esLanguage"
+                            value={preferencesForm.preferredLanguage}
+                            onChange={(e) => setPreferencesForm(p => ({ ...p, preferredLanguage: e.target.value }))}
+                        >
+                            <option value="English">English</option>
+                            <option value="Hindi">Hindi</option>
+                            <option value="Telugu">Telugu</option>
+                            <option value="Tamil">Tamil</option>
+                            <option value="Marathi">Marathi</option>
                         </select>
                     </div>
                     <div className="es-preference-field">
                         <label htmlFor="esDateFormat">Date Format</label>
-                        <select className="form-select" id="esDateFormat">
-                            <option value="DD MMM YYYY">DD MMM YYYY</option>
-                            <option value="DD/MM/YYYY">DD/MM/YYYY</option>
-                            <option value="MM/DD/YYYY">MM/DD/YYYY</option>
-                            <option value="YYYY-MM-DD">YYYY-MM-DD</option>
+                        <select 
+                            className="form-select" 
+                            id="esDateFormat"
+                            value={preferencesForm.dateFormat}
+                            onChange={(e) => setPreferencesForm(p => ({ ...p, dateFormat: e.target.value }))}
+                        >
+                            <option value="DD MMM YYYY">DD MMM YYYY (e.g. 27 Oct 2026)</option>
+                            <option value="DD/MM/YYYY">DD/MM/YYYY (e.g. 27/10/2026)</option>
+                            <option value="MM/DD/YYYY">MM/DD/YYYY (e.g. 10/27/2026)</option>
+                            <option value="YYYY-MM-DD">YYYY-MM-DD (e.g. 2026-10-27)</option>
                         </select>
                     </div>
                     <div className="es-preference-field">
                         <label htmlFor="esTheme">Appearance</label>
-                        <select className="form-select" id="esTheme">
+                        <select 
+                            className="form-select" 
+                            id="esTheme"
+                            value={preferencesForm.theme}
+                            onChange={(e) => setPreferencesForm(p => ({ ...p, theme: e.target.value }))}
+                        >
                             <option value="light">Light Mode</option>
                             <option value="dark">Dark Mode</option>
                             <option value="system">System Default</option>
@@ -1471,7 +2123,13 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
                             <p>Receive important updates by email.</p>
                         </div>
                         <div className="form-check form-switch">
-                            <input className="form-check-input" type="checkbox" id="esEmailNotifications" checked />
+                            <input 
+                                className="form-check-input" 
+                                type="checkbox" 
+                                id="esEmailNotifications" 
+                                checked={preferencesForm.emailNotifications}
+                                onChange={(e) => setPreferencesForm(p => ({ ...p, emailNotifications: e.target.checked }))}
+                            />
                         </div>
                     </div>
                     <div className="es-preference-toggle">
@@ -1480,7 +2138,13 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
                             <p>Receive updates in your employee workspace.</p>
                         </div>
                         <div className="form-check form-switch">
-                            <input className="form-check-input" type="checkbox" id="esPushNotifications" checked />
+                            <input 
+                                className="form-check-input" 
+                                type="checkbox" 
+                                id="esPushNotifications" 
+                                checked={preferencesForm.pushNotifications}
+                                onChange={(e) => setPreferencesForm(p => ({ ...p, pushNotifications: e.target.checked }))}
+                            />
                         </div>
                     </div>
                     <div className="es-preference-toggle">
@@ -1489,7 +2153,13 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
                             <p>Get notified about your teammates' special days.</p>
                         </div>
                         <div className="form-check form-switch">
-                            <input className="form-check-input" type="checkbox" id="esCelebrationNotifications" checked />
+                            <input 
+                                className="form-check-input" 
+                                type="checkbox" 
+                                id="esCelebrationNotifications" 
+                                checked={preferencesForm.celebrationNotifications}
+                                onChange={(e) => setPreferencesForm(p => ({ ...p, celebrationNotifications: e.target.checked }))}
+                            />
                         </div>
                     </div>
                 </div>
@@ -1612,7 +2282,22 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
                     </div>
                     <div className="col-12 col-md-6 es-edit-field">
                         <label htmlFor="personalEditDateOfBirth">Date of Birth</label>
-                        <input id="personalEditDateOfBirth" type="date" className="form-control" name="dateOfBirth" value={personalEditForm.dateOfBirth} max={getLatestEligibleDateOfBirth()} onChange={updatePersonalEditField} />
+                        <input
+                            id="personalEditDateOfBirth"
+                            type="date"
+                            className="form-control"
+                            name="dateOfBirth"
+                            value={personalEditForm.dateOfBirth}
+                            max={getLatestEligibleDateOfBirth()}
+                            onChange={updatePersonalEditField}
+                            onClick={(e) => {
+                                try { e.currentTarget.showPicker(); } catch (_) {}
+                            }}
+                            onFocus={(e) => {
+                                try { e.currentTarget.showPicker(); } catch (_) {}
+                            }}
+                            style={{ cursor: "pointer" }}
+                        />
                         <small className="text-muted">Employees must be at least 18 years old.</small>
                     </div>
                     <div className="col-12 col-md-6 es-edit-field">
@@ -2050,14 +2735,168 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
     </div>
 </div>
 
-<div className="es-toast" id="esToast">
-    <div className="es-toast-icon"><i className="bi bi-check-lg"></i></div>
-    <div>
-        <strong id="esToastTitle">Success</strong>
-        <p id="esToastMessage">Action completed.</p>
-    </div>
-    <button><i className="bi bi-x-lg"></i></button>
-</div>
+            {/* Shortcut Limit Toast Alert */}
+            {shortcutLimitToast && (
+                <div 
+                    className="position-fixed top-0 start-50 translate-middle-x mt-4 shadow-lg rounded-4 p-3 d-flex align-items-center gap-3 animate__animated animate__fadeInDown"
+                    style={{ 
+                        zIndex: 10500, 
+                        minWidth: 360, 
+                        maxWidth: 520, 
+                        backgroundColor: "#fff9f0", 
+                        border: "1.5px solid #ffcc80",
+                        boxShadow: "0 14px 40px rgba(240, 138, 36, 0.22)"
+                    }}
+                >
+                    <div 
+                        className="d-flex align-items-center justify-content-center rounded-circle flex-shrink-0"
+                        style={{ width: 42, height: 42, backgroundColor: "#ffe0b2", color: "#b76e00" }}
+                    >
+                        <i className="bi bi-exclamation-triangle-fill fs-5"></i>
+                    </div>
+                    <div className="flex-grow-1">
+                        <strong className="d-block text-dark" style={{ fontSize: 14 }}>Maximum 6 Shortcuts Allowed</strong>
+                        <span className="text-secondary" style={{ fontSize: 12 }}>
+                            You have reached the maximum limit of 6 shortcuts. Please unselect an existing shortcut before selecting a new one.
+                        </span>
+                    </div>
+                    <button 
+                        type="button" 
+                        className="btn-close flex-shrink-0" 
+                        aria-label="Close" 
+                        onClick={() => setShortcutLimitToast(false)}
+                    ></button>
+                </div>
+            )}
+
+            {/* Change Password Modal */}
+            {isPasswordModalOpen && (
+                <div className="modal-backdrop fade show" onClick={() => setIsPasswordModalOpen(false)}></div>
+            )}
+            <div
+                className={`modal fade${isPasswordModalOpen ? " show d-block" : ""}`}
+                id="esPasswordModal"
+                tabIndex="-1"
+                aria-hidden={!isPasswordModalOpen}
+                aria-modal={isPasswordModalOpen || undefined}
+                role={isPasswordModalOpen ? "dialog" : undefined}
+                onClick={(event) => {
+                    if (event.target === event.currentTarget) setIsPasswordModalOpen(false);
+                }}
+            >
+                <div className="modal-dialog modal-dialog-centered">
+                    <form className="modal-content es-modal-content" onSubmit={submitPasswordChange} noValidate>
+                        <div className="modal-header">
+                            <div>
+                                <h5 className="modal-title">Change Password</h5>
+                                <p className="es-modal-subtitle">Update your password to keep your account secure.</p>
+                            </div>
+                            <button type="button" className="btn-close" aria-label="Close" onClick={() => setIsPasswordModalOpen(false)}></button>
+                        </div>
+                        <div className="modal-body">
+                            {passwordSuccess && (
+                                <div className="alert alert-success d-flex align-items-center gap-2 py-2 px-3 mb-3" role="alert" style={{ borderRadius: 10, fontSize: 13 }}>
+                                    <i className="bi bi-check-circle-fill"></i>
+                                    <span>{passwordSuccess}</span>
+                                </div>
+                            )}
+                            {passwordFeedback && (
+                                <div className="alert alert-danger d-flex align-items-center gap-2 py-2 px-3 mb-3" role="alert" style={{ borderRadius: 10, fontSize: 13 }}>
+                                    <i className="bi bi-exclamation-circle-fill"></i>
+                                    <span>{passwordFeedback}</span>
+                                </div>
+                            )}
+                            <div>
+                                <div className="mb-3">
+                                    <label className="form-label text-xs fw-semibold mb-1" htmlFor="currentPassword">Current Password <span className="text-danger">*</span></label>
+                                    <div className="input-group">
+                                        <input
+                                            id="currentPassword"
+                                            type={showCurrentPassword ? "text" : "password"}
+                                            className="form-control"
+                                            placeholder="Enter current password"
+                                            value={passwordForm.currentPassword}
+                                            onChange={(e) => setPasswordForm(p => ({ ...p, currentPassword: e.target.value }))}
+                                            required
+                                        />
+                                        <button
+                                            type="button"
+                                            className="btn btn-outline-secondary"
+                                            onClick={() => setShowCurrentPassword(!showCurrentPassword)}
+                                        >
+                                            <i className={`bi ${showCurrentPassword ? "bi-eye-slash" : "bi-eye"}`}></i>
+                                        </button>
+                                    </div>
+                                </div>
+                                <div className="mb-3">
+                                    <label className="form-label text-xs fw-semibold mb-1" htmlFor="newPassword">New Password <span className="text-danger">*</span></label>
+                                    <div className="input-group">
+                                        <input
+                                            id="newPassword"
+                                            type={showNewPassword ? "text" : "password"}
+                                            className="form-control"
+                                            placeholder="Enter at least 6 characters"
+                                            value={passwordForm.newPassword}
+                                            onChange={(e) => setPasswordForm(p => ({ ...p, newPassword: e.target.value }))}
+                                            required
+                                        />
+                                        <button
+                                            type="button"
+                                            className="btn btn-outline-secondary"
+                                            onClick={() => setShowNewPassword(!showNewPassword)}
+                                        >
+                                            <i className={`bi ${showNewPassword ? "bi-eye-slash" : "bi-eye"}`}></i>
+                                        </button>
+                                    </div>
+                                    <span className="text-muted" style={{ fontSize: 11 }}>Minimum 6 characters.</span>
+                                </div>
+                                <div className="mb-3">
+                                    <label className="form-label text-xs fw-semibold mb-1" htmlFor="confirmPassword">Confirm New Password <span className="text-danger">*</span></label>
+                                    <div className="input-group">
+                                        <input
+                                            id="confirmPassword"
+                                            type={showConfirmPassword ? "text" : "password"}
+                                            className="form-control"
+                                            placeholder="Re-enter new password"
+                                            value={passwordForm.confirmPassword}
+                                            onChange={(e) => setPasswordForm(p => ({ ...p, confirmPassword: e.target.value }))}
+                                            required
+                                        />
+                                        <button
+                                            type="button"
+                                            className="btn btn-outline-secondary"
+                                            onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                                        >
+                                            <i className={`bi ${showConfirmPassword ? "bi-eye-slash" : "bi-eye"}`}></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div className="modal-footer">
+                            <button type="button" className="btn es-btn-light" onClick={() => setIsPasswordModalOpen(false)}>Cancel</button>
+                            <button
+                                type="submit"
+                                className="btn es-btn-primary"
+                                disabled={passwordSubmitting}
+                                style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8, minHeight: 44, padding: "10px 18px", borderRadius: 12, fontWeight: 600, backgroundColor: "#3c2fbc", borderColor: "#3c2fbc", color: "#fff" }}
+                            >
+                                <i className={`bi ${passwordSubmitting ? "bi-arrow-repeat" : "bi-shield-check"}`}></i>
+                                {passwordSubmitting ? "Updating..." : "Update Password"}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <div className="es-toast" id="esToast">
+                <div className="es-toast-icon"><i className="bi bi-check-lg"></i></div>
+                <div>
+                    <strong id="esToastTitle">Success</strong>
+                    <p id="esToastMessage">Action completed.</p>
+                </div>
+                <button><i className="bi bi-x-lg"></i></button>
+            </div>
 
             </div>
     </>
