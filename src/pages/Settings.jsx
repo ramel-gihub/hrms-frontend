@@ -339,9 +339,9 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
         preferredLanguage: "English",
         dateFormat: "DD MMM YYYY",
         theme: "light",
-        emailNotifications: false,
-        pushNotifications: false,
-        celebrationNotifications: false
+        emailNotifications: true,
+        pushNotifications: true,
+        celebrationNotifications: true
     });
     const [preferencesLoading, setPreferencesLoading] = useState(false);
     const [preferencesSaving, setPreferencesSaving] = useState(false);
@@ -364,9 +364,9 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
                         preferredLanguage: data.preferred_language || "English",
                         dateFormat: data.date_format || "DD MMM YYYY",
                         theme: data.theme || "light",
-                        emailNotifications: Boolean(data.email_notifications),
-                        pushNotifications: Boolean(data.push_notifications),
-                        celebrationNotifications: Boolean(data.celebration_notifications)
+                        emailNotifications: data.email_notifications !== false,
+                        pushNotifications: data.push_notifications !== false,
+                        celebrationNotifications: data.celebration_notifications !== false
                     });
                 }
             })
@@ -374,9 +374,9 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
                 console.error("Error loading preferences:", err);
                 setPreferencesForm(prev => ({
                     ...prev,
-                    emailNotifications: false,
-                    pushNotifications: false,
-                    celebrationNotifications: false
+                    emailNotifications: true,
+                    pushNotifications: true,
+                    celebrationNotifications: true
                 }));
             })
             .finally(() => setPreferencesLoading(false));

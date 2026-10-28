@@ -998,13 +998,13 @@ export default function App() {
                           </label>
                         </div>
 
-                        <a
+                        {/* <a
                           href="#forgot"
                           className="forgot-link"
                           onClick={(e) => e.preventDefault()}
                         >
                           Forgot password?
-                        </a>
+                        </a> */}
                       </div>
 
                       {/* Submit */}
@@ -1019,8 +1019,8 @@ export default function App() {
                       </button>
                     </form>
 
-                    {/* Divider */}
-                    <div className="divider">
+                    {/* Divider & Register */}
+                    {/* <div className="divider">
                       <span>
                         Don&apos;t have an account ?{' '}
                         <a
@@ -1031,7 +1031,7 @@ export default function App() {
                           Register
                         </a>
                       </span>
-                    </div>
+                    </div> */}
 
                     {/* Security */}
                     <div className="security-note">
