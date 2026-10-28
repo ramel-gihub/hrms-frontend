@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
+import EmptyState from "../components/EmptyState";
 
 const API_BASE = import.meta.env.VITE_API_URL || "https://hrms-backend-5xo8.onrender.com";
 
@@ -788,33 +789,14 @@ export default function Expenses({ currentUser, employeeProfile, onNavigate, emb
                 </tr>
               ) : filteredClaims.length === 0 ? (
                 <tr>
-                  <td colSpan="7" className="text-center py-5">
-                    <div className="py-4">
-                      <div
-                        style={{
-                          width: "60px",
-                          height: "60px",
-                          borderRadius: "50%",
-                          background: "#f1f5f9",
-                          color: "#94a3b8",
-                          display: "inline-flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          fontSize: "28px",
-                          marginBottom: "12px"
-                        }}
-                      >
-                        <i className="bi bi-inbox"></i>
-                      </div>
-                      <h6 className="fw-bold mb-1" style={{ color: "#334155" }}>
-                        No Expense Claims Found
-                      </h6>
-                      <p className="text-muted small mb-3">
-                        {claims.length === 0
-                          ? "You haven't submitted any expense reimbursement claims yet."
-                          : "No claims matched your search or filter criteria."}
-                      </p>
-                      {claims.length === 0 && (
+                  <td colSpan="7" style={{ padding: 0 }}>
+                    <EmptyState
+                      emoji="💳"
+                      title="No Expense Claims Found"
+                      message={claims.length === 0
+                        ? "You haven't submitted any expense reimbursement claims yet."
+                        : "No claims matched your search or filter criteria."}
+                      action={claims.length === 0 ? (
                         <button
                           type="button"
                           className="btn btn-sm btn-primary"
@@ -831,8 +813,8 @@ export default function Expenses({ currentUser, employeeProfile, onNavigate, emb
                         >
                           <i className="bi bi-plus-lg me-1"></i> Submit First Claim
                         </button>
-                      )}
-                    </div>
+                      ) : null}
+                    />
                   </td>
                 </tr>
               ) : (

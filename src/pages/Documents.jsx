@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import EmptyState from "../components/EmptyState";
 
 const MAX_FILE_SIZE = 2 * 1024 * 1024;
 const PAGE_SIZE = 4;
@@ -339,6 +340,15 @@ export default function Documents({ currentUser, employeeProfile, embedded = fal
   });
   const updateField = (event) => {
     const { name, value } = event.target;
+    if (name === "issuedDate" && value) {
+      const today = new Date().toISOString().split("T")[0];
+      if (value > today) {
+        setFeedback({ type: "danger", text: "Issued date cannot be in the future." });
+        return;
+      } else {
+        setFeedback({ type: "", text: "" });
+      }
+    }
     setForm((prev) => ({ ...prev, [name]: value }));
   };
 
@@ -356,6 +366,13 @@ export default function Documents({ currentUser, employeeProfile, embedded = fal
       setFeedback({ type: "danger", text: "Document category and type are required." });
       return;
     }
+
+    const today = new Date().toISOString().split("T")[0];
+    if (form.issuedDate && form.issuedDate > today) {
+      setFeedback({ type: "danger", text: "Issued date cannot be in the future." });
+      return;
+    }
+
 
     if (editingDoc) {
       try {
@@ -668,18 +685,12 @@ export default function Documents({ currentUser, employeeProfile, embedded = fal
 
 
                             
-                            <div id="epdNoResults" className={`epd-no-results${!listLoading && filteredDocuments.length === 0 ? "" : " d-none"}`}>
-
-                                <div>
-                                    <i className="bi bi-file-earmark-x"></i>
-                                </div>
-
-                                <h6>{listError || "No documents found"}</h6>
-
-                                <p>
-                                    {listError ? "Please try again later." : "Try changing your search or filter."}
-                                </p>
-
+                            <div id="epdNoResults" className={!listLoading && filteredDocuments.length === 0 ? "" : "d-none"}>
+                                <EmptyState
+                                    emoji="📁"
+                                    title={listError || "No documents found"}
+                                    message={listError ? "Please try again later." : "Try changing your search or category filter."}
+                                />
                             </div>
 
 
@@ -1203,12 +1214,14 @@ export default function Documents({ currentUser, employeeProfile, embedded = fal
                                                         id="epdIssuedDate"
                                                         name="issuedDate"
                                                         value={form.issuedDate}
+                                                        max={new Date().toISOString().split("T")[0]}
                                                         onChange={updateField}
                                                         onClick={(e) => {
                                                             try { e.currentTarget.showPicker(); } catch (_) {}
                                                         }}
                                                         style={{ cursor: "pointer" }}
                                                     />
+
 
                                                 </div>
 

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import EmptyState from '../../components/EmptyState';
 import { CheckCircleIcon, CloseIcon, FileTextIcon, ClockIcon } from '../components/Icons';
 
 export default function EmployeeRequestApprovals({
@@ -194,14 +195,12 @@ export default function EmployeeRequestApprovals({
         })}
 
         {filtered.length === 0 && (
-          <div className="col-span-2 rounded-2xl border border-gray-200 bg-white p-12 text-center dark:border-gray-800 dark:bg-gray-900">
-            <FileTextIcon className="w-12 h-12 text-gray-300 dark:text-gray-700 mx-auto mb-3" />
-            <h3 className="text-base font-bold text-gray-800 dark:text-white">
-              No Requests Found
-            </h3>
-            <p className="text-xs text-gray-400 mt-1">
-              There are no employee requests matching the selected category and status.
-            </p>
+          <div className="col-span-2 rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900 overflow-hidden">
+            <EmptyState
+              emoji="📬"
+              title="No Requests Found"
+              message="There are no employee requests matching the selected category and status."
+            />
           </div>
         )}
       </div>

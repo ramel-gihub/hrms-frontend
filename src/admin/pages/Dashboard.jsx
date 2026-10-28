@@ -1,4 +1,5 @@
 import React from 'react';
+import EmptyState from "../../components/EmptyState";
 import Chart from 'react-apexcharts';
 import MetricCard from '../components/MetricCard';
 import { UsersIcon, ClockIcon, FileTextIcon, CheckCircleIcon, ArrowUpIcon, PlusIcon, CalendarIcon } from '../components/Icons';
@@ -287,8 +288,13 @@ export default function Dashboard({
           ))}
 
           {pendingLeaves.length === 0 && (
-            <div className="col-span-2 py-8 text-center text-gray-400">
-              No pending leave requests at this time.
+            <div className="col-span-2">
+              <EmptyState
+                compact
+                emoji="🏖️"
+                title="No pending leave requests"
+                message="All employee leave requests have been reviewed and processed."
+              />
             </div>
           )}
         </div>

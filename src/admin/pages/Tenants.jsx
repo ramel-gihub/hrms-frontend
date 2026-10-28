@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import EmptyState from '../../components/EmptyState';
 import { PlusIcon, CheckCircleIcon, CloseIcon, UsersIcon } from '../components/Icons';
 
 export default function Tenants({
@@ -134,7 +135,18 @@ export default function Tenants({
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-              {tenants.map(tenant => {
+              {tenants.length === 0 ? (
+                <tr>
+                  <td colSpan="6" style={{ padding: 0 }}>
+                    <EmptyState
+                      emoji="🏢"
+                      title="No organizations found"
+                      message="No registered organizations or tenants found."
+                    />
+                  </td>
+                </tr>
+              ) : (
+                tenants.map(tenant => {
                 const isCurrent = tenant.id === currentTenantId;
                 const adminEmail = tenant.admin_email || tenant.contact_email || `admin@${tenant.subdomain}.com`;
                 return (
@@ -199,7 +211,7 @@ export default function Tenants({
                     </td>
                   </tr>
                 );
-              })}
+              }))}
             </tbody>
           </table>
         </div>

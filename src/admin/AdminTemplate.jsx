@@ -12,6 +12,8 @@ import Employees from './pages/Employees';
 import Tenants from './pages/Tenants';
 import LeaveBalanceMapping from './pages/LeaveBalanceMapping';
 import HolidaysManagement from './pages/HolidaysManagement';
+import AdminLeaves from './pages/AdminLeaves';
+import AdminWFH from './pages/AdminWFH';
 
 export default function AdminTemplate({
   currentUser,
@@ -242,6 +244,24 @@ export default function AdminTemplate({
               onOpenAddModal={() => setShowModal(true)}
               isSuperAdmin={isSuperAdmin}
               currentTenant={currentTenant}
+            />
+          )}
+
+          {activeTab === 'admin-leaves' && (
+            <AdminLeaves
+              currentUser={currentUser}
+              currentTenantId={currentTenantId}
+              employees={employees}
+              fetchEmployees={fetchEmployees}
+            />
+          )}
+
+          {activeTab === 'admin-wfh' && (
+            <AdminWFH
+              currentUser={currentUser}
+              currentTenantId={currentTenantId}
+              employees={employees}
+              fetchEmployees={fetchEmployees}
             />
           )}
 

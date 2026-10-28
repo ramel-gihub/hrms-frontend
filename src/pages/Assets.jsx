@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import EmptyState from "../components/EmptyState";
 
 const API_BASE = import.meta.env.VITE_API_URL || "https://hrms-backend-5xo8.onrender.com";
 
@@ -207,20 +208,23 @@ export default function Assets({ currentUser, employeeProfile, embedded = false 
 
   return (
     <>
-<div className="px-0 px-md-5 employee-dashboard">
-                <div className="employee-assets-page">
+      <main className="dashboard-wrapper">
+        <div className="dashboard-container">
+          <div className="px-0 px-md-5 employee-dashboard">
+            <div className="employee-assets-page">
 
-                    <div className="ea-page-header">
+                    <div className="esc-page-header">
                         {!embedded && <div>
-                            <h2>Employee Assets</h2>
-                            <p>Manage assigned equipment, asset lifecycle, returns and maintenance records.</p>
+                            <h2 className="esc-page-title">Employee Assets</h2>
+                            <p className="esc-page-subtitle">Manage assigned equipment, asset lifecycle, returns and maintenance records.</p>
                         </div>}
 
+
                         <div className="ea-header-actions">
-                            {!embedded && <button className="btn ea-btn-light" type="button" id="eaExportBtn">
+                            {/* {!embedded && <button className="btn ea-btn-light" type="button" id="eaExportBtn">
                                 <i className="bi bi-download"></i>
                                 Export
-                            </button>}
+                            </button>} */}
 
                             <button className="btn ea-btn-primary" type="button" data-bs-toggle="modal"
                                 data-bs-target="#eaAssignAssetModal">
@@ -279,7 +283,13 @@ export default function Assets({ currentUser, employeeProfile, embedded = false 
                                 </div>
                             </div>
                         </div>
+
+                        <div className="esc-employee-side">
+                            <span className="esc-side-label">Profile Area</span>
+                            <strong>Employee Assets</strong>
+                        </div>
                     </div>
+
 
                     <div className="ea-overview-strip">
                         <div className="ea-overview-item">
@@ -392,11 +402,11 @@ export default function Assets({ currentUser, employeeProfile, embedded = false 
                                 </div>
 
                                 {!loading && filtered.length === 0 && (
-                                    <div className="ea-empty-state" id="eaEmptyState">
-                                        <div><i className="bi bi-box-seam"></i></div>
-                                        <h4>No assets found</h4>
-                                        <p>{assets.length === 0 ? "No assets are currently assigned." : "Try changing your search or asset filters."}</p>
-                                    </div>
+                                    <EmptyState
+                                        emoji="💻"
+                                        title="No assets found"
+                                        message={assets.length === 0 ? "No assets or equipment are currently assigned to you." : "Try changing your search or asset filters."}
+                                    />
                                 )}
                             </div>
 
@@ -451,7 +461,12 @@ export default function Assets({ currentUser, employeeProfile, embedded = false 
                                 </div>
 
                                 {requests.length === 0 ? (
-                                    <div className="p-4 text-muted">No asset requests yet.</div>
+                                    <EmptyState
+                                        compact
+                                        emoji="📦"
+                                        title="No asset requests yet"
+                                        message="You have not submitted any asset or hardware requests."
+                                    />
                                 ) : (
                                     <div className="ea-asset-list">
                                         {requests.map((r) => (
@@ -914,6 +929,8 @@ export default function Assets({ currentUser, employeeProfile, embedded = false 
 
                 </div>
             </div>
+          </div>
+        </main>
     </>
   );
 }

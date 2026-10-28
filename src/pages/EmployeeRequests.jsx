@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import EmptyState from "../components/EmptyState";
 
 const API_BASE = import.meta.env.VITE_API_URL || "https://hrms-backend-5xo8.onrender.com";
 
@@ -143,9 +144,14 @@ const emptyForm = {
 
 const mapRequest = (request) => {
   const style = categoryStyle(request.category);
+  const normPriority = request.priority
+    ? (request.priority.charAt(0).toUpperCase() + request.priority.slice(1).toLowerCase().trim())
+    : "Normal";
+
   return {
     ...request,
     id: request.request_code || String(request.id),
+    priority: normPriority,
     date: request.request_date || new Date(request.created_at).toLocaleDateString("en-GB", {
       day: "2-digit",
       month: "short",
@@ -200,7 +206,56 @@ export default function EmployeeRequests({ employeeProfile, currentUser }) {
   const [toast, setToast] = useState("");
   const [deleteConfirmTarget, setDeleteConfirmTarget] = useState(null);
   const [deletingRequest, setDeletingRequest] = useState(false);
+  const [updatingPriorityId, setUpdatingPriorityId] = useState(null);
   const pageSize = 5;
+
+  const handleUpdatePriority = async (request, newPriority = "High") => {
+    if (!request || !userId || updatingPriorityId) return;
+    setUpdatingPriorityId(request.id);
+    try {
+      const response = await fetch(`${API_BASE}/api/employee-requests/${userId}/${request.id}/priority`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ priority: newPriority })
+      });
+      let data = {};
+      const contentType = response.headers.get("content-type") || "";
+      if (contentType.includes("application/json")) {
+        data = await response.json();
+      } else {
+        const text = await response.text();
+        data = { error: text || response.statusText || "Unable to update priority" };
+      }
+
+      if (!response.ok) {
+        throw new Error(data.error || `Failed to update priority (${response.status})`);
+      }
+
+      setRequests((currentRequests) =>
+        currentRequests.map((item) =>
+          item.id === request.id ? { ...item, priority: newPriority } : item
+        )
+      );
+      if (selectedRequest && selectedRequest.id === request.id) {
+        setSelectedRequest((prev) => (prev ? { ...prev, priority: "High" } : null));
+      }
+      setToast({
+        type: "success",
+        title: "Priority Updated",
+        message: `Request ${request.id} priority updated to High.`
+      });
+      void loadRequests();
+    } catch (err) {
+      console.error("Priority update error:", err);
+      setToast({
+        type: "error",
+        title: "Update Failed",
+        message: err.message || "Failed to update priority."
+      });
+    } finally {
+      setUpdatingPriorityId(null);
+    }
+  };
 
   const handleDeleteRequest = async () => {
     if (!deleteConfirmTarget || !userId) return;
@@ -209,16 +264,31 @@ export default function EmployeeRequests({ employeeProfile, currentUser }) {
       const response = await fetch(`${API_BASE}/api/employee-requests/${userId}/${deleteConfirmTarget.id}`, {
         method: "DELETE"
       });
-      const data = await response.json();
+      let data = {};
+      const contentType = response.headers.get("content-type") || "";
+      if (contentType.includes("application/json")) {
+        data = await response.json();
+      } else {
+        const text = await response.text();
+        data = { error: text || response.statusText || "Unable to delete request" };
+      }
       if (!response.ok) throw new Error(data.error || "Unable to delete request.");
-      setToast("Request deleted successfully.");
+      setToast({
+        type: "success",
+        title: "Request Deleted",
+        message: "Request deleted successfully."
+      });
       if (selectedRequest && selectedRequest.id === deleteConfirmTarget.id) {
         setSelectedRequest(null);
       }
       setDeleteConfirmTarget(null);
       loadRequests();
     } catch (err) {
-      alert(err.message || "Failed to delete request.");
+      setToast({
+        type: "error",
+        title: "Delete Failed",
+        message: err.message || "Failed to delete request."
+      });
     } finally {
       setDeletingRequest(false);
     }
@@ -727,11 +797,45 @@ export default function EmployeeRequests({ employeeProfile, currentUser }) {
                             </div>
                           </div>
                           <div className="request-item-actions">
-                            {request.priority !== "Normal" && (
-                              <span className={`request-priority-btn ${request.priority.toLowerCase()}`}>
+                            {String(request.priority || "").trim().toLowerCase() === "high" && (
+                              <span className="request-priority-btn high">
+                                <i className="bi bi-exclamation-triangle" aria-hidden="true"></i>
+                                High Priority
+                              </span>
+                            )}
+                            {String(request.priority || "").trim().toLowerCase() !== "normal" &&
+                              String(request.priority || "").trim().toLowerCase() !== "high" && (
+                              <span className={`request-priority-btn ${String(request.priority || "").toLowerCase()}`}>
                                 <i className="bi bi-exclamation-triangle" aria-hidden="true"></i>
                                 {request.priority} Priority
                               </span>
+                            )}
+                            {String(request.status || "").trim().toLowerCase() === "pending" &&
+                              String(request.priority || "").trim().toLowerCase() !== "high" && (
+                              <button
+                                type="button"
+                                className="request-priority-action-btn"
+                                onClick={() => handleUpdatePriority(request, "High")}
+                                disabled={updatingPriorityId === request.id}
+                                title="Set priority to High"
+                              >
+                                {updatingPriorityId === request.id ? (
+                                  <>
+                                    <span
+                                      className="spinner-border spinner-border-sm"
+                                      role="status"
+                                      aria-hidden="true"
+                                      style={{ width: "12px", height: "12px", borderWidth: "2px" }}
+                                    ></span>
+                                    Updating...
+                                  </>
+                                ) : (
+                                  <>
+                                    <i className="bi bi-exclamation-triangle" aria-hidden="true"></i>
+                                    High Priority
+                                  </>
+                                )}
+                              </button>
                             )}
                             {request.status === "Pending" && (
                               <button
@@ -764,13 +868,11 @@ export default function EmployeeRequests({ employeeProfile, currentUser }) {
                       ))}
                     </div>
                   ) : !requestError ? (
-                    <div className="requests-empty-state show">
-                      <div className="requests-empty-icon">
-                        <i className="bi bi-search" aria-hidden="true"></i>
-                      </div>
-                      <h3>No requests found</h3>
-                      <p>Try changing your search or filter criteria.</p>
-                    </div>
+                    <EmptyState
+                      emoji="📬"
+                      title="No requests found"
+                      message={requests.length === 0 ? "You haven't submitted any employee requests yet." : "Try changing your search or filter criteria."}
+                    />
                   ) : null}
 
                   {!loadingRequests && !requestError && <div className="requests-pagination">
@@ -1511,24 +1613,52 @@ export default function EmployeeRequests({ employeeProfile, currentUser }) {
               </section>
             </div>
             <footer className="request-modal-footer" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              {selectedRequest.status === "Pending" ? (
-                <button
-                  className="btn btn-outline-danger"
-                  style={{
-                    borderRadius: "10px",
-                    fontWeight: 600,
-                    fontSize: "0.875rem",
-                    padding: "8px 16px",
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: "6px"
-                  }}
-                  type="button"
-                  onClick={() => setDeleteConfirmTarget(selectedRequest)}
-                >
-                  <i className="bi bi-trash" aria-hidden="true"></i> Delete Request
-                </button>
-              ) : <div />}
+              <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                {selectedRequest.status === "Pending" && (
+                  <button
+                    className="btn btn-outline-danger"
+                    style={{
+                      borderRadius: "10px",
+                      fontWeight: 600,
+                      fontSize: "0.875rem",
+                      padding: "8px 16px",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "6px"
+                    }}
+                    type="button"
+                    onClick={() => setDeleteConfirmTarget(selectedRequest)}
+                  >
+                    <i className="bi bi-trash" aria-hidden="true"></i> Delete Request
+                  </button>
+                )}
+                {String(selectedRequest.status || "").trim().toLowerCase() === "pending" &&
+                  String(selectedRequest.priority || "").trim().toLowerCase() !== "high" && (
+                  <button
+                    className="request-priority-action-btn"
+                    type="button"
+                    onClick={() => handleUpdatePriority(selectedRequest, "High")}
+                    disabled={updatingPriorityId === selectedRequest.id}
+                  >
+                    {updatingPriorityId === selectedRequest.id ? (
+                      <>
+                        <span
+                          className="spinner-border spinner-border-sm"
+                          role="status"
+                          aria-hidden="true"
+                          style={{ width: "12px", height: "12px", borderWidth: "2px" }}
+                        ></span>
+                        Updating...
+                      </>
+                    ) : (
+                      <>
+                        <i className="bi bi-exclamation-triangle" aria-hidden="true"></i>
+                        High Priority
+                      </>
+                    )}
+                  </button>
+                )}
+              </div>
               <button className="requests-secondary-btn" type="button" onClick={() => setSelectedRequest(null)}>
                 Close
               </button>
@@ -1651,10 +1781,46 @@ export default function EmployeeRequests({ employeeProfile, currentUser }) {
       )}
 
       {toast && (
-        <div className="requests-toast show" role="status">
-          <div className="requests-toast-icon"><i className="bi bi-check-lg" aria-hidden="true"></i></div>
-          <div><strong>Request submitted</strong><span>{toast}</span></div>
-          <button type="button" aria-label="Dismiss notification" onClick={() => setToast("")}>
+        <div
+          className={`requests-toast show ${
+            (typeof toast === "object" ? toast.type === "error" : String(toast).toLowerCase().includes("failed") || String(toast).toLowerCase().includes("error"))
+              ? "requests-toast-error"
+              : ""
+          }`}
+          role="status"
+          style={
+            (typeof toast === "object" ? toast.type === "error" : String(toast).toLowerCase().includes("failed") || String(toast).toLowerCase().includes("error"))
+              ? { borderLeft: "4px solid #ef4444" }
+              : {}
+          }
+        >
+          <div
+            className={`requests-toast-icon ${
+              (typeof toast === "object" ? toast.type === "error" : String(toast).toLowerCase().includes("failed") || String(toast).toLowerCase().includes("error"))
+                ? "text-danger"
+                : ""
+            }`}
+          >
+            <i
+              className={`bi ${
+                (typeof toast === "object" ? toast.type === "error" : String(toast).toLowerCase().includes("failed") || String(toast).toLowerCase().includes("error"))
+                  ? "bi-exclamation-circle-fill"
+                  : "bi-check-lg"
+              }`}
+              aria-hidden="true"
+            ></i>
+          </div>
+          <div>
+            <strong>
+              {typeof toast === "object"
+                ? toast.title || (toast.type === "error" ? "Error" : "Success")
+                : String(toast).toLowerCase().includes("failed") || String(toast).toLowerCase().includes("error")
+                ? "Error"
+                : "Notification"}
+            </strong>
+            <span>{typeof toast === "object" ? toast.message : toast}</span>
+          </div>
+          <button type="button" aria-label="Dismiss notification" onClick={() => setToast(null)}>
             <i className="bi bi-x" aria-hidden="true"></i>
           </button>
         </div>

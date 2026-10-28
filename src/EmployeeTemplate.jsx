@@ -15,6 +15,7 @@ import EmployeeRequests from "./pages/EmployeeRequests";
 import Calendar from "./pages/Calendar";
 import Expenses from "./pages/Expenses";
 import HRAssistant from "./components/HRAssistant";
+import EmptyState from "./components/EmptyState";
 
 const SHORTCUT_CONFIG = {
   "dashboard": { id: "dashboard", label: "Employee Dashboard", description: "Your workspace overview", icon: "bi-grid", color: "blue", page: "index" },
@@ -158,13 +159,16 @@ export default function EmployeeTemplate({
   // URL path back to page key mapping
   const pathToPage = {
     "/": "index",
+    "/index": "index",
     "/employee-profile": "employee-profile",
     "/employment-details": "employement-details",
+    "/employement-details": "employement-details",
     "/documents": "documents",
     "/skills-certifications": "skills-certifications",
     "/employee-requests": "employee-requests",
     "/attendance": "attendance",
     "/leave": "leaves",
+    "/leaves": "leaves",
     "/expenses": "expenses",
     "/assets": "assets",
     "/access-accounts": "access-accounts",
@@ -207,19 +211,22 @@ export default function EmployeeTemplate({
 
   // On mount: read URL to set initial page; handle back/forward
   useEffect(() => {
-    const path = window.location.pathname;
-    const page = pathToPage[path];
-    if (page) {
-      setActivePage(page);
+    const normalizePath = (raw) => {
+      const p = (raw || "").replace(/\/+$/, "") || "/";
+      return pathToPage[p] || pathToPage["/" + p.replace(/^\/+/, "")] || null;
+    };
+    const initialPage = normalizePath(window.location.pathname);
+    if (initialPage) {
+      setActivePage(initialPage);
     }
     const handlePopState = (e) => {
-      const p = window.location.pathname;
-      const pg = pathToPage[p] || "index";
+      const pg = normalizePath(window.location.pathname) || "index";
       setActivePage(pg);
     };
     window.addEventListener("popstate", handlePopState);
     return () => window.removeEventListener("popstate", handlePopState);
   }, []);
+
 
 
 
@@ -548,82 +555,83 @@ export default function EmployeeTemplate({
             <div className="menu-nav" style={{paddingBottom: "3rem"}}>
                   
                   <span className="menu-label" style={{ fontSize: '11px', fontWeight: 700, color: '#8a90a2', marginLeft: '22px', marginBottom: '8px', display: 'block', marginTop: '16px', letterSpacing: '0.5px' }}>OVERVIEW</span>
-                  <span onClick={() => navigateTo("index")} className="menu-item" style={{cursor:"pointer"}}>
+                  <span onClick={() => navigateTo("index")} className={`menu-item${activePage === "index" ? " active" : ""}`} style={{cursor:"pointer"}}>
                       <i className="bi bi-grid"></i>
                       <span>Employee Dashboard</span>
                   </span>
 
                   <span className="menu-label" style={{ fontSize: '11px', fontWeight: 700, color: '#8a90a2', marginLeft: '22px', marginBottom: '8px', display: 'block', marginTop: '24px', letterSpacing: '0.5px' }}>EMPLOYEE INFORMATION</span>
-                  <span onClick={() => navigateTo("employee-profile")} className="menu-item" style={{cursor:"pointer"}}>
+                  <span onClick={() => navigateTo("employee-profile")} className={`menu-item${activePage === "employee-profile" ? " active" : ""}`} style={{cursor:"pointer"}}>
                       <i className="bi bi-person-vcard"></i>
                       <span>Employee Profile</span>
                   </span>
-                  <span onClick={() => navigateTo("employement-details")} className="menu-item" style={{cursor:"pointer"}}>
+                  <span onClick={() => navigateTo("employement-details")} className={`menu-item${activePage === "employement-details" ? " active" : ""}`} style={{cursor:"pointer"}}>
                       <i className="bi bi-briefcase"></i>
                       <span>Employment Details</span>
                   </span>
-                  <span onClick={() => navigateTo("documents")} className="menu-item" style={{cursor:"pointer"}}>
+                  <span onClick={() => navigateTo("documents")} className={`menu-item${activePage === "documents" ? " active" : ""}`} style={{cursor:"pointer"}}>
                       <i className="bi bi-folder2-open"></i>
                       <span>Documents</span>
                   </span>
-                  <span onClick={() => navigateTo("skills-certifications")} className="menu-item" style={{cursor:"pointer"}}>
+                  <span onClick={() => navigateTo("skills-certifications")} className={`menu-item${activePage === "skills-certifications" ? " active" : ""}`} style={{cursor:"pointer"}}>
                       <i className="bi bi-award"></i>
                       <span>Skills & Certifications</span>
                   </span>
-                  <span onClick={() => navigateTo("employee-requests")} className="menu-item" style={{cursor:"pointer"}}>
+                  <span onClick={() => navigateTo("employee-requests")} className={`menu-item${activePage === "employee-requests" ? " active" : ""}`} style={{cursor:"pointer"}}>
                       <i className="bi bi-chat-text"></i>
                       <span>Employee Requests</span>
                   </span>
 
                   <span className="menu-label" style={{ fontSize: '11px', fontWeight: 700, color: '#8a90a2', marginLeft: '22px', marginBottom: '8px', display: 'block', marginTop: '24px', letterSpacing: '0.5px' }}>ATTENDANCE & LEAVE</span>
-                  <span onClick={() => navigateTo("attendance")} className="menu-item" style={{cursor:"pointer"}}>
+                  <span onClick={() => navigateTo("attendance")} className={`menu-item${activePage === "attendance" ? " active" : ""}`} style={{cursor:"pointer"}}>
                       <i className="bi bi-clock-history"></i>
                       <span>Attendance</span>
                   </span>
-                  <span onClick={() => navigateTo("leaves")} className="menu-item" style={{cursor:"pointer"}}>
+                  <span onClick={() => navigateTo("leaves")} className={`menu-item${activePage === "leaves" ? " active" : ""}`} style={{cursor:"pointer"}}>
                       <i className="bi bi-calendar2-minus"></i>
                       <span>Leave</span>
                   </span>
 
                   {/*
                   <span className="menu-label" style={{ fontSize: '11px', fontWeight: 700, color: '#8a90a2', marginLeft: '22px', marginBottom: '8px', display: 'block', marginTop: '24px', letterSpacing: '0.5px' }}>FINANCE & CLAIMS</span>
-                  <span onClick={() => navigateTo("expenses")} className="menu-item" style={{cursor:"pointer"}}>
+                  <span onClick={() => navigateTo("expenses")} className={`menu-item${activePage === "expenses" ? " active" : ""}`} style={{cursor:"pointer"}}>
                       <i className="bi bi-wallet2"></i>
                       <span>Expenses & Claims</span>
                   </span>
                   */}
 
                   <span className="menu-label" style={{ fontSize: '11px', fontWeight: 700, color: '#8a90a2', marginLeft: '22px', marginBottom: '8px', display: 'block', marginTop: '24px', letterSpacing: '0.5px' }}>COMPANY RESOURCES</span>
-                  <span onClick={() => navigateTo("assets")} className="menu-item" style={{cursor:"pointer"}}>
+                  <span onClick={() => navigateTo("assets")} className={`menu-item${activePage === "assets" ? " active" : ""}`} style={{cursor:"pointer"}}>
                       <i className="bi bi-laptop"></i>
                       <span>Assets</span>
                   </span>
                   {/*
-                  <span onClick={() => navigateTo("access-accounts")} className="menu-item" style={{cursor:"pointer"}}>
+                  <span onClick={() => navigateTo("access-accounts")} className={`menu-item${activePage === "access-accounts" ? " active" : ""}`} style={{cursor:"pointer"}}>
                       <i className="bi bi-shield-lock"></i>
                       <span>Access & Accounts</span>
                   </span>
                   */}
 
                   <span className="menu-label" style={{ fontSize: '11px', fontWeight: 700, color: '#8a90a2', marginLeft: '22px', marginBottom: '8px', display: 'block', marginTop: '24px', letterSpacing: '0.5px' }}>COMMUNICATION</span>
-                  <span onClick={() => navigateTo("calendar")} className="menu-item" style={{cursor:"pointer"}}>
+                  <span onClick={() => navigateTo("calendar")} className={`menu-item${activePage === "calendar" ? " active" : ""}`} style={{cursor:"pointer"}}>
                       <i className="bi bi-calendar-date"></i>
                       <span>Calendar</span>
                   </span>
-                  <span onClick={() => navigateTo("notifications")} className="menu-item" style={{cursor:"pointer"}}>
+                  <span onClick={() => navigateTo("notifications")} className={`menu-item${activePage === "notifications" ? " active" : ""}`} style={{cursor:"pointer"}}>
                       <i className="bi bi-bell"></i>
                       <span>Notifications</span>
                   </span>
-                  <span onClick={() => navigateTo("settings")} className="menu-item" style={{cursor:"pointer"}}>
+                  <span onClick={() => navigateTo("settings")} className={`menu-item${activePage === "settings" ? " active" : ""}`} style={{cursor:"pointer"}}>
                       <i className="bi bi-gear"></i>
                       <span>Settings</span>
                   </span>
 
                   <span className="menu-label" style={{ fontSize: '11px', fontWeight: 700, color: '#8a90a2', marginLeft: '22px', marginBottom: '8px', display: 'block', marginTop: '24px', letterSpacing: '0.5px' }}>EMPLOYEE EXIT</span>
-                  <span onClick={() => navigateTo("exit-management")} className="menu-item" style={{cursor:"pointer"}}>
+                  <span onClick={() => navigateTo("exit-management")} className={`menu-item${activePage === "exit-management" ? " active" : ""}`} style={{cursor:"pointer"}}>
                       <i className="bi bi-box-arrow-right"></i>
                       <span>Resignation & Exit</span>
                   </span>
+
 
                   <span className="menu-label" style={{ fontSize: '11px', fontWeight: 700, color: '#8a90a2', marginLeft: '22px', marginBottom: '8px', display: 'block', marginTop: '24px', letterSpacing: '0.5px' }}>ACCOUNT</span>
                   <a href="#!" className="menu-item text-danger" onClick={(e) => { e.preventDefault(); handleLogout(); }}>
@@ -792,10 +800,6 @@ export default function EmployeeTemplate({
                             <div className="dashboard-title-wrap">
 
                                 <div>
-                                    <span className="dashboard-eyebrow">
-                                        EMPLOYEE DASHBOARD
-                                    </span>
-
                                     <h2>Employee Dashboard</h2>
 
                                     <p>
@@ -1347,7 +1351,7 @@ export default function EmployeeTemplate({
             <i className="bi bi-arrow-up-right"></i>
         </button>
     </div>
-    <div className="row g-3">
+    <div className="row g-4">
         <div className="col-md-6">
             <div className="ed-celebration-card">
                 <div className="ed-celebration-avatar">
@@ -1359,11 +1363,19 @@ export default function EmployeeTemplate({
                         Birthday
                     </span>
                     <strong>{widgetsData.upcomingBirthday ? widgetsData.upcomingBirthday.name : "No Birthdays"}</strong>
-                    <small>{widgetsData.upcomingBirthday ? new Date(widgetsData.upcomingBirthday.date).toLocaleDateString('en-GB', {day: '2-digit', month: 'long'}) : "--"}</small>
-                    <button disabled={!widgetsData.upcomingBirthday}>
+                    <small>
+                        {widgetsData.upcomingBirthday ? (
+                            widgetsData.upcomingBirthday.daysUntil === 1 
+                                ? `Tomorrow · ${new Date(widgetsData.upcomingBirthday.date).toLocaleDateString('en-GB', {day: 'numeric', month: 'long'})}`
+                                : widgetsData.upcomingBirthday.daysUntil === 0 
+                                    ? `Today · ${new Date(widgetsData.upcomingBirthday.date).toLocaleDateString('en-GB', {day: 'numeric', month: 'long'})}`
+                                    : new Date(widgetsData.upcomingBirthday.date).toLocaleDateString('en-GB', {day: 'numeric', month: 'long'})
+                        ) : "--"}
+                    </small>
+                    {/* <button disabled={!widgetsData.upcomingBirthday}>
                         <i className="bi bi-send"></i>
                         Send wishes
-                    </button>
+                    </button> */}
                 </div>
             </div>
         </div>
@@ -1378,11 +1390,15 @@ export default function EmployeeTemplate({
                         Work Anniversary
                     </span>
                     <strong>{widgetsData.upcomingAnniversary ? widgetsData.upcomingAnniversary.name : "No Anniversaries"}</strong>
-                    <small>{widgetsData.upcomingAnniversary ? `${new Date(widgetsData.upcomingAnniversary.date).toLocaleDateString('en-GB', {day: '2-digit', month: 'long'})} - ${widgetsData.upcomingAnniversary.years} Years` : "--"}</small>
-                    <button disabled={!widgetsData.upcomingAnniversary}>
+                    <small>
+                        {widgetsData.upcomingAnniversary ? (
+                            `${new Date(widgetsData.upcomingAnniversary.date).toLocaleDateString('en-GB', {day: 'numeric', month: 'long'})} · ${widgetsData.upcomingAnniversary.years} Years`
+                        ) : "--"}
+                    </small>
+                    {/* <button disabled={!widgetsData.upcomingAnniversary}>
                         <i className="bi bi-send"></i>
                         Send wishes
-                    </button>
+                    </button> */}
                 </div>
             </div>
         </div>
@@ -1410,10 +1426,10 @@ export default function EmployeeTemplate({
         </div>
     </div>
     <div className="ed-holiday-footer">
-        <span>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
             {dashNextHoliday ? (
                 <>
-                    <i className="bi bi-calendar-event"></i>
+                    <i className="bi bi-calendar-event me-2"></i>
                     {Math.ceil((new Date(dashNextHoliday.holiday_date) - new Date()) / (1000 * 60 * 60 * 24))} days from now
                 </>
             ) : null}
@@ -1476,10 +1492,12 @@ export default function EmployeeTemplate({
                                                 </div>
                                             ))
                                         ) : (
-                                            <div style={{ padding: '24px 0', textAlign: 'center', color: '#85889b', fontSize: '13px' }}>
-                                                <i className="bi bi-inbox" style={{ fontSize: '28px', display: 'block', marginBottom: '8px', color: '#b0b3c6' }}></i>
-                                                No recent requests found.
-                                            </div>
+                                            <EmptyState
+                                                compact
+                                                emoji="📬"
+                                                title="No recent requests"
+                                                message="You have not submitted any employee requests recently."
+                                            />
                                         )}
                                     </div>
 
@@ -1581,9 +1599,9 @@ export default function EmployeeTemplate({
                                                     <span className="ed-status-present">{member.status || "Active"}</span>
                                                 </div>
 
-                                                <button className="ed-team-action">
+                                                {/* <button className="ed-team-action">
                                                     <i className="bi bi-chat"></i>
-                                                </button>
+                                                </button> */}
                                             </div>
                                         ))}
                                     </div>
@@ -1628,10 +1646,12 @@ export default function EmployeeTemplate({
                                                 </div>
                                             ))
                                         ) : (
-                                            <div style={{ padding: "24px 0", textAlign: "center", color: "#85889b", fontSize: "13px" }}>
-                                                <i className="bi bi-bell-slash" style={{ fontSize: "24px", display: "block", marginBottom: "6px", color: "#b0b3c6" }}></i>
-                                                No notifications found.
-                                            </div>
+                                            <EmptyState
+                                                compact
+                                                emoji="🔔"
+                                                title="No new notifications"
+                                                message="You're all caught up! New alerts and updates will show up here."
+                                            />
                                         )}
                                     </div>
 

@@ -339,9 +339,9 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
         preferredLanguage: "English",
         dateFormat: "DD MMM YYYY",
         theme: "light",
-        emailNotifications: true,
-        pushNotifications: true,
-        celebrationNotifications: true
+        emailNotifications: false,
+        pushNotifications: false,
+        celebrationNotifications: false
     });
     const [preferencesLoading, setPreferencesLoading] = useState(false);
     const [preferencesSaving, setPreferencesSaving] = useState(false);
@@ -364,13 +364,21 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
                         preferredLanguage: data.preferred_language || "English",
                         dateFormat: data.date_format || "DD MMM YYYY",
                         theme: data.theme || "light",
-                        emailNotifications: data.email_notifications !== false,
-                        pushNotifications: data.push_notifications !== false,
-                        celebrationNotifications: data.celebration_notifications !== false
+                        emailNotifications: Boolean(data.email_notifications),
+                        pushNotifications: Boolean(data.push_notifications),
+                        celebrationNotifications: Boolean(data.celebration_notifications)
                     });
                 }
             })
-            .catch(err => console.error("Error loading preferences:", err))
+            .catch(err => {
+                console.error("Error loading preferences:", err);
+                setPreferencesForm(prev => ({
+                    ...prev,
+                    emailNotifications: false,
+                    pushNotifications: false,
+                    celebrationNotifications: false
+                }));
+            })
             .finally(() => setPreferencesLoading(false));
     }, [currentUser?.id]);
 
@@ -395,6 +403,23 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
             setPreferencesFeedback(err.message || "Failed to save preferences");
         } finally {
             setPreferencesSaving(false);
+        }
+    };
+
+    const handleTogglePreference = async (field, value) => {
+        const updated = { ...preferencesForm, [field]: value };
+        setPreferencesForm(updated);
+        const targetId = currentUser?.id || employeeProfile?.user_id || employeeProfile?.id;
+        if (!targetId) return;
+        try {
+            await fetch(`${API_BASE}/api/employee/preferences/${targetId}`, {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(updated)
+            });
+            window.dispatchEvent(new CustomEvent("preferencesUpdated", { detail: updated }));
+        } catch (err) {
+            console.error("Error auto-saving preference toggle:", err);
         }
     };
 
@@ -1951,12 +1976,31 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
                     </button>
                 </div>
 
+                {Boolean(secondaryEmergencyContact && (secondaryEmergencyContact.contact_name || secondaryEmergencyContact.phone_number || secondaryEmergencyContact.relationship || secondaryEmergencyContact.address)) && (
+                    <div className="mb-2">
+                        <span className="text-muted fw-semibold small text-uppercase" style={{ letterSpacing: "0.5px" }}>Primary Emergency Contact</span>
+                    </div>
+                )}
                 <div className="es-info-grid">
                     <div className="es-info-item"><span>Contact Name</span><strong>{displayValue(primaryEmergencyContact?.contact_name)}</strong></div>
                     <div className="es-info-item"><span>Relationship</span><strong>{displayValue(primaryEmergencyContact?.relationship)}</strong></div>
                     <div className="es-info-item"><span>Phone Number</span><strong>{displayValue(primaryEmergencyContact?.phone_number)}</strong></div>
                     <div className="es-info-item"><span>Address</span><strong>{displayValue(primaryEmergencyContact?.address)}</strong></div>
                 </div>
+
+                {Boolean(secondaryEmergencyContact && (secondaryEmergencyContact.contact_name || secondaryEmergencyContact.phone_number || secondaryEmergencyContact.relationship || secondaryEmergencyContact.address)) && (
+                    <>
+                        <div className="pt-3 mt-3 border-top mb-2">
+                            <span className="text-muted fw-semibold small text-uppercase" style={{ letterSpacing: "0.5px" }}>Secondary Emergency Contact</span>
+                        </div>
+                        <div className="es-info-grid">
+                            <div className="es-info-item"><span>Contact Name</span><strong>{displayValue(secondaryEmergencyContact?.contact_name)}</strong></div>
+                            <div className="es-info-item"><span>Relationship</span><strong>{displayValue(secondaryEmergencyContact?.relationship)}</strong></div>
+                            <div className="es-info-item"><span>Phone Number</span><strong>{displayValue(secondaryEmergencyContact?.phone_number)}</strong></div>
+                            <div className="es-info-item"><span>Address</span><strong>{displayValue(secondaryEmergencyContact?.address)}</strong></div>
+                        </div>
+                    </>
+                )}
                 {emergencyContactLoading && <p role="status">Loading emergency contact...</p>}
                 {emergencyContactError && <p role="alert">{emergencyContactError}</p>}
             </section>
@@ -2044,7 +2088,7 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
                             <p>Personalize your employee workspace</p>
                         </div>
                     </div>
-                    <button 
+                    {/* <button 
                         className="btn es-edit-btn"
                         type="button"
                         style={EDIT_TRIGGER_STYLE}
@@ -2055,7 +2099,7 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
                     >
                         <i className={`bi ${preferencesSaving ? "bi-arrow-repeat" : "bi-check2"}`}></i>
                         {preferencesSaving ? "Saving..." : "Save Preferences"}
-                    </button>
+                    </button> */}
                 </div>
 
                 {preferencesSuccess && (
@@ -2071,7 +2115,7 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
                     </div>
                 )}
 
-                <div className="es-preference-grid">
+                {/* <div className="es-preference-grid">
                     <div className="es-preference-field">
                         <label htmlFor="esLanguage">Language</label>
                         <select 
@@ -2114,7 +2158,7 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
                             <option value="system">System Default</option>
                         </select>
                     </div>
-                </div>
+                </div> */}
 
                 <div className="es-preference-toggles">
                     <div className="es-preference-toggle">
@@ -2128,7 +2172,7 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
                                 type="checkbox" 
                                 id="esEmailNotifications" 
                                 checked={preferencesForm.emailNotifications}
-                                onChange={(e) => setPreferencesForm(p => ({ ...p, emailNotifications: e.target.checked }))}
+                                onChange={(e) => handleTogglePreference("emailNotifications", e.target.checked)}
                             />
                         </div>
                     </div>
@@ -2143,7 +2187,7 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
                                 type="checkbox" 
                                 id="esPushNotifications" 
                                 checked={preferencesForm.pushNotifications}
-                                onChange={(e) => setPreferencesForm(p => ({ ...p, pushNotifications: e.target.checked }))}
+                                onChange={(e) => handleTogglePreference("pushNotifications", e.target.checked)}
                             />
                         </div>
                     </div>
@@ -2158,7 +2202,7 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
                                 type="checkbox" 
                                 id="esCelebrationNotifications" 
                                 checked={preferencesForm.celebrationNotifications}
-                                onChange={(e) => setPreferencesForm(p => ({ ...p, celebrationNotifications: e.target.checked }))}
+                                onChange={(e) => handleTogglePreference("celebrationNotifications", e.target.checked)}
                             />
                         </div>
                     </div>
@@ -2367,7 +2411,7 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
         if (event.target === event.currentTarget) closeAccountRevealModal();
     }}
 >
-    <div className="modal-dialog modal-dialog-centered">
+    <div className="modal-dialog modal-dialog-centered modal-dialog-scrollable">
         <form className="modal-content es-modal-content" onSubmit={submitAccountReveal}>
             <div className="modal-header">
                 <div>
@@ -2784,7 +2828,7 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
                     if (event.target === event.currentTarget) setIsPasswordModalOpen(false);
                 }}
             >
-                <div className="modal-dialog modal-dialog-centered">
+                <div className="modal-dialog modal-dialog-centered modal-dialog-scrollable">
                     <form className="modal-content es-modal-content" onSubmit={submitPasswordChange} noValidate>
                         <div className="modal-header">
                             <div>

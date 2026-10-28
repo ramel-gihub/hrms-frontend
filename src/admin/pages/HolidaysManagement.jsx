@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import EmptyState from '../../components/EmptyState';
 import { CalendarIcon, PlusIcon, CloseIcon, CheckCircleIcon } from '../components/Icons';
 import DatePickerCalendar from '../components/DatePickerCalendar';
 
@@ -188,9 +189,11 @@ export default function HolidaysManagement({
             <p className="mt-3 text-sm text-gray-500">Loading holidays list...</p>
           </div>
         ) : holidays.length === 0 ? (
-          <div className="py-16 text-center text-gray-400">
-            No public holidays defined. Click "Add Public Holiday" above to create one.
-          </div>
+          <EmptyState
+            emoji="🌴"
+            title="No public holidays defined"
+            message='Click "Add Public Holiday" above to schedule company holidays.'
+          />
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm text-gray-600 dark:text-gray-300">

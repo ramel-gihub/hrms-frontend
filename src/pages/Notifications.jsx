@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
+import EmptyState from "../components/EmptyState";
 
 const API_BASE = import.meta.env.VITE_API_URL || (
   ["localhost", "127.0.0.1"].includes(window.location.hostname)
@@ -241,11 +242,11 @@ export default function Notifications({ currentUser, employeeProfile, adminView 
                 </div>
               </article>
             )) : (
-              <div className="en-empty-state">
-                <div className="en-empty-icon"><i className="bi bi-bell-slash"></i></div>
-                <h4>{notifications.length ? "No notifications match this filter." : "No notifications yet."}</h4>
-                <p>New request activity and status updates will appear here.</p>
-              </div>
+              <EmptyState
+                emoji="🔔"
+                title={notifications.length ? "No matching notifications" : "No notifications yet"}
+                message={notifications.length ? "No notifications match this filter." : "You're all caught up! New alerts and updates will appear here."}
+              />
             )}
           </section>
         </div>

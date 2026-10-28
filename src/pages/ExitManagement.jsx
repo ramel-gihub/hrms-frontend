@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback } from "react";
+import EmptyState from "../components/EmptyState";
 import { jsPDF } from "jspdf";
 
 const API_BASE = import.meta.env.VITE_API_URL || "https://hrms-backend-5xo8.onrender.com";
@@ -374,9 +375,13 @@ export default function ExitManagement({ currentUser, employeeProfile, onNavigat
           )}
 
           {!resignation ? (
-            <div className="exit-card" style={{ textAlign: "center", padding: "48px 24px" }}>
-              <h3>No active resignation</h3>
-              <p>You have not submitted a resignation. If you wish to leave the organisation, use the Submit Resignation button.</p>
+            <div className="exit-card" style={{ textAlign: "center", padding: "28px 24px" }}>
+              <EmptyState
+                compact
+                emoji="📋"
+                title="No active resignation"
+                message="You have not submitted a resignation. If you wish to leave the organisation, use the Submit Resignation button."
+              />
               <div className="exit-detail-list" style={{ maxWidth: 420, margin: "16px auto 0", textAlign: "left" }}>
                 <div><span>Employee</span><strong>{name}</strong></div>
                 <div><span>Employee ID</span><strong>{employee.employee_code}</strong></div>

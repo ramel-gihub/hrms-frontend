@@ -10,7 +10,8 @@ import {
   UserCircleIcon,
   LogOutIcon,
   LayersIcon,
-  BuildingIcon
+  BuildingIcon,
+  HomeIcon
 } from './Icons';
 
 export default function AdminSidebar({
@@ -31,6 +32,16 @@ export default function AdminSidebar({
   const menuItems = [
     { id: "dashboard", label: "Dashboard", icon: <GridIcon className="w-5 h-5" /> },
     { id: "employees", label: "Employees", icon: <UsersIcon className="w-5 h-5" /> },
+    { 
+      id: "admin-leaves", 
+      label: "Manage Leaves", 
+      icon: <CalendarIcon className="w-5 h-5 text-indigo-400" />
+    },
+    { 
+      id: "admin-wfh", 
+      label: "Manage WFH", 
+      icon: <HomeIcon className="w-5 h-5 text-emerald-400" />
+    },
     { 
       id: "leave-approvals", 
       label: "Leave Approvals", 

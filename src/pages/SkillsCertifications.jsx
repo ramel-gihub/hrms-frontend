@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
+import EmptyState from "../components/EmptyState";
 
 const API_BASE = import.meta.env.VITE_API_URL || "https://hrms-backend-5xo8.onrender.com";
 
@@ -208,6 +209,15 @@ export default function SkillsCertifications({ currentUser, employeeProfile, emb
 
   const updateCertField = (event) => {
     const { name, value } = event.target;
+    if (name === "issueDate" && value) {
+      const today = new Date().toISOString().split("T")[0];
+      if (value > today) {
+        setCertFeedback({ type: "danger", text: "Issue date cannot be in the future." });
+        return;
+      } else {
+        setCertFeedback({ type: "", text: "" });
+      }
+    }
     setCertForm((prev) => ({ ...prev, [name]: value }));
   };
 
@@ -262,6 +272,13 @@ export default function SkillsCertifications({ currentUser, employeeProfile, emb
       setCertFeedback({ type: "danger", text: "Skill category and certification name are required." });
       return;
     }
+
+    const today = new Date().toISOString().split("T")[0];
+    if (certForm.issueDate && certForm.issueDate > today) {
+      setCertFeedback({ type: "danger", text: "Issue date cannot be in the future." });
+      return;
+    }
+
 
     const body = new FormData();
     Object.entries(certForm).forEach(([key, value]) => body.append(key, value));
@@ -530,33 +547,25 @@ export default function SkillsCertifications({ currentUser, employeeProfile, emb
   };
   return (
     <>
-<div className="px-0 px-md-5 employee-dashboard">
+      <main className="dashboard-wrapper">
+        <div className="dashboard-container">
+          <div className="px-0 px-md-5 employee-dashboard">
+            <div className="esc-page">
 
-                <div id="profileSkills">
+            <div className={`esc-page-header${embedded ? " d-none" : ""}`}>
+                <div>
+                    <h2 className="esc-page-title">Skills & Certifications</h2>
+                    <p className="esc-page-subtitle">
+                        Manage professional skills, proficiency levels and employee certifications.
+                    </p>
+                </div>
 
-                    <div className="esc-page">
-
-                        
-                        <div className={`esc-page-header${embedded ? " d-none" : ""}`}>
-                            <div>
-                                <div className="esc-breadcrumb">
-                                    <span>Employee Profile</span>
-                                    <i className="bi bi-chevron-right"></i>
-                                    <span>Skills & Certifications</span>
-                                </div>
-
-                                <h2 className="esc-page-title">Skills & Certifications</h2>
-                                <p className="esc-page-subtitle">
-                                    Manage professional skills, proficiency levels and employee certifications.
-                                </p>
-                            </div>
-
-                            <div>
+                            {/* <div>
                                 <button type="button" className="epd-upload-btn" id="epdHeaderUploadBtn">
-                                <i className="bi bi-cloud-arrow-up"></i>
-                                Export
-                            </button>
-                            </div>
+                                    <i className="bi bi-cloud-arrow-up"></i>
+                                    Export
+                                </button>
+                            </div> */}
                         </div>
 
 
@@ -743,9 +752,17 @@ export default function SkillsCertifications({ currentUser, employeeProfile, emb
 
                                 {skillsLoading && <p className="text-center text-muted py-4 mb-0">Loading skills...</p>}
                                 {!skillsLoading && filteredSkills.length === 0 && (
-                                    <p className="text-center text-muted py-4 mb-0">
-                                        {skillsError || "No skills found."}
-                                    </p>
+                                    <EmptyState
+                                        compact
+                                        emoji="💡"
+                                        title="No skills added yet"
+                                        message={skillsError || "You haven't added any technical or domain skills yet."}
+                                        action={
+                                            <button className="btn esc-btn-outline-primary btn-sm mt-2" type="button" onClick={openAddSkill}>
+                                                <i className="bi bi-plus-lg me-1"></i> Add Skill
+                                            </button>
+                                        }
+                                    />
                                 )}
 
                             </div>
@@ -783,9 +800,17 @@ export default function SkillsCertifications({ currentUser, employeeProfile, emb
 
                                 {certsLoading && <p className="text-center text-muted py-4 mb-0">Loading certifications...</p>}
                                 {!certsLoading && certs.length === 0 && (
-                                    <p className="text-center text-muted py-4 mb-0">
-                                        {certsError || "No certifications found."}
-                                    </p>
+                                    <EmptyState
+                                        compact
+                                        emoji="🏆"
+                                        title="No certifications added yet"
+                                        message={certsError || "You haven't uploaded any professional certifications yet."}
+                                        action={
+                                            <button className="btn esc-btn-primary btn-sm mt-2" type="button" onClick={openAddCertification}>
+                                                <i className="bi bi-plus-lg me-1"></i> Add Certification
+                                            </button>
+                                        }
+                                    />
                                 )}
 
                             </div>
@@ -1210,6 +1235,7 @@ export default function SkillsCertifications({ currentUser, employeeProfile, emb
                                                 id="escCertificationIssueDate"
                                                 name="issueDate"
                                                 value={certForm.issueDate}
+                                                max={new Date().toISOString().split("T")[0]}
                                                 onChange={updateCertField}
                                                 onClick={(e) => {
                                                     try { e.currentTarget.showPicker(); } catch (_) {}
@@ -1219,6 +1245,7 @@ export default function SkillsCertifications({ currentUser, employeeProfile, emb
                                                 }}
                                                 style={{ cursor: "pointer" }}
                                              />
+
                                         </div>
 
                                         <div className="col-md-6">
@@ -1470,8 +1497,11 @@ export default function SkillsCertifications({ currentUser, employeeProfile, emb
                     </div>
 
                 </div>
-
-            </div>
+          </div>
+        </main>
     </>
   );
 }
+
+
+

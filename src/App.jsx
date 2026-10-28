@@ -356,10 +356,20 @@ export default function App() {
       if (contactRes && contactRes.ok) {
         try {
           const contactData = await contactRes.json();
-          if (contactData && contactData.current_city) {
-            profileData.city = contactData.current_city;
-            profileData.location = contactData.current_city;
-            profileData.current_city = contactData.current_city;
+          if (contactData) {
+            if (contactData.current_city) {
+              profileData.city = contactData.current_city;
+              profileData.current_city = contactData.current_city;
+            }
+            if (contactData.current_country) {
+              profileData.current_country = contactData.current_country;
+            }
+            profileData.phone = contactData.phone_number || contactData.mobile || contactData.alternate_phone || profileData.phone;
+            profileData.phone_number = contactData.phone_number || profileData.phone_number;
+            const locParts = [contactData.current_city, contactData.current_country].filter(Boolean);
+            if (locParts.length > 0) {
+              profileData.location = locParts.join(', ');
+            }
           }
         } catch (_) {}
       }
@@ -407,6 +417,10 @@ export default function App() {
             if (personalData.profile_pic) {
               profileData.profile_pic = personalData.profile_pic;
               profileData.avatar_url = personalData.profile_pic;
+            }
+            if (personalData.date_of_birth) {
+              profileData.date_of_birth = personalData.date_of_birth;
+              profileData.dob = personalData.date_of_birth;
             }
             if (personalData.preferred_name) {
               profileData.preferred_name = personalData.preferred_name;

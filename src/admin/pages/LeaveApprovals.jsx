@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import EmptyState from '../../components/EmptyState';
 import { CheckCircleIcon, CloseIcon, CalendarIcon, ClockIcon, FileTextIcon } from '../components/Icons';
 
 export default function LeaveApprovals({
@@ -259,14 +260,12 @@ export default function LeaveApprovals({
         })}
 
         {filtered.length === 0 && (
-          <div className="rounded-2xl border border-gray-200 bg-white p-12 text-center dark:border-gray-800 dark:bg-gray-900">
-            <CalendarIcon className="w-12 h-12 text-gray-300 dark:text-gray-700 mx-auto mb-3" />
-            <h3 className="text-base font-bold text-gray-800 dark:text-white">
-              No {filter !== 'All' ? filter : ''} Leave Requests
-            </h3>
-            <p className="text-xs text-gray-400 mt-1">
-              There are currently no leave requests under this filter category.
-            </p>
+          <div className="rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900 overflow-hidden">
+            <EmptyState
+              emoji="🏖️"
+              title={`No ${filter !== 'All' ? filter : ''} Leave Requests`.trim()}
+              message="There are currently no leave requests under this filter category."
+            />
           </div>
         )}
       </div>

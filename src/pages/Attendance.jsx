@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import Chart from "react-apexcharts";
+import EmptyState from "../components/EmptyState";
 
 export default function Attendance({ currentUser, employeeProfile, onNavigate, embedded = false }) {
   const [report, setReport] = useState(null);
@@ -270,26 +271,30 @@ export default function Attendance({ currentUser, employeeProfile, onNavigate, e
 
   return (
     <>
-      <div className="epa-page">
+      <main className="dashboard-wrapper">
+        <div className="dashboard-container">
+          <div className="px-0 px-md-5 employee-dashboard">
+            <div className="epa-page">
 
                         
-                        <div className={`epa-page-header${embedded ? " d-none" : ""}`}>
+                        <div className={`esc-page-header${embedded ? " d-none" : ""}`}>
                             <div>
 
-                                <h2 className="epa-title">Attendance</h2>
-                                <p className="epa-subtitle">
+                                <h2 className="esc-page-title">Attendance</h2>
+                                <p className="esc-page-subtitle">
                                     Track attendance, working hours, overtime and daily attendance status.
                                 </p>
                             </div>
 
-                            <div className="epa-header-actions">
+
+                            {/* <div className="epa-header-actions">
                                 <div>
                                     <button type="button" className="epd-upload-btn" id="epdHeaderUploadBtn">
                                         <i className="bi bi-cloud-arrow-up"></i>
                                         Export
                                     </button>
                                 </div>
-                            </div>
+                            </div> */}
                         </div>
 
                         
@@ -344,16 +349,18 @@ export default function Attendance({ currentUser, employeeProfile, onNavigate, e
 
                             <div className="esc-employee-side">
                                 <span className="esc-side-label">Current Shift</span>
-                                <strong>General Shift</strong> 
-                                <strong>09:00 AM - 06:00 PM</strong> 
-                                <div><strong>Today's Punch time : {!loading && report?.dailyRecords?.find(r => new Date(r.date).toISOString().split('T')[0] === new Date().toISOString().split('T')[0])?.checkIn ? new Date(report.dailyRecords.find(r => new Date(r.date).toISOString().split('T')[0] === new Date().toISOString().split('T')[0]).checkIn).toLocaleTimeString('en-US', {hour:'2-digit', minute:'2-digit'}) : "--"}</strong> </div>
+                                <strong style={{ display: "block" }}>General Shift · 09:00 AM - 06:00 PM</strong> 
+                                <span style={{ display: "block", fontSize: "12px", opacity: 0.85, marginTop: "4px" }}>
+                                    Today's Punch: {!loading && report?.dailyRecords?.find(r => new Date(r.date).toISOString().split('T')[0] === new Date().toISOString().split('T')[0])?.checkIn ? new Date(report.dailyRecords.find(r => new Date(r.date).toISOString().split('T')[0] === new Date().toISOString().split('T')[0]).checkIn).toLocaleTimeString('en-US', {hour:'2-digit', minute:'2-digit'}) : "--"}
+                                </span>
                             </div>
+
 
                         </div>
 
 
                         
-                        <div className="row g-4 epa-summary-row">
+                        <div className="row g-3 epa-summary-row">
 
                             {/* Card 1: Present Days */}
                             <div className="col-xl-4 col-md-6">
@@ -443,7 +450,7 @@ export default function Attendance({ currentUser, employeeProfile, onNavigate, e
 
 
                         
-                        <div className="row g-4 epa-overview-row">
+                        <div className="row g-3 epa-overview-row">
 
                             {/* Chart Card */}
                             <div className="col-xl-8">
@@ -603,7 +610,15 @@ export default function Attendance({ currentUser, employeeProfile, onNavigate, e
                                     <tbody id="epaAttendanceTableBody">
   {loading && <tr><td colSpan="6" className="text-center py-4">Loading...</td></tr>}
   {!loading && filteredRecords.length === 0 && (
-    <tr><td colSpan="6" className="text-center py-4 text-muted">No attendance records found for this week.</td></tr>
+    <tr>
+      <td colSpan="6" style={{ padding: 0 }}>
+        <EmptyState
+          emoji="⏱️"
+          title="No attendance records found"
+          message="No attendance logs or clock-in records found for this week."
+        />
+      </td>
+    </tr>
   )}
   {!loading && filteredRecords.map((row, i) => (
     <tr key={i}>
@@ -1041,10 +1056,12 @@ export default function Attendance({ currentUser, employeeProfile, onNavigate, e
                                                 );
                                             })
                                         ) : (
-                                            <div style={{ padding: '24px 0', textAlign: 'center', color: '#85889b', fontSize: '13px' }}>
-                                                <i className="bi bi-calendar-check" style={{ fontSize: '24px', display: 'block', marginBottom: '6px', color: '#b0b3c6' }}></i>
-                                                No attendance correction requests found.
-                                            </div>
+                                            <EmptyState
+                                                compact
+                                                emoji="⏱️"
+                                                title="No correction requests"
+                                                message="You have not submitted any attendance correction requests."
+                                            />
                                         )}
                                     </div>
 
@@ -1054,6 +1071,10 @@ export default function Attendance({ currentUser, employeeProfile, onNavigate, e
                         </div>
 
                     </div>
-    </>
+                </div>
+              </div>
+            </main>
+        </>
   );
 }
+

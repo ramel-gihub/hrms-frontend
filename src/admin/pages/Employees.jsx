@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import EmptyState from '../../components/EmptyState';
 import { SearchIcon, PlusIcon, UsersIcon } from '../components/Icons';
 
 export default function Employees({
@@ -183,9 +184,12 @@ export default function Employees({
 
               {currentEmployees.length === 0 && (
                 <tr>
-                  <td colSpan="6" className="py-12 text-center text-gray-400">
-                    <UsersIcon className="w-10 h-10 mx-auto mb-2 text-gray-300 dark:text-gray-700" />
-                    No employees found matching the search criteria.
+                  <td colSpan="6" style={{ padding: 0 }}>
+                    <EmptyState
+                      emoji="👥"
+                      title="No employees found"
+                      message="No employees found matching the search or filter criteria."
+                    />
                   </td>
                 </tr>
               )}

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import EmptyState from "../components/EmptyState";
 
 export default function Calendar({ employeeProfile, currentUser, initialTab = "calendar" }) {
   const profile = employeeProfile || {};
@@ -500,7 +501,12 @@ export default function Calendar({ employeeProfile, currentUser, initialTab = "c
                                </div>
                                <div className="mt-3">
                                    {thisMonthBdays.length === 0 && thisMonthAnnivs.length === 0 ? (
-                                       <p className="text-muted">No birthdays or anniversaries this month.</p>
+                                       <EmptyState
+                                            compact
+                                            emoji="🎂"
+                                            title="No celebrations this month"
+                                            message="There are no birthdays or work anniversaries scheduled for this month."
+                                        />
                                    ) : (
                                        <ul className="list-unstyled mb-0" style={{display: 'flex', flexDirection: 'column', gap: '15px'}}>
                                            {thisMonthBdays.map((u, i) => (
@@ -561,7 +567,14 @@ export default function Calendar({ employeeProfile, currentUser, initialTab = "c
                                       </div>
                                     </div>
                                   ))}
-                                  {pendingCurrentYearHolidays.length === 0 && <p className="text-muted">No pending holidays remaining in {currentCalendarYear}.</p>}
+                                  {pendingCurrentYearHolidays.length === 0 && (
+                                       <EmptyState
+                                           compact
+                                           emoji="🌴"
+                                           title="No upcoming holidays"
+                                           message={`No remaining public holidays scheduled for ${currentCalendarYear}.`}
+                                       />
+                                   )}
                                </div>
                            </div>
                        </div>
@@ -582,7 +595,17 @@ export default function Calendar({ employeeProfile, currentUser, initialTab = "c
                        </div>
                        
                        <div className="row g-3">
-                           {allUsers.map((u, i) => (
+                           {allUsers.length === 0 ? (
+                               <div className="col-12">
+                                   <EmptyState
+                                       compact
+                                       emoji="👥"
+                                       title="No team members found"
+                                       message="There are currently no team members in this directory."
+                                   />
+                               </div>
+                           ) : (
+                               allUsers.map((u, i) => (
                                <div className="col-12 col-md-6 col-xl-4" key={i}>
                                    <div className="d-flex align-items-center gap-3 p-3 border rounded-3 bg-light">
                                        <div className="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center" style={{width: '45px', height: '45px', fontWeight: 'bold', fontSize: '18px'}}>
@@ -594,7 +617,7 @@ export default function Calendar({ employeeProfile, currentUser, initialTab = "c
                                        </div>
                                    </div>
                                </div>
-                           ))}
+                           )))}
                        </div>
                    </div>
                 </section>

@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect, useMemo } from "react";
 import Chart from "react-apexcharts";
+import EmptyState from "../components/EmptyState";
 
 export default function Leaves({ currentUser, employeeProfile, embedded = false }) {
   const [data, setData] = useState({ balances: [], leaveTypes: [], approvers: [], requests: [] });
@@ -689,7 +690,11 @@ export default function Leaves({ currentUser, employeeProfile, embedded = false 
                                             </span>
                                         </div>
                                     )) : (
-                                        <div className="text-muted p-3 text-center">No upcoming leaves</div>
+                                        <EmptyState
+                                            emoji="🏖️"
+                                            title="No upcoming leaves"
+                                            message="Enjoy the clear calendar. You have no scheduled leave coming up."
+                                        />
                                     )}
 
                                 </div>
@@ -784,8 +789,12 @@ export default function Leaves({ currentUser, employeeProfile, embedded = false 
                                             </tr>
                                         ) : filteredLeaveRequests.length === 0 ? (
                                             <tr>
-                                                <td colSpan={9} className="text-center py-4 text-muted">
-                                                    No leave requests found.
+                                                <td colSpan={9} style={{ padding: 0 }}>
+                                                    <EmptyState
+                                                        emoji="🗓️"
+                                                        title="No leave requests found"
+                                                        message={!(data.requests && data.requests.length) ? "You haven't submitted any leave requests yet." : "No leave requests match your search or filter criteria."}
+                                                    />
                                                 </td>
                                             </tr>
                                         ) : (
