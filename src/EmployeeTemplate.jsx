@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import Chart from "react-apexcharts";
 import EmployeeProfile from "./pages/EmployeeProfile";
 import EmploymentDetails from "./pages/EmploymentDetails";
@@ -45,6 +45,42 @@ export default function EmployeeTemplate({
   const [unreadNotificationCount, setUnreadNotificationCount] = useState(0);
   const [dynamicPolicies, setDynamicPolicies] = useState([]);
   const [isPolicyModalOpen, setIsPolicyModalOpen] = useState(false);
+  const [pushToast, setPushToast] = useState(null);
+  const [headerNotifOpen, setHeaderNotifOpen] = useState(false);
+  const headerNotifRef = useRef(null);
+  const seenNotifIdsRef = useRef(new Set());
+  const initialLoadDoneRef = useRef(false);
+
+  const handleMarkAsRead = async (notifId, e) => {
+    if (e) e.stopPropagation();
+    try {
+      await fetch(`${API_BASE}/api/notifications/${encodeURIComponent(notifId)}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: currentUser?.id, is_read: true })
+      });
+      setDashboardNotifications(prev => prev.map(n => n.id === notifId ? { ...n, is_read: true } : n));
+      setUnreadNotificationCount(prev => Math.max(0, prev - 1));
+      if (pushToast?.id === notifId) {
+        setPushToast(null);
+      }
+    } catch (err) {
+      console.error("Error marking notification as read:", err);
+    }
+  };
+
+  const handleMarkAllAsRead = async () => {
+    try {
+      await fetch(`${API_BASE}/api/notifications/${encodeURIComponent(currentUser?.id)}/read-all`, {
+        method: "PATCH"
+      });
+      setDashboardNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
+      setUnreadNotificationCount(0);
+      setPushToast(null);
+    } catch (err) {
+      console.error("Error marking all notifications as read:", err);
+    }
+  };
 
   useEffect(() => {
     if (!currentUser?.id) return;
@@ -55,16 +91,58 @@ export default function EmployeeTemplate({
           const data = await res.json();
           const list = Array.isArray(data) ? data : data.notifications || [];
           setDashboardNotifications(list);
-          setUnreadNotificationCount(list.filter(n => !n.is_read).length);
+          const unreadList = list.filter(n => !n.is_read);
+          setUnreadNotificationCount(unreadList.length);
+
+          if (!initialLoadDoneRef.current) {
+            list.forEach(n => seenNotifIdsRef.current.add(n.id));
+            initialLoadDoneRef.current = true;
+            // Check if there is an unread approval notification to show immediately
+            const latestApproved = unreadList.find(n => 
+              n.title?.toLowerCase().includes("approved") || n.message?.toLowerCase().includes("approved")
+            );
+            if (latestApproved) {
+              setPushToast(latestApproved);
+            }
+          } else {
+            // Subsequent polls: check if newly arrived notification
+            for (const n of unreadList) {
+              if (!seenNotifIdsRef.current.has(n.id)) {
+                seenNotifIdsRef.current.add(n.id);
+                setPushToast(n);
+                break;
+              }
+            }
+          }
         }
       } catch (err) {
         console.error("Dashboard notification fetch error:", err);
       }
     };
     fetchNotifications();
-    const interval = setInterval(fetchNotifications, 20000);
+    const interval = setInterval(fetchNotifications, 10000);
     return () => clearInterval(interval);
   }, [currentUser?.id]);
+
+  // Auto-dismiss push toast after 9 seconds
+  useEffect(() => {
+    if (!pushToast) return;
+    const timer = setTimeout(() => {
+      setPushToast(null);
+    }, 9000);
+    return () => clearTimeout(timer);
+  }, [pushToast]);
+
+  // Close header notification dropdown on outside click
+  useEffect(() => {
+    const handleOutsideClick = (event) => {
+      if (headerNotifRef.current && !headerNotifRef.current.contains(event.target)) {
+        setHeaderNotifOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleOutsideClick);
+    return () => document.removeEventListener("mousedown", handleOutsideClick);
+  }, []);
 
   useEffect(() => {
     if (!currentUser?.id) return;
@@ -704,13 +782,128 @@ export default function EmployeeTemplate({
                         </button>
 
 
-                        <button className="header-action" onClick={() => navigateTo("notifications")}>
+                        <div className="position-relative" ref={headerNotifRef}>
+                            <button 
+                                className="header-action position-relative" 
+                                onClick={() => setHeaderNotifOpen(!headerNotifOpen)}
+                                title="Notifications"
+                                type="button"
+                            >
+                                <i className="bi bi-bell"></i>
+                                {unreadNotificationCount > 0 && (
+                                    <span 
+                                        className="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger"
+                                        style={{ fontSize: "10px", padding: "3px 6px" }}
+                                    >
+                                        {unreadNotificationCount > 9 ? "9+" : unreadNotificationCount}
+                                    </span>
+                                )}
+                            </button>
 
-                            <i className="bi bi-bell"></i>
+                            {headerNotifOpen && (
+                                <div 
+                                    className="position-absolute end-0 mt-2 card border-0 shadow-lg rounded-4 overflow-hidden"
+                                    style={{ width: "360px", maxWidth: "90vw", zIndex: 1050 }}
+                                >
+                                    <div className="card-header bg-white border-bottom p-3 d-flex align-items-center justify-content-between">
+                                        <div className="d-flex align-items-center gap-2">
+                                            <h6 className="mb-0 fw-bold">Notifications</h6>
+                                            {unreadNotificationCount > 0 && (
+                                                <span className="badge bg-primary-subtle text-primary rounded-pill">
+                                                    {unreadNotificationCount} New
+                                                </span>
+                                            )}
+                                        </div>
+                                        {unreadNotificationCount > 0 && (
+                                            <button 
+                                                type="button" 
+                                                className="btn btn-link btn-sm p-0 text-decoration-none fw-semibold"
+                                                style={{ fontSize: "12px" }}
+                                                onClick={handleMarkAllAsRead}
+                                            >
+                                                Mark all as read
+                                            </button>
+                                        )}
+                                    </div>
 
-                            <span className="notification-dot"></span>
+                                    <div className="card-body p-0" style={{ maxHeight: "360px", overflowY: "auto" }}>
+                                        {unreadNotificationCount === 0 || dashboardNotifications.filter(n => !n.is_read).length === 0 ? (
+                                            <div className="text-center py-5 px-3">
+                                                <div 
+                                                    className="rounded-circle mx-auto mb-2 d-flex align-items-center justify-content-center"
+                                                    style={{ width: "48px", height: "48px", background: "rgba(59, 130, 246, 0.1)", color: "#3b82f6", fontSize: "20px" }}
+                                                >
+                                                    <i className="bi bi-check2-circle"></i>
+                                                </div>
+                                                <h6 className="fw-bold mb-1" style={{ fontSize: "14px" }}>No pending notifications</h6>
+                                                <p className="text-muted mb-0" style={{ fontSize: "12px" }}>
+                                                    You're all caught up! New alerts and updates will show up here.
+                                                </p>
+                                            </div>
+                                        ) : (
+                                            <div className="list-group list-group-flush">
+                                                {dashboardNotifications.filter(n => !n.is_read).map((n) => (
+                                                    <div 
+                                                        key={n.id} 
+                                                        className="list-group-item list-group-item-action p-3 border-bottom d-flex gap-3 align-items-start"
+                                                        style={{ cursor: "pointer", background: "rgba(59, 130, 246, 0.04)" }}
+                                                        onClick={(e) => {
+                                                            handleMarkAsRead(n.id, e);
+                                                            setHeaderNotifOpen(false);
+                                                            navigateTo("notifications");
+                                                        }}
+                                                    >
+                                                        <div 
+                                                            className="rounded-3 d-flex align-items-center justify-content-center shrink-0 mt-1"
+                                                            style={{ 
+                                                                width: "36px", 
+                                                                height: "36px", 
+                                                                background: n.title?.toLowerCase().includes("approved") ? "rgba(16, 185, 129, 0.12)" : n.title?.toLowerCase().includes("rejected") ? "rgba(239, 68, 68, 0.12)" : "rgba(99, 102, 241, 0.12)",
+                                                                color: n.title?.toLowerCase().includes("approved") ? "#10b981" : n.title?.toLowerCase().includes("rejected") ? "#ef4444" : "#6366f1",
+                                                                fontSize: "16px"
+                                                            }}
+                                                        >
+                                                            <i className={`bi ${n.title?.toLowerCase().includes("approved") ? "bi-check-circle" : n.title?.toLowerCase().includes("rejected") ? "bi-x-circle" : "bi-bell"}`}></i>
+                                                        </div>
+                                                        <div className="flex-grow-1 min-w-0">
+                                                            <div className="d-flex align-items-center justify-content-between mb-1">
+                                                                <strong className="text-truncate d-block" style={{ fontSize: "13px" }}>{n.title}</strong>
+                                                                <span className="badge rounded-circle p-1 bg-primary" style={{ width: "6px", height: "6px" }}></span>
+                                                            </div>
+                                                            <p className="text-muted mb-1 text-truncate" style={{ fontSize: "12px" }}>{n.message}</p>
+                                                            <div className="d-flex align-items-center justify-content-between">
+                                                                <small className="text-muted" style={{ fontSize: "11px" }}>{formatTimeAgo(n.created_at)}</small>
+                                                                <span 
+                                                                    className="badge text-primary p-0 fw-normal" 
+                                                                    style={{ fontSize: "11px", cursor: "pointer" }}
+                                                                    onClick={(e) => handleMarkAsRead(n.id, e)}
+                                                                >
+                                                                    Mark read
+                                                                </span>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
 
-                        </button>
+                                    <div className="card-footer bg-white border-top p-2 text-center">
+                                        <button 
+                                            type="button" 
+                                            className="btn btn-link btn-sm text-decoration-none w-100 fw-semibold text-secondary"
+                                            style={{ fontSize: "12px" }}
+                                            onClick={() => {
+                                                setHeaderNotifOpen(false);
+                                                navigateTo("notifications");
+                                            }}
+                                        >
+                                            View all notifications <i className="bi bi-arrow-right ms-1"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
 
 
                         <div className="dropdown">
@@ -1632,7 +1825,10 @@ export default function EmployeeTemplate({
                                                     className={`ed-notification-item${n.is_read ? "" : " ed-unread"}`}
                                                     key={n.id}
                                                     style={{ cursor: "pointer" }}
-                                                    onClick={() => navigateTo("notifications")}
+                                                    onClick={(e) => {
+                                                        handleMarkAsRead(n.id, e);
+                                                        navigateTo("notifications");
+                                                    }}
                                                 >
                                                     <div className={`ed-notification-icon ${n.category === "leave" || n.category === "Leave Request" ? "ed-notify-purple" : n.category === "asset" || n.category === "Asset Request" ? "ed-notify-orange" : "ed-notify-blue"}`}>
                                                         <i className={`bi ${n.category === "leave" || n.category === "Leave Request" ? "bi-calendar-check" : n.category === "asset" || n.category === "Asset Request" ? "bi-laptop" : "bi-bell"}`}></i>
@@ -1885,6 +2081,97 @@ export default function EmployeeTemplate({
     
 
     <HRAssistant currentUser={currentUser} employeeProfile={employeeProfile} />
+
+    {/* Floating Real-time Push Notification Toast */}
+    {pushToast && (
+      <div 
+        className="position-fixed bottom-0 end-0 p-3" 
+        style={{ zIndex: 9999, maxWidth: "420px", width: "100%" }}
+      >
+        <div 
+          className="card border-0 shadow-lg rounded-4 overflow-hidden"
+          style={{
+            background: "linear-gradient(135deg, #1e293b 0%, #0f172a 100%)",
+            color: "#fff",
+            border: "1px solid rgba(255, 255, 255, 0.15)",
+            boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.3), 0 8px 10px -6px rgba(0, 0, 0, 0.3)"
+          }}
+        >
+          <div className="card-body p-3">
+            <div className="d-flex align-items-start gap-3">
+              <div 
+                className="rounded-circle shrink-0"
+                style={{
+                  width: "42px",
+                  height: "42px",
+                  background: pushToast.title?.toLowerCase().includes("approved") 
+                    ? "rgba(16, 185, 129, 0.25)" 
+                    : pushToast.title?.toLowerCase().includes("rejected")
+                      ? "rgba(239, 68, 68, 0.25)"
+                      : "rgba(59, 130, 246, 0.25)",
+                  color: pushToast.title?.toLowerCase().includes("approved")
+                    ? "#10b981"
+                    : pushToast.title?.toLowerCase().includes("rejected")
+                      ? "#ef4444"
+                      : "#60a5fa",
+                  fontSize: "1.25rem",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center"
+                }}
+              >
+                <i className={`bi ${pushToast.title?.toLowerCase().includes("approved") ? "bi-check-circle-fill" : pushToast.title?.toLowerCase().includes("rejected") ? "bi-x-circle-fill" : "bi-bell-fill"}`}></i>
+              </div>
+
+              <div className="flex-grow-1 min-w-0">
+                <div className="d-flex align-items-center justify-content-between mb-1">
+                  <span className="badge rounded-pill" style={{ background: "rgba(255, 255, 255, 0.15)", fontSize: "10px", letterSpacing: "0.5px" }}>
+                    NOTIFICATION
+                  </span>
+                  <button 
+                    type="button" 
+                    className="btn-close btn-close-white" 
+                    style={{ fontSize: "10px" }}
+                    onClick={() => setPushToast(null)}
+                    aria-label="Close"
+                  ></button>
+                </div>
+                <h6 className="mb-1 fw-bold text-white text-truncate" style={{ fontSize: "13.5px" }}>
+                  {pushToast.title}
+                </h6>
+                <p className="mb-2 text-white-50" style={{ fontSize: "12px", lineHeight: "1.4" }}>
+                  {pushToast.message}
+                </p>
+                <div className="d-flex align-items-center gap-2">
+                  <button
+                    type="button"
+                    className="btn btn-sm btn-light rounded-pill px-3 py-1 fw-semibold"
+                    style={{ fontSize: "12px" }}
+                    onClick={(e) => {
+                      handleMarkAsRead(pushToast.id, e);
+                      navigateTo("notifications");
+                    }}
+                  >
+                    Mark as read
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-sm btn-link text-white-50 text-decoration-none p-0 ms-2"
+                    style={{ fontSize: "12px" }}
+                    onClick={() => {
+                      setPushToast(null);
+                      navigateTo("notifications");
+                    }}
+                  >
+                    View all
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    )}
 
     </div>
   );

@@ -216,7 +216,12 @@ export default function Notifications({ currentUser, employeeProfile, adminView 
             {loading ? (
               <div className="text-center text-muted py-5"><span className="spinner-border spinner-border-sm me-2" role="status"></span>Loading notifications...</div>
             ) : visibleNotifications.length ? visibleNotifications.map((notification) => (
-              <article key={notification.id} className={`en-notification ${notification.is_read ? "" : "unread"}`}>
+              <article 
+                key={notification.id} 
+                className={`en-notification ${notification.is_read ? "" : "unread"}`}
+                style={{ cursor: notification.is_read ? "default" : "pointer" }}
+                onClick={() => { if (!notification.is_read) updateNotification(notification, { is_read: true }); }}
+              >
                 <div className="en-notification-icon en-icon-purple"><i className={`bi ${ICONS[notification.category] || "bi-bell"}`}></i></div>
                 <div className="en-notification-main">
                   <div className="en-notification-top">
