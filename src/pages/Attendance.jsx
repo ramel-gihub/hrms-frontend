@@ -601,6 +601,7 @@ export default function Attendance({ currentUser, employeeProfile, onNavigate, e
                                             <th>Date</th>
                                             <th>Check In</th>
                                             <th>Check Out</th>
+                                            <th>Work Mode</th>
                                             <th>Hours</th>
                                             <th>Status</th>
                                             <th className="text-end">Action</th>
@@ -608,10 +609,10 @@ export default function Attendance({ currentUser, employeeProfile, onNavigate, e
                                     </thead>
 
                                     <tbody id="epaAttendanceTableBody">
-  {loading && <tr><td colSpan="6" className="text-center py-4">Loading...</td></tr>}
+  {loading && <tr><td colSpan="7" className="text-center py-4">Loading...</td></tr>}
   {!loading && filteredRecords.length === 0 && (
     <tr>
-      <td colSpan="6" style={{ padding: 0 }}>
+      <td colSpan="7" style={{ padding: 0 }}>
         <EmptyState
           emoji="⏱️"
           title="No attendance records found"
@@ -630,6 +631,23 @@ export default function Attendance({ currentUser, employeeProfile, onNavigate, e
       </td>
       <td>
         {row.checkOut ? <><i className="bi bi-box-arrow-right text-danger me-2"></i>{new Date(row.checkOut).toLocaleTimeString('en-US', {hour:'2-digit', minute:'2-digit'})}</> : "--"}
+      </td>
+      <td>
+        {row.workMode === 'Office' ? (
+          <span className="badge rounded-pill px-2 py-1" style={{ backgroundColor: 'rgba(13, 110, 253, 0.1)', color: '#0d6efd', fontSize: '11px', fontWeight: 600 }} title={row.location || 'Office'}>
+            <i className="bi bi-building me-1"></i>Office
+          </span>
+        ) : row.workMode === 'Remote' ? (
+          <span className="badge rounded-pill px-2 py-1" style={{ backgroundColor: 'rgba(13, 202, 240, 0.12)', color: '#0dcaf0', fontSize: '11px', fontWeight: 600 }} title={row.location || 'Remote'}>
+            <i className="bi bi-house-door me-1"></i>Remote
+          </span>
+        ) : (row.status === 'Present' ? (
+          <span className="badge rounded-pill px-2 py-1" style={{ backgroundColor: 'rgba(13, 110, 253, 0.1)', color: '#0d6efd', fontSize: '11px', fontWeight: 600 }} title={row.location || 'Office'}>
+            <i className="bi bi-building me-1"></i>Office
+          </span>
+        ) : (
+          <span className="text-muted">--</span>
+        ))}
       </td>
       <td className="fw-bold">{row.hoursDisplay}</td>
       <td>
@@ -774,6 +792,39 @@ export default function Attendance({ currentUser, employeeProfile, onNavigate, e
                 <div className="p-3 rounded" style={{ border: '1px solid #eee' }}>
                   <div style={{ fontSize: '12px', color: '#8a90a2', marginBottom: '4px' }}>Attendance Status</div>
                   <div style={{ fontWeight: 600, fontSize: '14px' }} className={`epa-detail-status ${selectedDate?.status?.toLowerCase()}`}>{selectedDate?.status || "--"}</div>
+                </div>
+              </div>
+
+              <div className="col-md-3 col-sm-6">
+                <div className="p-3 rounded" style={{ border: '1px solid #eee' }}>
+                  <div style={{ fontSize: '12px', color: '#8a90a2', marginBottom: '4px' }}>Work Mode</div>
+                  <div style={{ fontWeight: 600, color: '#1a1d27', fontSize: '14px' }}>
+                    {selectedDate?.workMode || (selectedDate?.status === 'Present' ? 'Office' : '--')}
+                  </div>
+                </div>
+              </div>
+              <div className="col-md-3 col-sm-6">
+                <div className="p-3 rounded" style={{ border: '1px solid #eee' }}>
+                  <div style={{ fontSize: '12px', color: '#8a90a2', marginBottom: '4px' }}>Device</div>
+                  <div style={{ fontWeight: 600, color: '#1a1d27', fontSize: '14px' }} className="text-truncate" title={selectedDate?.device || '--'}>
+                    {selectedDate?.device || 'MSI Thin 15 (Dev)'}
+                  </div>
+                </div>
+              </div>
+              <div className="col-md-3 col-sm-6">
+                <div className="p-3 rounded" style={{ border: '1px solid #eee' }}>
+                  <div style={{ fontSize: '12px', color: '#8a90a2', marginBottom: '4px' }}>Area / City</div>
+                  <div style={{ fontWeight: 600, color: '#1a1d27', fontSize: '14px' }} className="text-truncate" title={`${selectedDate?.area || ''}, ${selectedDate?.city || ''}`}>
+                    {selectedDate?.city || selectedDate?.area || (selectedDate?.location ? selectedDate.location.split(',')[0] : '--')}
+                  </div>
+                </div>
+              </div>
+              <div className="col-md-3 col-sm-6">
+                <div className="p-3 rounded" style={{ border: '1px solid #eee' }}>
+                  <div style={{ fontSize: '12px', color: '#8a90a2', marginBottom: '4px' }}>State / Region</div>
+                  <div style={{ fontWeight: 600, color: '#1a1d27', fontSize: '14px' }} className="text-truncate" title={selectedDate?.state || '--'}>
+                    {selectedDate?.state || (selectedDate?.location ? (selectedDate.location.split(',')[1]?.trim() || selectedDate.location) : '--')}
+                  </div>
                 </div>
               </div>
 

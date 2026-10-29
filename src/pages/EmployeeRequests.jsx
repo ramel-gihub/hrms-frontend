@@ -194,6 +194,18 @@ export default function EmployeeRequests({ employeeProfile, currentUser }) {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [categoryFilter, setCategoryFilter] = useState("all");
+  useEffect(() => {
+    const shouldOpenWfh = sessionStorage.getItem("open_wfh_request") === "true" ||
+                          window.location.search.includes("category=wfh");
+    if (shouldOpenWfh) {
+      sessionStorage.removeItem("open_wfh_request");
+      setCategoryFilter("Work From Home (WFH)");
+      const timer = setTimeout(() => {
+        openRequestModal("Work From Home (WFH)");
+      }, 300);
+      return () => clearTimeout(timer);
+    }
+  }, []);
   const [page, setPage] = useState(1);
   const requestModalRef = useRef(null);
   const [selectedRequest, setSelectedRequest] = useState(null);

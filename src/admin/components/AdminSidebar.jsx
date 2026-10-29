@@ -33,6 +33,11 @@ export default function AdminSidebar({
     { id: "dashboard", label: "Dashboard", icon: <GridIcon className="w-5 h-5" /> },
     { id: "employees", label: "Employees", icon: <UsersIcon className="w-5 h-5" /> },
     { 
+      id: "project-teams", 
+      label: "Project Teams", 
+      icon: <i className="bi bi-diagram-3-fill w-5 h-5 text-indigo-400 text-lg flex items-center justify-center" /> 
+    },
+    { 
       id: "admin-leaves", 
       label: "Manage Leaves", 
       icon: <CalendarIcon className="w-5 h-5 text-indigo-400" />
@@ -74,6 +79,11 @@ export default function AdminSidebar({
     ...(isSuperAdmin ? [
       { id: "tenants", label: "Tenant Organizations", icon: <BuildingIcon className="w-5 h-5" /> }
     ] : []),
+    { 
+      id: "data-reset", 
+      label: "Data Reset", 
+      icon: <i className="bi bi-arrow-counterclockwise w-5 h-5 text-rose-400 text-lg flex items-center justify-center" /> 
+    },
     { id: "profile", label: "Admin Profile", icon: <UserCircleIcon className="w-5 h-5" /> },
     { id: "settings", label: "Settings", icon: <SettingsIcon className="w-5 h-5" /> },
   ];

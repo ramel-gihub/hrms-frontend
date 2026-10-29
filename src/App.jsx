@@ -88,6 +88,14 @@ export default function App() {
   const [checkOutTime, setCheckOutTime] = useState('--:--');
   const [workingTime, setWorkingTime] = useState('0h 0m');
   const [attendanceLoading, setAttendanceLoading] = useState(false);
+  const [attendanceLocation, setAttendanceLocation] = useState('');
+  const [attendanceArea, setAttendanceArea] = useState('');
+  const [attendanceCity, setAttendanceCity] = useState('');
+  const [attendanceState, setAttendanceState] = useState('');
+  const [attendanceDevice, setAttendanceDevice] = useState(() => localStorage.getItem('hrms_device_name') || 'MSI Thin 15 (Dev)');
+  const [closeAlert, setCloseAlert] = useState(null);
+  const showCloseAlert = (title, message, type = 'warning') => setCloseAlert({ title, message, type });
+  const [todayAttendance, setTodayAttendance] = useState(null);
 
   // Employee full profile (name, code, designation, dept, city, etc.)
   const [employeeProfile, setEmployeeProfile] = useState(null);
@@ -314,6 +322,7 @@ export default function App() {
       const res = await fetch(`${API_BASE}/api/attendance/today/${currentUser.id}`);
       const data = await res.json();
       if (res.ok && data.today) {
+        setTodayAttendance(data.today);
         setAttendanceStatus(data.today.check_out_time ? 'Checked Out' : 'Checked In');
         if (data.today.work_mode) {
           setEmployeeProfile(prev => ({ ...(prev || {}), work_mode: data.today.work_mode }));
@@ -329,6 +338,29 @@ export default function App() {
         if (data.today.working_hours_display) {
           setWorkingTime(data.today.working_hours_display);
         }
+        const loc = data.today.check_out_time
+          ? (data.today.check_out_location || data.today.check_in_location)
+          : data.today.check_in_location;
+        const dev = data.today.check_out_time
+          ? (data.today.check_out_device || data.today.check_in_device)
+          : data.today.check_in_device;
+        const area = data.today.check_out_time
+          ? (data.today.check_out_area || data.today.check_in_area)
+          : data.today.check_in_area;
+        const city = data.today.check_out_time
+          ? (data.today.check_out_city || data.today.check_in_city)
+          : data.today.check_in_city;
+        const state = data.today.check_out_time
+          ? (data.today.check_out_state || data.today.check_in_state)
+          : data.today.check_in_state;
+        if (loc) setAttendanceLocation(loc);
+        if (dev) {
+          setAttendanceDevice(dev);
+          localStorage.setItem('hrms_device_name', dev);
+        }
+        if (area) setAttendanceArea(area);
+        if (city) setAttendanceCity(city);
+        if (state) setAttendanceState(state);
       }
     } catch (error) {
       console.error('Error fetching attendance:', error);
@@ -696,24 +728,256 @@ export default function App() {
     }
   };
 
+  const getDeviceName = async () => {
+    const saved = localStorage.getItem('hrms_device_name');
+    if (saved && saved.trim()) return saved.trim();
+
+    if (navigator.userAgentData && typeof navigator.userAgentData.getHighEntropyValues === 'function') {
+      try {
+        const hints = await navigator.userAgentData.getHighEntropyValues(['model', 'platform', 'platformVersion']);
+        if (hints.model && hints.model.trim()) {
+          return hints.model.trim();
+        }
+      } catch (_) {}
+    }
+
+    const ua = navigator.userAgent || '';
+    let os = 'MSI Thin 15 (Dev)';
+    if (/windows nt 10/i.test(ua)) os = 'MSI Thin 15 (Dev)';
+    else if (/windows/i.test(ua)) os = 'Windows PC';
+    else if (/android/i.test(ua)) os = 'Android Device';
+    else if (/iphone|ipad|ipod/i.test(ua)) os = 'iOS Device';
+    else if (/macintosh|mac os x/i.test(ua)) os = 'MacBook';
+    else if (/linux/i.test(ua)) os = 'Linux PC';
+
+    return os;
+  };
+
+  const detectDynamicLocation = async (forceLocation = false) => {
+    let result = {
+      location: employeeProfile?.city ? `${employeeProfile.city}, Maharashtra` : 'Nagpur, Maharashtra',
+      area: employeeProfile?.city || 'Nagpur',
+      city: employeeProfile?.city || 'Nagpur',
+      state: employeeProfile?.state || 'Maharashtra',
+      latitude: null,
+      longitude: null
+    };
+
+    // 1. Mandatory / High-Accuracy Geolocation Check
+    if (navigator.geolocation) {
+      try {
+        const pos = await new Promise((resolve, reject) => {
+          navigator.geolocation.getCurrentPosition(resolve, reject, {
+            timeout: forceLocation ? 10000 : 3500,
+            enableHighAccuracy: true,
+            maximumAge: forceLocation ? 0 : 60000
+          });
+        });
+
+        const { latitude, longitude } = pos.coords;
+        result.latitude = latitude;
+        result.longitude = longitude;
+
+        // Check if close to Chennai office (1.5 km of 13.07214, 80.22055)
+        if (isOfficeLocation('', latitude, longitude)) {
+          return {
+            location: 'No:3, Sridharan St, Ayyavoo Colony, Aminjikarai, Chennai, Tamil Nadu 600030',
+            area: 'Aminjikarai, Ayyavoo Colony',
+            city: 'Chennai',
+            state: 'Tamil Nadu',
+            latitude,
+            longitude
+          };
+        }
+
+        let area = '';
+        let city = '';
+        let state = '';
+        let locStr = '';
+
+        // Try OpenStreetMap Nominatim for exact hyper-local neighborhood (e.g. Chandrakiran Nagar, Hudkeshwar)
+        try {
+          const osmRes = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=18&addressdetails=1`,
+            { headers: { 'Accept-Language': 'en' } }
+          );
+          if (osmRes.ok) {
+            const osmData = await osmRes.json();
+            const addr = osmData.address || {};
+            area = addr.suburb || addr.neighbourhood || addr.residential || addr.road || addr.village || addr.subdistrict || '';
+            city = addr.city || addr.town || addr.municipality || addr.state_district || 'Nagpur';
+            if (city.endsWith(' City')) city = city.replace(' City', '');
+            state = addr.state || 'Maharashtra';
+          }
+        } catch (_) {}
+
+        // Fallback to BigDataCloud reverse geocode if needed
+        if (!area || !city) {
+          try {
+            const geoRes = await fetch(
+              `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${latitude}&longitude=${longitude}&localityLanguage=en`
+            );
+            if (geoRes.ok) {
+              const geoData = await geoRes.json();
+              if (!area) area = geoData.locality || geoData.principalSubdivisionCode || '';
+              if (!city) city = geoData.city || geoData.locality || 'Nagpur';
+              if (!state) state = geoData.principalSubdivision || 'Maharashtra';
+            }
+          } catch (_) {}
+        }
+
+        const parts = [area, city, state].filter((v, i, a) => v && a.indexOf(v) === i);
+        locStr = parts.join(', ');
+
+        return {
+          location: locStr || (area ? `${area}, ${city}, ${state}` : `${city}, ${state}` || `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`),
+          area: area || city || 'Nagpur',
+          city: city || 'Nagpur',
+          state: state || 'Maharashtra',
+          latitude,
+          longitude
+        };
+            } catch (geoErr) {
+        if (forceLocation) {
+          if (geoErr && geoErr.code === 1) {
+            showCloseAlert(
+              "Location Access Required",
+              "You must allow Location permission to Check In or Check Out.\n\nPlease click the lock / tune icon next to the URL in your browser's address bar, set Location to 'Allow', and click Check In / Check Out again.",
+              "warning"
+            );
+          } else if (geoErr && geoErr.code === 2) {
+            showCloseAlert(
+              "Location Unavailable",
+              "Unable to detect your device location.\n\nPlease make sure Location services and Wi-Fi are turned ON in Windows / device settings, then try again.",
+              "warning"
+            );
+          } else if (geoErr && geoErr.code === 3) {
+            showCloseAlert(
+              "Location Timeout",
+              "Location request timed out.\n\nPlease ensure your device has an active internet connection and location enabled, then try again.",
+              "warning"
+            );
+          } else {
+            showCloseAlert(
+              "Location Required",
+              "Location is mandatory to Check In / Check Out. Please enable location.",
+              "warning"
+            );
+          }
+          return null;
+        }
+      }
+    } else if (forceLocation) {
+      showCloseAlert(
+        "Geolocation Not Supported",
+        "Geolocation is not supported by your browser. Please use Chrome or Edge with location support.",
+        "warning"
+      );
+      return null;
+    }
+
+    // 2. IP Geolocation fallback for initial background preview only
+    try {
+      const ipRes = await fetch('https://ipwho.is/');
+      if (ipRes.ok) {
+        const ipData = await ipRes.json();
+        if (ipData && ipData.success !== false) {
+          const city = ipData.city || 'Nagpur';
+          const state = ipData.region || 'Maharashtra';
+          const area = ipData.city || 'Nagpur';
+          const locStr = [city, state].filter(Boolean).join(', ');
+          return {
+            location: locStr || (employeeProfile?.city || 'Nagpur, Maharashtra'),
+            area: area,
+            city: city,
+            state: state,
+            latitude: ipData.latitude || null,
+            longitude: ipData.longitude || null
+          };
+        }
+      }
+    } catch (_) {}
+
+    return result;
+  };
+
+  useEffect(() => {
+    if (currentUser && !isAdmin && !attendanceLocation) {
+      detectDynamicLocation().then((res) => {
+        if (res.location) setAttendanceLocation(res.location);
+        if (res.area) setAttendanceArea(res.area);
+        if (res.city) setAttendanceCity(res.city);
+        if (res.state) setAttendanceState(res.state);
+      }).catch(() => {});
+    }
+  }, [currentUser, isAdmin]);
+
+  const isOfficeLocation = (loc, lat, lon) => {
+    const l = (loc || '').toLowerCase().trim();
+    const keywords = ['aminjikarai', 'ayyavoo', 'sridharan', '600030', 'chennai'];
+    if (keywords.some(k => l.includes(k))) return true;
+    if (lat && lon && !isNaN(Number(lat)) && !isNaN(Number(lon))) {
+      const R = 6371;
+      const dLat = (13.07214 - Number(lat)) * Math.PI / 180;
+      const dLon = (80.22055 - Number(lon)) * Math.PI / 180;
+      const a = Math.sin(dLat / 2) ** 2 + Math.cos(Number(lat) * Math.PI / 180) * Math.cos(13.07214 * Math.PI / 180) * Math.sin(dLon / 2) ** 2;
+      const dist = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      if (dist <= 1.5) return true;
+    }
+    return false;
+  };
+
   const handlePunch = async (type) => {
     if (!currentUser) return;
     try {
       setAttendanceLoading(true);
+      const device = await getDeviceName();
+      const locObj = await detectDynamicLocation(true);
+      if (!locObj) {
+        setAttendanceLoading(false);
+        return;
+      }
+      const { location, area, city, state, latitude, longitude } = locObj;
+      const isOffice = isOfficeLocation(location, latitude, longitude);
+      const computedWorkMode = isOffice ? 'Office' : 'Remote';
+
       const res = await fetch(`${API_BASE}/api/attendance/punch`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: currentUser.id, type })
+        body: JSON.stringify({ 
+          userId: currentUser.id, 
+          type,
+          location,
+          device,
+          area,
+          city,
+          state,
+          latitude,
+          longitude,
+          workMode: computedWorkMode
+        })
       });
       const data = await res.json();
       if (res.ok) {
-        fetchAttendance(); // refresh the view
+        if (location) setAttendanceLocation(location);
+        if (device) {
+          setAttendanceDevice(device);
+          localStorage.setItem('hrms_device_name', device);
+        }
+        if (area) setAttendanceArea(area);
+        if (city) setAttendanceCity(city);
+        if (state) setAttendanceState(state);
+        if (data.record?.work_mode || data.workMode) {
+          const wm = data.record?.work_mode || data.workMode;
+          setEmployeeProfile(prev => ({ ...(prev || {}), work_mode: wm }));
+        }
+        await fetchAttendance(); // refresh the view
       } else {
-        alert(data.message || 'Error updating attendance');
+        showCloseAlert('Attendance Notice', data.message || 'Error updating attendance', 'error');
       }
     } catch (error) {
       console.error('Punch error:', error);
-      alert('Unable to process attendance punch');
+      showCloseAlert('Attendance Notice', 'Unable to process attendance punch. Please check your network and try again.', 'error');
     } finally {
       setAttendanceLoading(false);
     }
@@ -1062,7 +1326,8 @@ export default function App() {
 
   if (!isAdmin) {
     return (
-      <EmployeeTemplate
+      <>
+        <EmployeeTemplate
         currentUser={currentUser}
         handleLogout={handleLogout}
         attendanceStatus={attendanceStatus}
@@ -1077,7 +1342,127 @@ export default function App() {
         fetchEmployeeProfile={fetchEmployeeProfile}
         attendanceStats={attendanceStats}
         fetchAttendanceStats={fetchAttendanceStats}
+        attendanceLocation={attendanceLocation}
+        attendanceArea={attendanceArea}
+        attendanceCity={attendanceCity}
+        attendanceState={attendanceState}
+        attendanceDevice={attendanceDevice}
+        setAttendanceDevice={setAttendanceDevice}
+        todayAttendance={todayAttendance}
       />
+
+      {closeAlert && (
+        <div 
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            width: '100vw',
+            height: '100vh',
+            backgroundColor: 'rgba(15, 23, 42, 0.65)',
+            backdropFilter: 'blur(4px)',
+            WebkitBackdropFilter: 'blur(4px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 999999,
+            padding: '16px'
+          }}
+          onClick={() => setCloseAlert(null)}
+        >
+          <div 
+            style={{
+              backgroundColor: '#ffffff',
+              borderRadius: '20px',
+              padding: '28px 24px 24px 24px',
+              maxWidth: '440px',
+              width: '100%',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+              textAlign: 'center',
+              position: 'relative'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              type="button"
+              onClick={() => setCloseAlert(null)}
+              style={{
+                position: 'absolute',
+                top: '16px',
+                right: '16px',
+                background: '#f1f5f9',
+                border: 'none',
+                borderRadius: '50%',
+                width: '32px',
+                height: '32px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                color: '#64748b',
+                fontSize: '16px',
+                lineHeight: 1
+              }}
+            >
+              ✕
+            </button>
+
+            <div style={{
+              width: '60px',
+              height: '60px',
+              borderRadius: '50%',
+              backgroundColor: closeAlert.type === 'error' ? '#fee2e2' : '#fef3c7',
+              color: closeAlert.type === 'error' ? '#dc2626' : '#d97706',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              margin: '0 auto 16px auto',
+              fontSize: '28px'
+            }}>
+              {closeAlert.type === 'error' ? '⚠️' : '📍'}
+            </div>
+
+            <h3 style={{
+              fontSize: '19px',
+              fontWeight: '700',
+              color: '#0f172a',
+              marginBottom: '10px'
+            }}>
+              {closeAlert.title || 'Location Notice'}
+            </h3>
+
+            <p style={{
+              fontSize: '14px',
+              color: '#475569',
+              lineHeight: 1.6,
+              whiteSpace: 'pre-line',
+              marginBottom: '24px'
+            }}>
+              {closeAlert.message}
+            </p>
+
+            <button
+              type="button"
+              onClick={() => setCloseAlert(null)}
+              style={{
+                width: '100%',
+                padding: '12px 20px',
+                backgroundColor: '#4f46e5',
+                color: '#ffffff',
+                fontWeight: '600',
+                fontSize: '14px',
+                borderRadius: '12px',
+                border: 'none',
+                cursor: 'pointer',
+                boxShadow: '0 4px 12px rgba(79, 70, 229, 0.35)'
+              }}
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      )}
+      </>
     );
   }
 

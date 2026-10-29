@@ -9,11 +9,13 @@ import Dashboard from './pages/Dashboard';
 import LeaveApprovals from './pages/LeaveApprovals';
 import EmployeeRequestApprovals from './pages/EmployeeRequestApprovals';
 import Employees from './pages/Employees';
+import ProjectTeams from './pages/ProjectTeams';
 import Tenants from './pages/Tenants';
 import LeaveBalanceMapping from './pages/LeaveBalanceMapping';
 import HolidaysManagement from './pages/HolidaysManagement';
 import AdminLeaves from './pages/AdminLeaves';
 import AdminWFH from './pages/AdminWFH';
+import DataReset from './pages/DataReset';
 
 export default function AdminTemplate({
   currentUser,
@@ -33,7 +35,22 @@ export default function AdminTemplate({
   showModal = false,
   setShowModal
 }) {
-  const [activeTab, setActiveTab] = useState('dashboard');
+  const [activeTab, setActiveTab] = useState(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const urlTab = params.get('tab');
+      if (urlTab) return urlTab;
+      return localStorage.getItem('admin_active_tab') || 'dashboard';
+    } catch {
+      return 'dashboard';
+    }
+  });
+
+  useEffect(() => {
+    try {
+      if (activeTab) localStorage.setItem('admin_active_tab', activeTab);
+    } catch (e) {}
+  }, [activeTab]);
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   // Role check: superadmin vs company admin
@@ -265,6 +282,16 @@ export default function AdminTemplate({
             />
           )}
 
+          {activeTab === 'data-reset' && (
+            <DataReset
+              currentUser={currentUser}
+              currentTenantId={currentTenantId}
+              employees={employees}
+              fetchEmployees={fetchEmployees}
+              onNavigate={setActiveTab}
+            />
+          )}
+
           {activeTab === 'leave-approvals' && (
             <LeaveApprovals
               leaveRequests={leaveRequests}
@@ -282,11 +309,21 @@ export default function AdminTemplate({
             />
           )}
 
+          {activeTab === 'project-teams' && (
+            <ProjectTeams
+              currentTenantId={currentTenantId}
+              currentUser={currentUser}
+              employees={employees}
+            />
+          )}
+
           {activeTab === 'employees' && (
             <Employees
               employees={employees}
               loading={loadingEmployees}
               onOpenAddModal={() => setShowModal(true)}
+              fetchEmployees={fetchEmployees}
+              currentUser={currentUser}
             />
           )}
 

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import Chart from "react-apexcharts";
 import EmployeeProfile from "./pages/EmployeeProfile";
 import EmploymentDetails from "./pages/EmploymentDetails";
@@ -14,6 +14,7 @@ import ExitManagement from "./pages/ExitManagement";
 import EmployeeRequests from "./pages/EmployeeRequests";
 import Calendar from "./pages/Calendar";
 import Expenses from "./pages/Expenses";
+import MyTeam from "./pages/MyTeam";
 import HRAssistant from "./components/HRAssistant";
 import EmptyState from "./components/EmptyState";
 
@@ -21,6 +22,7 @@ const SHORTCUT_CONFIG = {
   "dashboard": { id: "dashboard", label: "Employee Dashboard", description: "Your workspace overview", icon: "bi-grid", color: "blue", page: "index" },
   "apply-leave": { id: "apply-leave", label: "Apply Leave", description: "Request time off", icon: "bi-calendar-plus", color: "purple", page: "leaves" },
   "attendance": { id: "attendance", label: "Attendance", description: "View attendance", icon: "bi-calendar-check", color: "blue", page: "attendance" },
+  "my-team": { id: "my-team", label: "My Team", description: "View your project team", icon: "bi-people-fill", color: "blue", page: "my-team" },
   // "expenses": { id: "expenses", label: "Expenses & Claims", description: "Submit & track claims", icon: "bi-wallet2", color: "orange", page: "expenses" },
   "new-request": { id: "new-request", label: "New Request", description: "Contact HR / Admin", icon: "bi-send", color: "orange", page: "employee-requests" },
   "documents": { id: "documents", label: "Documents", description: "My documents", icon: "bi-folder2-open", color: "green", page: "documents" },
@@ -38,7 +40,8 @@ const SHORTCUT_CONFIG = {
 export default function EmployeeTemplate({
   currentUser, handleLogout,
   attendanceStatus, checkInTime, checkOutTime, workingTime,
-  attendanceLoading, handleCheckIn, handleCheckOut, fetchAttendance, employeeProfile, fetchEmployeeProfile, attendanceStats, fetchAttendanceStats
+  attendanceLoading, handleCheckIn, handleCheckOut, fetchAttendance, employeeProfile, fetchEmployeeProfile, attendanceStats, fetchAttendanceStats,
+  attendanceLocation, attendanceArea, attendanceCity, attendanceState, attendanceDevice, setAttendanceDevice, todayAttendance
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [dashboardNotifications, setDashboardNotifications] = useState([]);
@@ -213,13 +216,14 @@ export default function EmployeeTemplate({
         }
       })
       .catch(() => {});
-  }, [currentUser?.id, employeeProfile?.employee_id]);
+  }, [currentUser?.id, employeeProfile?.employee_id, todayAttendance]);
 
   // Page key to URL path mapping
   const pageToPath = {
     "index": "/",
     "employee-profile": "/employee-profile",
     "employement-details": "/employment-details",
+    "my-team": "/my-team",
     "documents": "/documents",
     "skills-certifications": "/skills-certifications",
     "employee-requests": "/employee-requests",
@@ -241,6 +245,7 @@ export default function EmployeeTemplate({
     "/employee-profile": "employee-profile",
     "/employment-details": "employement-details",
     "/employement-details": "employement-details",
+    "/my-team": "my-team",
     "/documents": "documents",
     "/skills-certifications": "skills-certifications",
     "/employee-requests": "employee-requests",
@@ -392,27 +397,82 @@ export default function EmployeeTemplate({
       return () => window.removeEventListener('shortcutSelectionsUpdated', handleShortcutUpdate);
   }, [currentUser?.id]);
 
-  const [teamMembers, setTeamMembers] = useState([]);
+  // DB-based project teams for employee
+  const [myTeamData, setMyTeamData] = useState({ teams: [], currentEmployee: null });
+  const [selectedDashboardProjectId, setSelectedDashboardProjectId] = useState('all');
 
   useEffect(() => {
-    fetch(`${import.meta.env.VITE_API_URL || "https://hrms-backend-5xo8.onrender.com"}/api/admin/employees?orgId=1`)
+    const uid = currentUser?.id || employeeProfile?.user_id;
+    if (!uid) return;
+    fetch(`${import.meta.env.VITE_API_URL || "https://hrms-backend-5xo8.onrender.com"}/api/employee/my-teams/${uid}`)
       .then(res => res.json())
       .then(data => {
-        if (Array.isArray(data)) {
-          // Exclude duplicates and current user, take up to 4
-          const seen = new Set();
-          const filtered = [];
-          data.forEach(emp => {
-            if (emp.email && !seen.has(emp.email) && emp.email.toLowerCase() !== (currentUser?.email || '').toLowerCase()) {
-              seen.add(emp.email);
-              filtered.push(emp);
-            }
+        if (data && data.success) {
+          setMyTeamData({
+            teams: data.teams || [],
+            currentEmployee: data.currentEmployee || null
           });
-          setTeamMembers(filtered.slice(0, 4));
+          if (data.teams && data.teams.length > 0) {
+            setSelectedDashboardProjectId('all');
+          }
         }
       })
       .catch(console.error);
-  }, [currentUser]);
+  }, [currentUser?.id, employeeProfile?.user_id]);
+
+  // Derive dashboard team members based on selected project or all assigned teams (or self if unmapped)
+  const dashboardDisplayedMembers = useMemo(() => {
+    const teams = myTeamData.teams || [];
+    if (teams.length === 0) {
+      // If not mapped to any team, show only that employee themselves
+      const emp = myTeamData.currentEmployee || employeeProfile || currentUser;
+      const empName = emp?.employee_name || emp?.full_name || (emp?.first_name ? `${emp.first_name} ${emp.last_name || ''}`.trim() : null) || emp?.name || 'You';
+      return [{
+        id: emp?.id || 1,
+        full_name: empName,
+        designation: emp?.designation || 'Team Member',
+        status: 'Active',
+        role_in_team: 'Member',
+        is_current_user: true,
+        project_badge: 'No Team Mapped'
+      }];
+    }
+
+    // If a specific project is selected
+    if (selectedDashboardProjectId !== 'all') {
+      const selectedTeam = teams.find(t => String(t.id) === String(selectedDashboardProjectId));
+      if (selectedTeam) {
+        return (selectedTeam.members || []).map(m => ({
+          id: m.employee_id,
+          full_name: m.employee_name,
+          designation: m.designation || 'Developer',
+          status: 'Active',
+          role_in_team: m.role_in_team,
+          is_current_user: m.is_current_user,
+          project_badge: selectedTeam.project_code || selectedTeam.project_name
+        }));
+      }
+    }
+
+    // 'all' projects selected: aggregate unique members across all teams
+    const memberMap = new Map();
+    teams.forEach(t => {
+      (t.members || []).forEach(m => {
+        if (!memberMap.has(m.employee_id)) {
+          memberMap.set(m.employee_id, {
+            id: m.employee_id,
+            full_name: m.employee_name,
+            designation: m.designation || 'Developer',
+            status: 'Active',
+            role_in_team: m.role_in_team,
+            is_current_user: m.is_current_user,
+            project_badge: t.project_code || t.project_name
+          });
+        }
+      });
+    });
+    return Array.from(memberMap.values());
+  }, [myTeamData, selectedDashboardProjectId, employeeProfile, currentUser]);
 
   const dashComputedBalances = (leavesData.balances || []).map(b => {
       const typeName = b.leave_type_name;
@@ -610,6 +670,38 @@ export default function EmployeeTemplate({
       }
   };
 
+  // Resolve dynamic work mode and location:
+  // If location matches Chennai office address -> 'Chennai' & 'Office'
+  // Any other location -> detected city & 'Remote'
+  const isOfficeLoc = (loc) => {
+    const l = (loc || '').toLowerCase().trim();
+    return l.includes('aminjikarai') || l.includes('ayyavoo') || l.includes('sridharan') || l.includes('600030') || l.includes('chennai');
+  };
+
+  const handleRenameDevice = () => {
+    const current = todayAttendance?.check_in_device || attendanceDevice || localStorage.getItem('hrms_device_name') || 'MSI Thin 15 (Dev)';
+    const updated = window.prompt('Rename Device (e.g. MSI Thin 15, MSI Dev):', current);
+    if (updated && updated.trim()) {
+      localStorage.setItem('hrms_device_name', updated.trim());
+      if (typeof setAttendanceDevice === 'function') {
+        setAttendanceDevice(updated.trim());
+      }
+    }
+  };
+
+  const fullLocationStr = attendanceLocation || todayAttendance?.check_in_location || employeeProfile?.city || 'Nagpur, Maharashtra';
+  const isOffice = isOfficeLoc(fullLocationStr);
+  const effectiveWorkMode = todayAttendance?.work_mode || todayWorkMode || (isOffice ? 'Office' : 'Remote');
+  const locParts = (fullLocationStr || '').split(',').map(s => s.trim()).filter(Boolean);
+  const effectiveArea = todayAttendance?.check_in_area || attendanceArea || locParts[0] || '';
+  const effectiveCity = todayAttendance?.check_in_city || attendanceCity || (locParts.length > 1 ? locParts[1] : employeeProfile?.city || 'Nagpur');
+  const effectiveState = todayAttendance?.check_in_state || attendanceState || (isOffice ? 'Tamil Nadu' : 'Maharashtra');
+  const effectiveLocationLabel = isOffice 
+    ? 'Chennai' 
+    : (effectiveArea && effectiveCity && effectiveArea.toLowerCase() !== effectiveCity.toLowerCase()
+        ? `${effectiveArea}, ${effectiveCity}`
+        : (effectiveArea || effectiveCity || 'Nagpur'));
+  const effectiveDevice = todayAttendance?.check_in_device || attendanceDevice || localStorage.getItem('hrms_device_name') || 'MSI Thin 15 (Dev)';
 
   return (
     <div onClick={() => setMenuOpen(false)}>
@@ -646,6 +738,10 @@ export default function EmployeeTemplate({
                   <span onClick={() => navigateTo("employement-details")} className={`menu-item${activePage === "employement-details" ? " active" : ""}`} style={{cursor:"pointer"}}>
                       <i className="bi bi-briefcase"></i>
                       <span>Employment Details</span>
+                  </span>
+                  <span onClick={() => navigateTo("my-team")} className={`menu-item${activePage === "my-team" ? " active" : ""}`} style={{cursor:"pointer"}}>
+                      <i className="bi bi-people-fill"></i>
+                      <span>My Team</span>
                   </span>
                   <span onClick={() => navigateTo("documents")} className={`menu-item${activePage === "documents" ? " active" : ""}`} style={{cursor:"pointer"}}>
                       <i className="bi bi-folder2-open"></i>
@@ -1124,10 +1220,11 @@ export default function EmployeeTemplate({
                                             <span id="edCurrentTime">{checkInTime !== "--:--" ? checkInTime.split(" ")[0] : "--:--"}</span><small>{checkInTime !== "--:--" ? checkInTime.split(" ")[1] : ""}</small>
                                         </div>
                                         <div className="ed-work-location-badge" id="edWorkLocationBadge"
-                                            data-work-location="office" aria-label="Office, WFO">
+                                            data-work-location={effectiveWorkMode.toLowerCase()} aria-label={`${effectiveLocationLabel}, ${effectiveWorkMode}`}
+                                            title={`Location: ${fullLocationStr} (${effectiveWorkMode})`}>
                                             <i className="bi bi-geo-alt-fill" aria-hidden="true"></i>
-                                            <span id="edWorkLocationLabel">{employeeProfile?.city || "Office"}</span>
-                                            <strong id="edWorkMode">{todayWorkMode || employeeProfile?.work_mode || "Hybrid"}</strong>
+                                            <span id="edWorkLocationLabel">{effectiveLocationLabel}</span>
+                                            <strong id="edWorkMode">{effectiveWorkMode}</strong>
                                         </div>
                                     </div>
 
@@ -1162,11 +1259,21 @@ export default function EmployeeTemplate({
                                         <div>
                                             <span>Check In</span>
                                             <strong id="edCheckInTime">{checkInTime}</strong>
+                                            {todayAttendance?.check_in_location && (
+                                                <small className="d-block text-white-50 text-truncate mt-1" style={{ fontSize: '0.68rem', maxWidth: '110px' }} title={`Check-in Location: ${todayAttendance.check_in_location}`}>
+                                                    <i className="bi bi-geo-alt me-1"></i>{todayAttendance.check_in_location.split(',')[0]}
+                                                </small>
+                                            )}
                                         </div>
 
                                         <div>
                                             <span>Check Out</span>
                                             <strong id="edCheckOutTime">{checkOutTime}</strong>
+                                            {todayAttendance?.check_out_location && (
+                                                <small className="d-block text-white-50 text-truncate mt-1" style={{ fontSize: '0.68rem', maxWidth: '110px' }} title={`Check-out Location: ${todayAttendance.check_out_location}`}>
+                                                    <i className="bi bi-geo-alt me-1"></i>{todayAttendance.check_out_location.split(',')[0]}
+                                                </small>
+                                            )}
                                         </div>
 
                                         <div>
@@ -1174,7 +1281,29 @@ export default function EmployeeTemplate({
                                             <strong>1 hour</strong>
                                         </div>
 
-                                                                                                                </div>
+                                    </div>
+
+                                    {(attendanceDevice || attendanceLocation || todayAttendance?.check_in_device || todayAttendance?.check_in_location) && (
+                                        <div className="ed-punch-device-badge mt-3 pt-2 border-top border-white border-opacity-10 d-flex align-items-center justify-content-between flex-wrap gap-2" style={{ fontSize: '0.74rem', color: 'rgba(255, 255, 255, 0.9)' }}>
+                                            <div className="d-flex align-items-center gap-1" title="Click to rename device">
+                                                <i className="bi bi-laptop text-info"></i>
+                                                <span>Device: <strong style={{ cursor: 'pointer' }} onClick={handleRenameDevice}>{effectiveDevice}</strong></span>
+                                                <button type="button" onClick={handleRenameDevice} className="btn btn-link p-0 text-white-50 ms-1" style={{ fontSize: '0.72rem', textDecoration: 'none' }} title="Rename this PC">
+                                                    <i className="bi bi-pencil-square"></i>
+                                                </button>
+                                            </div>
+                                            <div className="d-flex align-items-center gap-1" title={`Work Mode: ${effectiveWorkMode}`}>
+                                                <i className={isOffice ? "bi bi-building text-success" : "bi bi-house-door text-warning"}></i>
+                                                <span>Mode: <strong>{effectiveWorkMode}</strong></span>
+                                            </div>
+                                            {(todayAttendance?.check_in_location || attendanceLocation) && (
+                                                <div className="d-flex align-items-center gap-1 text-truncate" style={{ maxWidth: '240px' }} title={`Dynamic Location: ${todayAttendance?.check_in_location || attendanceLocation} | Area: ${effectiveArea} | City: ${effectiveCity} | State: ${effectiveState}`}>
+                                                    <i className="bi bi-geo-alt-fill text-danger"></i>
+                                                    <span className="text-truncate">Location: <strong>{todayAttendance?.check_in_location || attendanceLocation}</strong></span>
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
                                   </div>
                               </div>
                               
@@ -1763,18 +1892,67 @@ export default function EmployeeTemplate({
                                         <button
                                             className="ed-text-action"
                                             type="button"
-                                            onClick={() => navigateTo("calendar", "overview")}>
+                                            onClick={() => navigateTo("my-team")}>
                                             View Team
                                             <i className="bi bi-arrow-up-right"></i>
                                         </button>
                                     </div>
 
+                                    {/* Project Selection / Badge Bar above team list */}
+                                    {myTeamData.teams && myTeamData.teams.length > 0 && (
+                                        <div className="px-4 py-2 border-bottom d-flex align-items-center justify-content-between gap-2 bg-light bg-opacity-50">
+                                            {myTeamData.teams.length === 1 ? (
+                                                <div className="d-flex align-items-center gap-2 small">
+                                                    <span className="badge bg-primary-subtle text-primary border border-primary-subtle px-2 py-1 fw-bold">
+                                                        <i className="bi bi-diagram-3-fill me-1"></i>
+                                                        {myTeamData.teams[0].project_name} ({myTeamData.teams[0].project_code || 'PRJ'})
+                                                    </span>
+                                                    <span className="badge bg-secondary-subtle text-secondary small">
+                                                        {myTeamData.teams[0].members?.length || 0} members
+                                                    </span>
+                                                </div>
+                                            ) : (
+                                                <div className="d-flex align-items-center gap-2 small w-100 justify-content-between">
+                                                    <div className="d-flex align-items-center gap-1 text-muted">
+                                                        <i className="bi bi-diagram-3-fill text-primary"></i>
+                                                        <span className="fw-semibold text-dark">Project:</span>
+                                                    </div>
+                                                    <select
+                                                        className="form-select form-select-sm"
+                                                        style={{ width: "auto", fontSize: "12px", padding: "3px 28px 3px 8px", borderRadius: "8px" }}
+                                                        value={selectedDashboardProjectId}
+                                                        onChange={(e) => setSelectedDashboardProjectId(e.target.value)}
+                                                    >
+                                                        <option value="all">All Projects ({myTeamData.teams.length})</option>
+                                                        {myTeamData.teams.map((t) => (
+                                                            <option key={t.id} value={t.id}>
+                                                                {t.project_name} ({t.project_code}) {t.my_role === 'Lead' ? '★ Lead' : ''}
+                                                            </option>
+                                                        ))}
+                                                    </select>
+                                                </div>
+                                            )}
+                                            {myTeamData.teams.length === 1 && myTeamData.teams[0].my_role === 'Lead' && (
+                                                <span className="badge bg-warning text-dark px-2 py-0 small">
+                                                    <i className="bi bi-star-fill me-1"></i>Lead
+                                                </span>
+                                            )}
+                                        </div>
+                                    )}
+
+                                    {/* If no team mapped in DB */}
+                                    {(!myTeamData.teams || myTeamData.teams.length === 0) && (
+                                        <div className="px-4 py-2 border-bottom d-flex align-items-center justify-content-between bg-light bg-opacity-50">
+                                            <span className="text-muted small">
+                                                <i className="bi bi-info-circle me-1 text-primary"></i>
+                                                No project team assigned yet
+                                            </span>
+                                            <span className="badge bg-secondary-subtle text-secondary small">Solo</span>
+                                        </div>
+                                    )}
+
                                     <div className="ed-team-list">
-                                        {(teamMembers.length > 0 ? teamMembers : [
-                                            { id: 4, full_name: "Priya Sharma", designation: "QA Automation Engineer", status: "Active" },
-                                            { id: 3, full_name: "Yash Raj", designation: "Software Engineer", status: "Active" },
-                                            { id: 5, full_name: "Rahul Verma", designation: "Associate Specialist", status: "Active" },
-                                        ]).map((member, idx) => (
+                                        {dashboardDisplayedMembers.map((member, idx) => (
                                             <div className="ed-team-member" key={member.id || idx}>
                                                 <div className="ed-team-avatar">
                                                     <div style={{ width: 40, height: 40, borderRadius: "50%", backgroundColor: ["#ede9fe", "#e0f2fe", "#fef3c7", "#dcfce7"][idx % 4], color: ["#6366f1", "#0284c7", "#d97706", "#16a34a"][idx % 4], display: "flex", alignItems: "center", justifyContent: "center", fontWeight: "700", fontSize: "14px" }}>
@@ -1784,17 +1962,21 @@ export default function EmployeeTemplate({
                                                 </div>
 
                                                 <div className="ed-team-info">
-                                                    <strong>{member.full_name || member.email}</strong>
-                                                    <span>{member.designation || member.role_name || "Engineering"}</span>
+                                                    <div className="d-flex align-items-center gap-2">
+                                                        <strong>{member.full_name || member.email}</strong>
+                                                        {member.is_current_user && (
+                                                            <span className="badge bg-primary text-white rounded-pill px-2 py-0" style={{ fontSize: "10px" }}>You</span>
+                                                        )}
+                                                        {member.role_in_team === "Lead" && (
+                                                            <span className="badge bg-warning text-dark rounded-pill px-2 py-0" style={{ fontSize: "10px" }}>Lead</span>
+                                                        )}
+                                                    </div>
+                                                    <span>{member.designation || member.role_name || "Engineering"} {member.project_badge && member.project_badge !== 'No Team Mapped' ? `· ${member.project_badge}` : ''}</span>
                                                 </div>
 
                                                 <div className="ed-team-status">
                                                     <span className="ed-status-present">{member.status || "Active"}</span>
                                                 </div>
-
-                                                {/* <button className="ed-team-action">
-                                                    <i className="bi bi-chat"></i>
-                                                </button> */}
                                             </div>
                                         ))}
                                     </div>

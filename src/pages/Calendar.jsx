@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import EmptyState from "../components/EmptyState";
 
 export default function Calendar({ employeeProfile, currentUser, initialTab = "calendar" }) {
@@ -16,6 +16,7 @@ export default function Calendar({ employeeProfile, currentUser, initialTab = "c
   const [leaves, setLeaves] = useState([]);
   const [upcomingHolidays, setUpcomingHolidays] = useState([]);
   const [allUsers, setAllUsers] = useState([]);
+  const [myTeamData, setMyTeamData] = useState({ teams: [], currentEmployee: null });
   const [showModal, setShowModal] = useState(false);
   const [modalData, setModalData] = useState({ title: '', list: [] });
 
@@ -24,6 +25,21 @@ export default function Calendar({ employeeProfile, currentUser, initialTab = "c
     const eid = profile.employee_id || 1;
 
     const targetOrgId = currentUser?.tenant?.id || currentUser?.organization_id || profile?.organization_id || 1;
+    // Fetch My Teams (DB-based project teams for the employee)
+    const myTeamsUid = currentUser?.id || profile.user_id;
+    if (myTeamsUid) {
+      fetch(`${import.meta.env.VITE_API_URL || "https://hrms-backend-5xo8.onrender.com"}/api/employee/my-teams/${myTeamsUid}`)
+        .then(res => res.json())
+        .then(data => {
+          if (data && data.success) {
+            setMyTeamData({
+              teams: data.teams || [],
+              currentEmployee: data.currentEmployee || null
+            });
+          }
+        })
+        .catch(console.error);
+    }
     // Fetch Employees (for birthdays from employee_personal_info.date_of_birth and anniversaries from employee_employment_details.joining_date)
     fetch(`${import.meta.env.VITE_API_URL || "https://hrms-backend-5xo8.onrender.com"}/api/admin/employees?orgId=${targetOrgId}`)
         .then(res => res.json())
@@ -66,6 +82,54 @@ export default function Calendar({ employeeProfile, currentUser, initialTab = "c
             .catch(console.error);
     }
   }, [profile, currentUser]);
+
+    // Compute team directory members based on assigned project teams (or self if unmapped)
+  const teamDirectoryMembers = useMemo(() => {
+    const teams = myTeamData.teams || [];
+    if (teams.length === 0) {
+      const emp = myTeamData.currentEmployee || profile || currentUser;
+      const empName = emp?.employee_name || emp?.full_name || (emp?.first_name ? `${emp.first_name} ${emp.last_name || ''}`.trim() : null) || emp?.name || 'You';
+      return [{
+        id: emp?.id || 1,
+        name: empName,
+        designation: emp?.designation || 'Team Member',
+        is_current_user: true,
+        is_lead: false,
+        note: 'No team assigned yet'
+      }];
+    }
+
+    const memberMap = new Map();
+    teams.forEach(t => {
+      (t.members || []).forEach(m => {
+        if (!memberMap.has(m.employee_id)) {
+          memberMap.set(m.employee_id, {
+            id: m.employee_id,
+            name: m.employee_name,
+            designation: m.designation || 'Team Member',
+            department: m.department,
+            email: m.email,
+            is_current_user: m.is_current_user,
+            is_lead: m.role_in_team === 'Lead' || m.employee_id === t.team_lead_id,
+            projects: [t.project_name]
+          });
+        } else {
+          const existing = memberMap.get(m.employee_id);
+          if (!existing.projects.includes(t.project_name)) {
+            existing.projects.push(t.project_name);
+          }
+          if (m.role_in_team === 'Lead' || m.employee_id === t.team_lead_id) {
+            existing.is_lead = true;
+          }
+        }
+      });
+    });
+
+    return Array.from(memberMap.values()).map(m => ({
+      ...m,
+      project_names: m.projects.join(', ')
+    }));
+  }, [myTeamData, profile, currentUser]);
 
   const year = currentMonth.getFullYear();
   const month = currentMonth.getMonth();
@@ -580,22 +644,26 @@ export default function Calendar({ employeeProfile, currentUser, initialTab = "c
                        </div>
                    </div>
 
-                   {/* Team Directory */}
+                   {/* Team Directory (DB-based Project Teams) */}
                    <div className="side-card mt-4">
                        <div className="side-card-header border-bottom pb-3 mb-3">
                            <div>
                                <span className="section-label">TEAM DIRECTORY</span>
                                <h3>My Team Members</h3>
-                               <p className="text-muted mb-0 mt-1" style={{fontSize: '13px'}}>View your teammates and their current availability.</p>
+                               <p className="text-muted mb-0 mt-1" style={{fontSize: '13px'}}>
+                                 {myTeamData.teams && myTeamData.teams.length > 0
+                                   ? `Teammates across your assigned project teams (${myTeamData.teams.map(t => t.project_name).join(', ')}).`
+                                   : 'View your teammates and their current availability.'}
+                               </p>
                            </div>
                            <div className="text-end">
-                               <h3 className="mb-0 text-primary">{allUsers.length}</h3>
+                               <h3 className="mb-0 text-primary">{teamDirectoryMembers.length}</h3>
                                <span className="text-muted" style={{fontSize: '12px'}}>Members</span>
                            </div>
                        </div>
                        
                        <div className="row g-3">
-                           {allUsers.length === 0 ? (
+                           {teamDirectoryMembers.length === 0 ? (
                                <div className="col-12">
                                    <EmptyState
                                        compact
@@ -605,15 +673,31 @@ export default function Calendar({ employeeProfile, currentUser, initialTab = "c
                                    />
                                </div>
                            ) : (
-                               allUsers.map((u, i) => (
-                               <div className="col-12 col-md-6 col-xl-4" key={i}>
-                                   <div className="d-flex align-items-center gap-3 p-3 border rounded-3 bg-light">
-                                       <div className="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center" style={{width: '45px', height: '45px', fontWeight: 'bold', fontSize: '18px'}}>
+                               teamDirectoryMembers.map((u, i) => (
+                               <div className="col-12 col-md-6 col-xl-4" key={u.id || i}>
+                                   <div className={`d-flex align-items-center gap-3 p-3 border rounded-3 ${u.is_current_user ? 'bg-primary-subtle bg-opacity-10 border-primary' : 'bg-light'}`}>
+                                       <div className="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center" style={{width: '45px', height: '45px', fontWeight: 'bold', fontSize: '18px', flexShrink: 0}}>
                                            {u.name.charAt(0)}
                                        </div>
-                                       <div>
-                                           <h6 className="mb-0">{u.name}</h6>
-                                           <small className="text-muted">Team Member</small>
+                                       <div style={{minWidth: 0, flexGrow: 1}}>
+                                           <div className="d-flex align-items-center gap-2 mb-1">
+                                             <h6 className="mb-0 text-truncate" title={u.name}>{u.name}</h6>
+                                             {u.is_current_user && (
+                                               <span className="badge bg-primary text-white rounded-pill px-2 py-0" style={{fontSize: '10px', flexShrink: 0}}>You</span>
+                                             )}
+                                             {u.is_lead && (
+                                               <span className="badge bg-warning text-dark rounded-pill px-2 py-0" style={{fontSize: '10px', flexShrink: 0}}>Lead</span>
+                                             )}
+                                           </div>
+                                           <small className="text-muted text-truncate d-block">{u.designation || 'Team Member'}</small>
+                                           {u.project_names && (
+                                             <div className="text-muted text-truncate" style={{fontSize: '11px'}} title={u.project_names}>
+                                               <i className="bi bi-diagram-3 me-1"></i>{u.project_names}
+                                             </div>
+                                           )}
+                                           {u.note && (
+                                             <div className="text-muted" style={{fontSize: '11px', fontStyle: 'italic'}}>{u.note}</div>
+                                           )}
                                        </div>
                                    </div>
                                </div>

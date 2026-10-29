@@ -15,9 +15,21 @@ export default function EmployeeProfile({ currentUser, employeeProfile, onProfil
     const [isSkillsModalOpen, setIsSkillsModalOpen] = useState(false);
     const [allocatedAssetsCount, setAllocatedAssetsCount] = useState(null);
     const [totalLeaveBalance, setTotalLeaveBalance] = useState(null);
-    const [documentsCount, setDocumentsCount] = useState(null);
+        const [documentsCount, setDocumentsCount] = useState(null);
+    const [wfhRequests, setWfhRequests] = useState([]);
+    const [wfhLoading, setWfhLoading] = useState(false);
+    const [wfhPage, setWfhPage] = useState(1);
+    const handleApplyWfh = () => {
+        sessionStorage.setItem("open_wfh_request", "true");
+        if (typeof onNavigate === "function") {
+            onNavigate("employee-requests");
+        } else {
+            window.location.href = "/employee-requests";
+        }
+    };
 
-    const effectiveUserId = currentUser?.id || employeeProfile?.id || employeeProfile?.user_id;
+    const effectiveUserId = currentUser?.id || employeeProfile?.user_id || employeeProfile?.userId || employeeProfile?.id;
+    const effectiveEmpId = employeeProfile?.id;
 
     useEffect(() => {
         if (!effectiveUserId) return;
@@ -48,6 +60,30 @@ export default function EmployeeProfile({ currentUser, employeeProfile, onProfil
                 }
             })
             .catch((err) => console.error("Failed to load assets:", err));
+
+                // Fetch WFH requests
+        setWfhLoading(true);
+        fetch(`${API_BASE}/api/employee-requests/${effectiveUserId}`)
+            .then((res) => (res.ok ? res.json() : { requests: [] }))
+            .then((data) => {
+                if (!isCancelled) {
+                    const reqs = Array.isArray(data?.requests) ? data.requests : [];
+                    const wfh = reqs.filter((r) => {
+                        if (effectiveEmpId && r.employee_id && Number(r.employee_id) !== Number(effectiveEmpId)) {
+                            return false;
+                        }
+                        const cat = (r.category || "").toLowerCase();
+                        const src = (r.source_type || "").toLowerCase();
+                        const subj = (r.subject || "").toLowerCase();
+                        return cat.includes("work from home") || cat.includes("wfh") || src === "wfh" || subj.includes("work from home") || subj.includes("wfh");
+                    });
+                    setWfhRequests(wfh);
+                }
+            })
+            .catch((err) => console.error("Failed to load WFH requests:", err))
+            .finally(() => {
+                if (!isCancelled) setWfhLoading(false);
+            });
 
         // Fetch leaves data for actual remaining balance
         fetch(`${API_BASE}/api/leaves/data/${effectiveUserId}`)
@@ -297,6 +333,11 @@ export default function EmployeeProfile({ currentUser, employeeProfile, onProfil
                             <button type="button" className={`ep-profile-tab${activeProfileTab === "assets" ? " active" : ""}`} data-profile-tab="assets" onClick={() => setActiveProfileTab("assets")}>
                                 <i className="bi bi-laptop"></i>
                                 Assets
+                            </button>
+
+                            <button type="button" className={`ep-profile-tab${activeProfileTab === "wfh" ? " active" : ""}`} data-profile-tab="wfh" onClick={() => { setActiveProfileTab("wfh"); setWfhPage(1); }}>
+                                <i className="bi bi-house-door"></i>
+                                Work From Home
                             </button>
 
                             {/*
@@ -666,11 +707,371 @@ export default function EmployeeProfile({ currentUser, employeeProfile, onProfil
                         <Assets employeeProfile={employeeProfile} currentUser={currentUser} embedded />
                     )}
 
+                    {activeProfileTab === "wfh" && (
+                        <div className="ep-wfh-container mt-3">
+                            {/* TOP STAT CARDS: Total, Approved, Pending */}
+                            <div className="row g-3 mb-4">
+                                {/* Total Requests */}
+                                <div className="col-12 col-md-4">
+                                    <div style={{
+                                        backgroundColor: "#ffffff",
+                                        borderRadius: "16px",
+                                        padding: "20px 22px",
+                                        border: "1px solid #e2e8f0",
+                                        boxShadow: "0 2px 10px rgba(0,0,0,0.03)",
+                                        display: "flex",
+                                        alignItems: "center",
+                                        gap: "16px",
+                                        height: "100%"
+                                    }}>
+                                        <div style={{
+                                            width: "52px",
+                                            height: "52px",
+                                            borderRadius: "14px",
+                                            backgroundColor: "#eff6ff",
+                                            color: "#2563eb",
+                                            display: "flex",
+                                            alignItems: "center",
+                                            justifyContent: "center",
+                                            fontSize: "24px",
+                                            flexShrink: 0
+                                        }}>
+                                            <i className="bi bi-file-earmark-text"></i>
+                                        </div>
+                                        <div>
+                                            <div style={{ fontSize: "12px", fontWeight: 600, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                                                Total Requests
+                                            </div>
+                                            <div style={{ fontSize: "28px", fontWeight: 800, color: "#0f172a", lineHeight: 1.2, marginTop: "2px" }}>
+                                                {wfhRequests.length}
+                                            </div>
+                                            <div style={{ fontSize: "12px", color: "#94a3b8", marginTop: "2px" }}>
+                                                All submitted applications
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Approved Requests */}
+                                <div className="col-12 col-md-4">
+                                    <div style={{
+                                        backgroundColor: "#ffffff",
+                                        borderRadius: "16px",
+                                        padding: "20px 22px",
+                                        border: "1px solid #e2e8f0",
+                                        boxShadow: "0 2px 10px rgba(0,0,0,0.03)",
+                                        display: "flex",
+                                        alignItems: "center",
+                                        gap: "16px",
+                                        height: "100%"
+                                    }}>
+                                        <div style={{
+                                            width: "52px",
+                                            height: "52px",
+                                            borderRadius: "14px",
+                                            backgroundColor: "#dcfce7",
+                                            color: "#16a34a",
+                                            display: "flex",
+                                            alignItems: "center",
+                                            justifyContent: "center",
+                                            fontSize: "24px",
+                                            flexShrink: 0
+                                        }}>
+                                            <i className="bi bi-check-circle-fill"></i>
+                                        </div>
+                                        <div>
+                                            <div style={{ fontSize: "12px", fontWeight: 600, color: "#16a34a", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                                                Approved Requests
+                                            </div>
+                                            <div style={{ fontSize: "28px", fontWeight: 800, color: "#15803d", lineHeight: 1.2, marginTop: "2px" }}>
+                                                {wfhRequests.filter((r) => (r.status || "").toLowerCase() === "approved").length}
+                                            </div>
+                                            <div style={{ fontSize: "12px", color: "#94a3b8", marginTop: "2px" }}>
+                                                Granted remote work days
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Pending Requests */}
+                                <div className="col-12 col-md-4">
+                                    <div style={{
+                                        backgroundColor: "#ffffff",
+                                        borderRadius: "16px",
+                                        padding: "20px 22px",
+                                        border: "1px solid #e2e8f0",
+                                        boxShadow: "0 2px 10px rgba(0,0,0,0.03)",
+                                        display: "flex",
+                                        alignItems: "center",
+                                        gap: "16px",
+                                        height: "100%"
+                                    }}>
+                                        <div style={{
+                                            width: "52px",
+                                            height: "52px",
+                                            borderRadius: "14px",
+                                            backgroundColor: "#fef3c7",
+                                            color: "#d97706",
+                                            display: "flex",
+                                            alignItems: "center",
+                                            justifyContent: "center",
+                                            fontSize: "24px",
+                                            flexShrink: 0
+                                        }}>
+                                            <i className="bi bi-clock-history"></i>
+                                        </div>
+                                        <div>
+                                            <div style={{ fontSize: "12px", fontWeight: 600, color: "#d97706", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                                                Pending Requests
+                                            </div>
+                                            <div style={{ fontSize: "28px", fontWeight: 800, color: "#b45309", lineHeight: 1.2, marginTop: "2px" }}>
+                                                {wfhRequests.filter((r) => (r.status || "").toLowerCase() === "pending").length}
+                                            </div>
+                                            <div style={{ fontSize: "12px", color: "#94a3b8", marginTop: "2px" }}>
+                                                Awaiting manager / HR review
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* RECORDS LIST CARD WITH 5 RECORDS PER PAGE */}
+                            <div style={{
+                                backgroundColor: "#ffffff",
+                                borderRadius: "18px",
+                                border: "1px solid #e2e8f0",
+                                boxShadow: "0 4px 18px rgba(0,0,0,0.03)",
+                                overflow: "hidden"
+                            }}>
+                                {/* Card Header */}
+                                <div style={{
+                                    padding: "20px 24px",
+                                    borderBottom: "1px solid #f1f5f9",
+                                    display: "flex",
+                                    alignItems: "center",
+                                    justifyContent: "space-between",
+                                    flexWrap: "wrap",
+                                    gap: "12px"
+                                }}>
+                                    <div>
+                                        <h4 style={{ margin: 0, fontSize: "17px", fontWeight: 700, color: "#0f172a" }}>
+                                            Work From Home Applications
+                                        </h4>
+                                        <p style={{ margin: "3px 0 0 0", fontSize: "13px", color: "#64748b" }}>
+                                            Showing 5 records per page
+                                        </p>
+                                    </div>
+                                    {onNavigate && (
+                                        <button 
+                                            type="button" 
+                                            onClick={handleApplyWfh}
+                                            style={{
+                                                padding: "8px 16px",
+                                                backgroundColor: "#4f46e5",
+                                                color: "#ffffff",
+                                                borderRadius: "10px",
+                                                border: "none",
+                                                fontSize: "13px",
+                                                fontWeight: 600,
+                                                display: "flex",
+                                                alignItems: "center",
+                                                gap: "6px",
+                                                cursor: "pointer"
+                                            }}
+                                        >
+                                            <i className="bi bi-plus-lg"></i>
+                                            Apply WFH
+                                        </button>
+                                    )}
+                                </div>
+
+                                {/* Table */}
+                                <div className="table-responsive" style={{ margin: 0 }}>
+                                    <table className="table align-middle" style={{ margin: 0, fontSize: "13.5px" }}>
+                                        <thead style={{ backgroundColor: "#f8fafc", color: "#475569", fontWeight: 600, fontSize: "12px", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                                            <tr>
+                                                <th style={{ padding: "14px 20px", borderBottom: "1px solid #e2e8f0" }}>Request Code</th>
+                                                <th style={{ padding: "14px 16px", borderBottom: "1px solid #e2e8f0" }}>Dates & Duration</th>
+                                                <th style={{ padding: "14px 16px", borderBottom: "1px solid #e2e8f0" }}>Reason / Subject</th>
+                                                <th style={{ padding: "14px 16px", borderBottom: "1px solid #e2e8f0" }}>Emergency Contact</th>
+                                                <th style={{ padding: "14px 16px", borderBottom: "1px solid #e2e8f0" }}>Applied On</th>
+                                                <th style={{ padding: "14px 16px", borderBottom: "1px solid #e2e8f0" }}>Status</th>
+                                                <th style={{ padding: "14px 20px", borderBottom: "1px solid #e2e8f0" }}>Admin Remarks</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {wfhLoading ? (
+                                                <tr>
+                                                    <td colSpan="7" style={{ textAlign: "center", padding: "40px 20px", color: "#64748b" }}>
+                                                        <div className="spinner-border spinner-border-sm text-primary me-2" role="status"></div>
+                                                        Loading Work From Home records...
+                                                    </td>
+                                                </tr>
+                                            ) : wfhRequests.length === 0 ? (
+                                                <tr>
+                                                    <td colSpan="7" style={{ textAlign: "center", padding: "48px 20px" }}>
+                                                        <div style={{ width: "56px", height: "56px", borderRadius: "50%", backgroundColor: "#f1f5f9", color: "#94a3b8", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: "24px", marginBottom: "12px" }}>
+                                                            <i className="bi bi-house-door"></i>
+                                                        </div>
+                                                        <div style={{ fontWeight: 600, color: "#334155", fontSize: "15px" }}>No Work From Home Requests</div>
+                                                        <div style={{ color: "#94a3b8", fontSize: "13px", marginTop: "4px" }}>You haven't submitted any WFH applications yet.</div>
+                                                    </td>
+                                                </tr>
+                                            ) : (
+                                                wfhRequests
+                                                    .slice((wfhPage - 1) * 5, wfhPage * 5)
+                                                    .map((req, idx) => {
+                                                        const sDate = req.wfh_start_date ? new Date(req.wfh_start_date).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "-";
+                                                        const eDate = req.wfh_end_date ? new Date(req.wfh_end_date).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : sDate;
+                                                        const appliedDate = req.created_at ? new Date(req.created_at).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "-";
+                                                        const statusNorm = (req.status || "Pending").toLowerCase();
+
+                                                        return (
+                                                            <tr key={req.id || idx} style={{ borderBottom: "1px solid #f1f5f9" }}>
+                                                                <td style={{ padding: "16px 20px" }}>
+                                                                    <span style={{ fontWeight: 600, color: "#3b82f6", backgroundColor: "#eff6ff", padding: "4px 10px", borderRadius: "8px", fontSize: "12px" }}>
+                                                                        {req.request_code || `WFH-${req.id}`}
+                                                                    </span>
+                                                                </td>
+                                                                <td style={{ padding: "16px 16px" }}>
+                                                                    <div style={{ fontWeight: 600, color: "#1e293b" }}>
+                                                                        {sDate === eDate ? sDate : `${sDate} → ${eDate}`}
+                                                                    </div>
+                                                                    {sDate !== "-" && (
+                                                                        <span style={{ fontSize: "11px", color: "#64748b" }}>
+                                                                            {sDate === eDate ? "1 Day" : "Multiple Days"}
+                                                                        </span>
+                                                                    )}
+                                                                </td>
+                                                                <td style={{ padding: "16px 16px", maxWidth: "260px" }}>
+                                                                    <div style={{ fontWeight: 600, color: "#0f172a" }}>
+                                                                        {req.subject || "Work From Home"}
+                                                                    </div>
+                                                                    {req.description && (
+                                                                        <div style={{ fontSize: "12px", color: "#64748b", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                                                                            {req.description}
+                                                                        </div>
+                                                                    )}
+                                                                </td>
+                                                                <td style={{ padding: "16px 16px", color: "#475569", fontSize: "12.5px" }}>
+                                                                    {req.wfh_contact || req.phone_number || "-"}
+                                                                </td>
+                                                                <td style={{ padding: "16px 16px", color: "#475569", fontSize: "12.5px" }}>
+                                                                    {appliedDate}
+                                                                </td>
+                                                                <td style={{ padding: "16px 16px" }}>
+                                                                    {statusNorm === "approved" ? (
+                                                                        <span style={{ display: "inline-flex", alignItems: "center", gap: "4px", backgroundColor: "#dcfce7", color: "#15803d", fontWeight: 600, fontSize: "12px", padding: "4px 10px", borderRadius: "20px" }}>
+                                                                            <i className="bi bi-check-circle-fill"></i> Approved
+                                                                        </span>
+                                                                    ) : statusNorm === "rejected" ? (
+                                                                        <span style={{ display: "inline-flex", alignItems: "center", gap: "4px", backgroundColor: "#fee2e2", color: "#b91c1c", fontWeight: 600, fontSize: "12px", padding: "4px 10px", borderRadius: "20px" }}>
+                                                                            <i className="bi bi-x-circle-fill"></i> Rejected
+                                                                        </span>
+                                                                    ) : (
+                                                                        <span style={{ display: "inline-flex", alignItems: "center", gap: "4px", backgroundColor: "#fef3c7", color: "#b45309", fontWeight: 600, fontSize: "12px", padding: "4px 10px", borderRadius: "20px" }}>
+                                                                            <i className="bi bi-clock-history"></i> Pending
+                                                                        </span>
+                                                                    )}
+                                                                </td>
+                                                                <td style={{ padding: "16px 20px", color: "#64748b", fontSize: "12.5px" }}>
+                                                                    {req.admin_remarks || "-"}
+                                                                </td>
+                                                            </tr>
+                                                        );
+                                                    })
+                                            )}
+                                        </tbody>
+                                    </table>
+                                </div>
+
+                                {/* Pagination Controls - 5 records per page */}
+                                {wfhRequests.length > 0 && (
+                                    <div style={{
+                                        padding: "14px 24px",
+                                        backgroundColor: "#fafbfc",
+                                        borderTop: "1px solid #f1f5f9",
+                                        display: "flex",
+                                        alignItems: "center",
+                                        justifyContent: "space-between",
+                                        flexWrap: "wrap",
+                                        gap: "12px"
+                                    }}>
+                                        <div style={{ fontSize: "13px", color: "#64748b" }}>
+                                            Showing <strong style={{ color: "#0f172a" }}>{(wfhPage - 1) * 5 + 1}</strong> to <strong style={{ color: "#0f172a" }}>{Math.min(wfhPage * 5, wfhRequests.length)}</strong> of <strong style={{ color: "#0f172a" }}>{wfhRequests.length}</strong> records
+                                        </div>
+
+                                        <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                                            <button
+                                                type="button"
+                                                disabled={wfhPage <= 1}
+                                                onClick={() => setWfhPage((prev) => Math.max(1, prev - 1))}
+                                                style={{
+                                                    padding: "6px 12px",
+                                                    border: "1px solid #e2e8f0",
+                                                    backgroundColor: wfhPage <= 1 ? "#f8fafc" : "#ffffff",
+                                                    color: wfhPage <= 1 ? "#cbd5e1" : "#334155",
+                                                    borderRadius: "8px",
+                                                    fontSize: "13px",
+                                                    cursor: wfhPage <= 1 ? "not-allowed" : "pointer"
+                                                }}
+                                            >
+                                                <i className="bi bi-chevron-left me-1"></i> Prev
+                                            </button>
+
+                                            {Array.from({ length: Math.ceil(wfhRequests.length / 5) || 1 }).map((_, i) => {
+                                                const pNum = i + 1;
+                                                const isActive = pNum === wfhPage;
+                                                return (
+                                                    <button
+                                                        key={pNum}
+                                                        type="button"
+                                                        onClick={() => setWfhPage(pNum)}
+                                                        style={{
+                                                            width: "32px",
+                                                            height: "32px",
+                                                            borderRadius: "8px",
+                                                            border: isActive ? "none" : "1px solid #e2e8f0",
+                                                            backgroundColor: isActive ? "#4f46e5" : "#ffffff",
+                                                            color: isActive ? "#ffffff" : "#334155",
+                                                            fontWeight: isActive ? 600 : 400,
+                                                            fontSize: "13px",
+                                                            cursor: "pointer"
+                                                        }}
+                                                    >
+                                                        {pNum}
+                                                    </button>
+                                                );
+                                            })}
+
+                                            <button
+                                                type="button"
+                                                disabled={wfhPage >= Math.ceil(wfhRequests.length / 5)}
+                                                onClick={() => setWfhPage((prev) => Math.min(Math.ceil(wfhRequests.length / 5), prev + 1))}
+                                                style={{
+                                                    padding: "6px 12px",
+                                                    border: "1px solid #e2e8f0",
+                                                    backgroundColor: wfhPage >= Math.ceil(wfhRequests.length / 5) ? "#f8fafc" : "#ffffff",
+                                                    color: wfhPage >= Math.ceil(wfhRequests.length / 5) ? "#cbd5e1" : "#334155",
+                                                    borderRadius: "8px",
+                                                    fontSize: "13px",
+                                                    cursor: wfhPage >= Math.ceil(wfhRequests.length / 5) ? "not-allowed" : "pointer"
+                                                }}
+                                            >
+                                                Next <i className="bi bi-chevron-right ms-1"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    )}
+
                     {activeProfileTab === "expenses" && (
                         <Expenses employeeProfile={employeeProfile} currentUser={currentUser} embedded />
                     )}
 
-                    <section className={`ep-profile-tab-content${["overview", "employment", "documents", "skills", "attendance", "leave", "assets", "expenses"].includes(activeProfileTab) ? " d-none" : ""}`} id="profileTabPlaceholder">
+                    <section className={`ep-profile-tab-content${["overview", "employment", "documents", "skills", "attendance", "leave", "assets", "expenses", "wfh"].includes(activeProfileTab) ? " d-none" : ""}`} id="profileTabPlaceholder">
                         <div className="ep-placeholder-card">
                             <div className="ep-placeholder-icon">
                                 <i className="bi bi-window-stack"></i>
