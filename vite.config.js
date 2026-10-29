@@ -12,6 +12,10 @@ export default defineConfig(({ mode }) => {
     define: {
       'import.meta.env.VITE_API_URL': JSON.stringify(apiUrl),
     },
+    build: {
+      assetsDir: 'static',
+      emptyOutDir: true,
+    },
     server: {
       host: '0.0.0.0',
       port: 80,
