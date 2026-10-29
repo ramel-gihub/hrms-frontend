@@ -1892,7 +1892,7 @@ export default function EmployeeTemplate({
                                         <button
                                             className="ed-text-action"
                                             type="button"
-                                            onClick={() => navigateTo("my-team")}>
+                                            onClick={() => navigateTo("calendar", "overview")}>
                                             View Team
                                             <i className="bi bi-arrow-up-right"></i>
                                         </button>

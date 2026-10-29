@@ -9,6 +9,12 @@ export default function Calendar({ employeeProfile, currentUser, initialTab = "c
   useEffect(() => {
     if (initialTab) {
       setActiveTab(initialTab);
+      if (initialTab === "overview") {
+        setTimeout(() => {
+          const el = document.getElementById("calendarTeamDirectory");
+          if (el) el.scrollIntoView({ behavior: "smooth" });
+        }, 150);
+      }
     }
   }, [initialTab]);
   
@@ -645,7 +651,7 @@ export default function Calendar({ employeeProfile, currentUser, initialTab = "c
                    </div>
 
                    {/* Team Directory (DB-based Project Teams) */}
-                   <div className="side-card mt-4">
+                   <div id="calendarTeamDirectory" className="side-card mt-4">
                        <div className="side-card-header border-bottom pb-3 mb-3">
                            <div>
                                <span className="section-label">TEAM DIRECTORY</span>
