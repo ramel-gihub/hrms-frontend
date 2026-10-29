@@ -46,20 +46,34 @@ export default function Calendar({ employeeProfile, currentUser, initialTab = "c
         })
         .catch(console.error);
     }
-    // Fetch Employees (for birthdays from employee_personal_info.date_of_birth and anniversaries from employee_employment_details.joining_date)
-    fetch(`${import.meta.env.VITE_API_URL || "https://hrms-backend-5xo8.onrender.com"}/api/admin/employees?orgId=${targetOrgId}`)
+    // Fetch Celebrations (lightweight endpoint: no heavy base64 profile pictures)
+    fetch(`${import.meta.env.VITE_API_URL || "https://hrms-backend-5xo8.onrender.com"}/api/celebrations?orgId=${targetOrgId}`)
         .then(res => res.json())
         .then(data => {
-            if (Array.isArray(data)) {
+            if (Array.isArray(data) && data.length > 0) {
                 const mappedUsers = data.map(u => ({
-                    name: u.full_name || `${u.first_name || ''} ${u.last_name || ''}`.trim() || 'Employee',
-                    dob: u.date_of_birth,
-                    doj: u.joining_date
+                    name: u.name || 'Employee',
+                    dob: u.dob,
+                    doj: u.doj
                 }));
                 setAllUsers(mappedUsers);
             }
         })
-        .catch(console.error);
+        .catch(() => {
+            fetch(`${import.meta.env.VITE_API_URL || "https://hrms-backend-5xo8.onrender.com"}/api/admin/employees?orgId=${targetOrgId}`)
+                .then(res => res.json())
+                .then(data => {
+                    if (Array.isArray(data)) {
+                        const mappedUsers = data.map(u => ({
+                            name: u.full_name || `${u.first_name || ''} ${u.last_name || ''}`.trim() || 'Employee',
+                            dob: u.date_of_birth,
+                            doj: u.joining_date
+                        }));
+                        setAllUsers(mappedUsers);
+                    }
+                })
+                .catch(console.error);
+        });
 
     if (uid) {
         // Fetch Holidays (the widgets endpoint still returns allHolidays safely)
@@ -73,6 +87,9 @@ export default function Calendar({ employeeProfile, currentUser, initialTab = "c
                     today.setHours(0,0,0,0);
                     const upcoming = finalHolidays.filter(h => new Date(h.holiday_date) >= today).sort((a,b) => new Date(a.holiday_date) - new Date(b.holiday_date));
                     setUpcomingHolidays(upcoming);
+                }
+                if (data.allCelebrationUsers && Array.isArray(data.allCelebrationUsers)) {
+                    setAllUsers(data.allCelebrationUsers);
                 }
             })
             .catch(console.error);
@@ -159,6 +176,19 @@ export default function Calendar({ employeeProfile, currentUser, initialTab = "c
     grid.push({ date: new Date(year, month + 1, i), isOtherMonth: true });
   }
 
+    // Timezone-safe date parser
+  const parseDateParts = (val) => {
+    if (!val) return null;
+    if (typeof val === 'string') {
+      const match = val.match(/^(\d{4})-(\d{2})-(\d{2})/);
+      if (match) {
+        return { year: parseInt(match[1], 10), month: parseInt(match[2], 10) - 1, day: parseInt(match[3], 10) };
+      }
+    }
+    const d = new Date(val);
+    return isNaN(d.getTime()) ? null : { year: d.getFullYear(), month: d.getMonth(), day: d.getDate() };
+  };
+
   const isSameDay = (d1, d2) => d1.getFullYear() === d2.getFullYear() && d1.getMonth() === d2.getMonth() && d1.getDate() === d2.getDate();
   
   const isDateBetween = (date, start, end) => {
@@ -185,8 +215,8 @@ export default function Calendar({ employeeProfile, currentUser, initialTab = "c
     // 2. Birthday event (from employee_personal_info.date_of_birth)
     const dayBdays = allUsers.filter(u => {
       if (!u.dob) return false;
-      const d = new Date(u.dob);
-      return d.getDate() === date.getDate() && d.getMonth() === date.getMonth();
+      const p = parseDateParts(u.dob);
+      return p && p.day === date.getDate() && p.month === date.getMonth();
     });
 
     dayBdays.forEach((b, idx) => {
@@ -232,12 +262,13 @@ export default function Calendar({ employeeProfile, currentUser, initialTab = "c
     // 3. Work Anniversary event (from employee_employment_details.joining_date)
     const dayAnnivs = allUsers.filter(u => {
       if (!u.doj) return false;
-      const d = new Date(u.doj);
-      return d.getDate() === date.getDate() && d.getMonth() === date.getMonth();
+      const p = parseDateParts(u.doj);
+      return p && p.day === date.getDate() && p.month === date.getMonth();
     });
 
     dayAnnivs.forEach((a, idx) => {
-      const joinYear = new Date(a.doj).getFullYear();
+      const p = parseDateParts(a.doj);
+      const joinYear = p ? p.year : new Date(a.doj).getFullYear();
       const yrs = date.getFullYear() - joinYear;
       const label = yrs > 0 ? `${yrs}y Anniv: ${a.name}` : `Joined: ${a.name}`;
       events.push(
@@ -289,13 +320,13 @@ export default function Calendar({ employeeProfile, currentUser, initialTab = "c
   // Helper arrays for Overview Tab (Birthdays & Work Anniversaries)
   const thisMonthBdays = allUsers.filter(u => {
     if (!u.dob) return false;
-    const d = new Date(u.dob);
-    return d.getMonth() === month;
+    const p = parseDateParts(u.dob);
+    return p && p.month === month;
   });
   const thisMonthAnnivs = allUsers.filter(u => {
     if (!u.doj) return false;
-    const d = new Date(u.doj);
-    return d.getMonth() === month;
+    const p = parseDateParts(u.doj);
+    return p && p.month === month;
   });
   
   const today = new Date();
