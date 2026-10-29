@@ -807,7 +807,7 @@ export default function Attendance({ currentUser, employeeProfile, onNavigate, e
                 <div className="p-3 rounded" style={{ border: '1px solid #eee' }}>
                   <div style={{ fontSize: '12px', color: '#8a90a2', marginBottom: '4px' }}>Device</div>
                   <div style={{ fontWeight: 600, color: '#1a1d27', fontSize: '14px' }} className="text-truncate" title={selectedDate?.device || '--'}>
-                    {selectedDate?.device || 'MSI Thin 15 (Dev)'}
+                    {selectedDate?.device && selectedDate.device !== 'MSI Thin 15 (Dev)' ? selectedDate.device : (selectedDate?.status === 'Present' ? 'Workstation PC' : '--')}
                   </div>
                 </div>
               </div>

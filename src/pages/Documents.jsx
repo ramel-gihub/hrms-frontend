@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import EmptyState from "../components/EmptyState";
 
-const MAX_FILE_SIZE = 2 * 1024 * 1024;
+const MAX_FILE_SIZE = 500 * 1024; // 500 KB limit
 const PAGE_SIZE = 4;
 const EXPIRING_WITHIN_DAYS = 90;
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -430,7 +430,7 @@ export default function Documents({ currentUser, employeeProfile, embedded = fal
     if (!file) return;
     if (file.size > MAX_FILE_SIZE) {
             setSelectedFile(null);
-            setFileError("File size must be 2 MB or less.");
+            setFileError("File size must be 500 KB or less.");
       return;
     }
     setFileError("");
@@ -960,7 +960,7 @@ export default function Documents({ currentUser, employeeProfile, embedded = fal
                                         </span>
 
                                         <small>
-                                            PDF, JPG, PNG, DOC, DOCX · Maximum 2 MB
+                                            PDF, JPG, PNG, DOC, DOCX · Maximum 500 KB
                                         </small>
 
                                     </div>

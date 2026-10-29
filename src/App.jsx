@@ -92,7 +92,29 @@ export default function App() {
   const [attendanceArea, setAttendanceArea] = useState('');
   const [attendanceCity, setAttendanceCity] = useState('');
   const [attendanceState, setAttendanceState] = useState('');
-  const [attendanceDevice, setAttendanceDevice] = useState(() => localStorage.getItem('hrms_device_name') || 'MSI Thin 15 (Dev)');
+  const [attendanceDevice, setAttendanceDevice] = useState(() => {
+    try {
+      const saved = localStorage.getItem('hrms_device_name');
+      if (saved && saved.trim() && saved.trim() !== 'MSI Thin 15 (Dev)' && saved.trim() !== 'MSI Thin 15') {
+        return saved.trim();
+      }
+      if (saved === 'MSI Thin 15 (Dev)' || saved === 'MSI Thin 15') {
+        localStorage.removeItem('hrms_device_name');
+      }
+      const ua = typeof navigator !== 'undefined' ? (navigator.userAgent || '') : '';
+      if (/android/i.test(ua)) {
+        const m = ua.match(/;\s*([^;]+?)\s+Build\//i);
+        if (m && m[1] && !m[1].includes('Android')) return `${m[1].trim()} (Android)`;
+        return /tablet/i.test(ua) ? 'Android Tablet' : 'Android Mobile';
+      }
+      if (/iphone/i.test(ua)) return 'Apple iPhone';
+      if (/ipad/i.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)) return 'Apple iPad';
+      if (/macintosh|mac os x/i.test(ua)) return 'MacBook';
+      if (/windows nt 10/i.test(ua) || /windows/i.test(ua)) return 'Windows PC';
+      if (/linux/i.test(ua)) return 'Linux PC';
+    } catch (_) {}
+    return 'Workstation PC';
+  });
   const [closeAlert, setCloseAlert] = useState(null);
   const showCloseAlert = (title, message, type = 'warning') => setCloseAlert({ title, message, type });
   const [todayAttendance, setTodayAttendance] = useState(null);
@@ -729,27 +751,55 @@ export default function App() {
   };
 
   const getDeviceName = async () => {
-    const saved = localStorage.getItem('hrms_device_name');
-    if (saved && saved.trim()) return saved.trim();
+    try {
+      const saved = localStorage.getItem('hrms_device_name');
+      if (saved && saved.trim() && saved.trim() !== 'MSI Thin 15 (Dev)' && saved.trim() !== 'MSI Thin 15') {
+        return saved.trim();
+      }
+      if (saved === 'MSI Thin 15 (Dev)' || saved === 'MSI Thin 15') {
+        localStorage.removeItem('hrms_device_name');
+      }
 
-    if (navigator.userAgentData && typeof navigator.userAgentData.getHighEntropyValues === 'function') {
-      try {
+      if (navigator.userAgentData && typeof navigator.userAgentData.getHighEntropyValues === 'function') {
         const hints = await navigator.userAgentData.getHighEntropyValues(['model', 'platform', 'platformVersion']);
         if (hints.model && hints.model.trim()) {
-          return hints.model.trim();
+          const plat = hints.platform ? ` (${hints.platform})` : '';
+          const dev = `${hints.model.trim()}${plat}`;
+          localStorage.setItem('hrms_device_name', dev);
+          return dev;
         }
-      } catch (_) {}
+        if (hints.platform && /windows/i.test(hints.platform)) {
+          const major = parseInt((hints.platformVersion || '').split('.')[0], 10);
+          const dev = major >= 13 ? 'Windows 11 PC' : 'Windows 10 PC';
+          localStorage.setItem('hrms_device_name', dev);
+          return dev;
+        }
+        if (hints.platform) {
+          const dev = `${hints.platform} PC`;
+          localStorage.setItem('hrms_device_name', dev);
+          return dev;
+        }
+      }
+    } catch (_) {}
+
+    const ua = typeof navigator !== 'undefined' ? (navigator.userAgent || '') : '';
+    let os = 'Workstation PC';
+    if (/android/i.test(ua)) {
+      const m = ua.match(/;\s*([^;]+?)\s+Build\//i);
+      os = (m && m[1] && !m[1].includes('Android')) ? `${m[1].trim()} (Android)` : (/tablet/i.test(ua) ? 'Android Tablet' : 'Android Mobile');
+    } else if (/iphone/i.test(ua)) {
+      os = 'Apple iPhone';
+    } else if (/ipad/i.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)) {
+      os = 'Apple iPad';
+    } else if (/macintosh|mac os x/i.test(ua)) {
+      os = 'MacBook';
+    } else if (/windows nt 10/i.test(ua) || /windows/i.test(ua)) {
+      os = 'Windows PC';
+    } else if (/linux/i.test(ua)) {
+      os = 'Linux PC';
     }
 
-    const ua = navigator.userAgent || '';
-    let os = 'MSI Thin 15 (Dev)';
-    if (/windows nt 10/i.test(ua)) os = 'MSI Thin 15 (Dev)';
-    else if (/windows/i.test(ua)) os = 'Windows PC';
-    else if (/android/i.test(ua)) os = 'Android Device';
-    else if (/iphone|ipad|ipod/i.test(ua)) os = 'iOS Device';
-    else if (/macintosh|mac os x/i.test(ua)) os = 'MacBook';
-    else if (/linux/i.test(ua)) os = 'Linux PC';
-
+    try { localStorage.setItem('hrms_device_name', os); } catch (_) {}
     return os;
   };
 

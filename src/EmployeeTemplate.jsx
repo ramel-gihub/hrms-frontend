@@ -679,8 +679,12 @@ export default function EmployeeTemplate({
   };
 
   const handleRenameDevice = () => {
-    const current = todayAttendance?.check_in_device || attendanceDevice || localStorage.getItem('hrms_device_name') || 'MSI Thin 15 (Dev)';
-    const updated = window.prompt('Rename Device (e.g. MSI Thin 15, MSI Dev):', current);
+    const current = (todayAttendance?.check_in_device && todayAttendance.check_in_device !== 'MSI Thin 15 (Dev)')
+      ? todayAttendance.check_in_device
+      : ((attendanceDevice && attendanceDevice !== 'MSI Thin 15 (Dev)')
+          ? attendanceDevice
+          : 'My Device');
+    const updated = window.prompt('Rename Device (e.g. Work PC, Office Laptop):', current);
     if (updated && updated.trim()) {
       localStorage.setItem('hrms_device_name', updated.trim());
       if (typeof setAttendanceDevice === 'function') {
@@ -701,7 +705,17 @@ export default function EmployeeTemplate({
     : (effectiveArea && effectiveCity && effectiveArea.toLowerCase() !== effectiveCity.toLowerCase()
         ? `${effectiveArea}, ${effectiveCity}`
         : (effectiveArea || effectiveCity || 'Nagpur'));
-  const effectiveDevice = todayAttendance?.check_in_device || attendanceDevice || localStorage.getItem('hrms_device_name') || 'MSI Thin 15 (Dev)';
+  const savedDev = (() => {
+    try {
+      const s = localStorage.getItem('hrms_device_name');
+      return (s && s.trim() !== 'MSI Thin 15 (Dev)' && s.trim() !== 'MSI Thin 15') ? s.trim() : null;
+    } catch (_) { return null; }
+  })();
+  const effectiveDevice = (todayAttendance?.check_in_device && todayAttendance.check_in_device !== 'MSI Thin 15 (Dev)')
+    ? todayAttendance.check_in_device
+    : ((attendanceDevice && attendanceDevice !== 'MSI Thin 15 (Dev)')
+        ? attendanceDevice
+        : (savedDev || 'Windows PC'));
 
   return (
     <div onClick={() => setMenuOpen(false)}>

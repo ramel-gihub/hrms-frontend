@@ -17,7 +17,7 @@ const CATEGORY_STYLE = {
   Others: { avatar: "esc-postgresql", icon: "bi-lightning-charge" },
 };
 const LEVEL_WIDTH = { Beginner: 25, Intermediate: 60, Advanced: 85, Expert: 100 };
-const MAX_CERT_FILE_SIZE = 10 * 1024 * 1024;
+const MAX_CERT_FILE_SIZE = 500 * 1024; // 500 KB limit
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const CERT_LOGO_CLASSES = ["", "esc-cert-green", "esc-cert-orange"];
 
@@ -214,9 +214,20 @@ export default function SkillsCertifications({ currentUser, employeeProfile, emb
       if (value > today) {
         setCertFeedback({ type: "danger", text: "Issue date cannot be in the future." });
         return;
+      }
+      if (certForm.expiryDate && certForm.expiryDate < value) {
+        setCertFeedback({ type: "danger", text: "Expiry date cannot be less than issue date." });
       } else {
         setCertFeedback({ type: "", text: "" });
       }
+    } else if (name === "expiryDate" && value) {
+      if (certForm.issueDate && value < certForm.issueDate) {
+        setCertFeedback({ type: "danger", text: "Expiry date cannot be less than issue date." });
+      } else {
+        setCertFeedback({ type: "", text: "" });
+      }
+    } else {
+      setCertFeedback({ type: "", text: "" });
     }
     setCertForm((prev) => ({ ...prev, [name]: value }));
   };
@@ -259,7 +270,7 @@ export default function SkillsCertifications({ currentUser, employeeProfile, emb
     const file = event.target.files[0];
     if (!file) return;
     if (file.size > MAX_CERT_FILE_SIZE) {
-      setCertFeedback({ type: "danger", text: "File size must be 10 MB or less." });
+      setCertFeedback({ type: "danger", text: "File size must be 500 KB or less." });
       event.target.value = "";
       return;
     }
@@ -276,6 +287,11 @@ export default function SkillsCertifications({ currentUser, employeeProfile, emb
     const today = new Date().toISOString().split("T")[0];
     if (certForm.issueDate && certForm.issueDate > today) {
       setCertFeedback({ type: "danger", text: "Issue date cannot be in the future." });
+      return;
+    }
+
+    if (certForm.issueDate && certForm.expiryDate && certForm.expiryDate < certForm.issueDate) {
+      setCertFeedback({ type: "danger", text: "Expiry date cannot be less than issue date." });
       return;
     }
 
@@ -1259,6 +1275,7 @@ export default function SkillsCertifications({ currentUser, employeeProfile, emb
                                                 id="escCertificationExpiryDate"
                                                 name="expiryDate"
                                                 value={certForm.expiryDate}
+                                                min={certForm.issueDate || undefined}
                                                 onChange={updateCertField}
                                                 onClick={(e) => {
                                                     try { e.currentTarget.showPicker(); } catch (_) {}
@@ -1282,7 +1299,7 @@ export default function SkillsCertifications({ currentUser, employeeProfile, emb
 
                                                 <span>
                                                     <strong>{certFile?.name || (certMode === "edit" ? selectedCert?.file_name : "Choose certificate") || "Choose certificate"}</strong>
-                                                    <small>{certMode === "edit" && selectedCert?.file_name ? "Choose a file to replace the current certificate" : "PDF, JPG or PNG"}</small>
+                                                    <small>{certMode === "edit" && selectedCert?.file_name ? "Choose a file to replace current certificate (Max 500 KB)" : "PDF, JPG or PNG · Maximum 500 KB"}</small>
                                                 </span>
 
                                                 <input
