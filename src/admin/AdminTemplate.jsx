@@ -3,6 +3,7 @@ import './tailadmin.css';
 import AdminSidebar from './components/AdminSidebar';
 import AdminHeader from './components/AdminHeader';
 import AddEmployeeModal from './components/AddEmployeeModal';
+import HRAssistant from '../components/HRAssistant';
 
 // Pages
 import Dashboard from './pages/Dashboard';
@@ -459,6 +460,9 @@ export default function AdminTemplate({
         }}
         creatingEmployee={creatingEmployee}
       />
+
+      {/* Floating Ramel HR Enterprise AI Copilot */}
+      <HRAssistant currentUser={currentUser} employeeProfile={null} mode="admin" />
     </div>
   );
 }

@@ -22,7 +22,7 @@ const SHORTCUT_CONFIG = {
   "dashboard": { id: "dashboard", label: "Employee Dashboard", description: "Your workspace overview", icon: "bi-grid", color: "blue", page: "index" },
   "apply-leave": { id: "apply-leave", label: "Apply Leave", description: "Request time off", icon: "bi-calendar-plus", color: "purple", page: "leaves" },
   "attendance": { id: "attendance", label: "Attendance", description: "View attendance", icon: "bi-calendar-check", color: "blue", page: "attendance" },
-  "my-team": { id: "my-team", label: "My Team", description: "View your project team", icon: "bi-people-fill", color: "blue", page: "my-team" },
+  // "my-team": { id: "my-team", label: "My Team", description: "View your project team", icon: "bi-people-fill", color: "blue", page: "my-team" },
   // "expenses": { id: "expenses", label: "Expenses & Claims", description: "Submit & track claims", icon: "bi-wallet2", color: "orange", page: "expenses" },
   "new-request": { id: "new-request", label: "New Request", description: "Contact HR / Admin", icon: "bi-send", color: "orange", page: "employee-requests" },
   "documents": { id: "documents", label: "Documents", description: "My documents", icon: "bi-folder2-open", color: "green", page: "documents" },
@@ -739,10 +739,10 @@ export default function EmployeeTemplate({
                       <i className="bi bi-briefcase"></i>
                       <span>Employment Details</span>
                   </span>
-                  <span onClick={() => navigateTo("my-team")} className={`menu-item${activePage === "my-team" ? " active" : ""}`} style={{cursor:"pointer"}}>
+                  {/* <span onClick={() => navigateTo("my-team")} className={`menu-item${activePage === "my-team" ? " active" : ""}`} style={{cursor:"pointer"}}>
                       <i className="bi bi-people-fill"></i>
                       <span>My Team</span>
-                  </span>
+                  </span> */}
                   <span onClick={() => navigateTo("documents")} className={`menu-item${activePage === "documents" ? " active" : ""}`} style={{cursor:"pointer"}}>
                       <i className="bi bi-folder2-open"></i>
                       <span>Documents</span>
@@ -2262,7 +2262,7 @@ export default function EmployeeTemplate({
     
     
 
-    <HRAssistant currentUser={currentUser} employeeProfile={employeeProfile} />
+    <HRAssistant currentUser={currentUser} employeeProfile={employeeProfile} mode="employee" />
 
     {/* Floating Real-time Push Notification Toast */}
     {pushToast && (
