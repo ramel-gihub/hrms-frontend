@@ -100,6 +100,8 @@ export default function SkillsCertifications({ currentUser, employeeProfile, emb
   const [certs, setCerts] = useState([]);
   const [certsLoading, setCertsLoading] = useState(true);
   const [certsError, setCertsError] = useState("");
+  const [certPage, setCertPage] = useState(1);
+  const [certPerPage, setCertPerPage] = useState(6);
 
   const loadCerts = useCallback(async () => {
     if (!currentUser?.id) {
@@ -123,7 +125,17 @@ export default function SkillsCertifications({ currentUser, employeeProfile, emb
     loadCerts();
   }, [loadCerts]);
 
-  const certCards = certs.map((cert, index) => {
+  const totalCertPages = Math.ceil(certs.length / certPerPage) || 1;
+  const currentCertPage = Math.min(certPage, totalCertPages);
+  const paginatedCerts = useMemo(() => {
+    const start = (currentCertPage - 1) * certPerPage;
+    return certs.slice(start, start + certPerPage);
+  }, [certs, currentCertPage, certPerPage]);
+
+  const certStartIndex = certs.length === 0 ? 0 : (currentCertPage - 1) * certPerPage + 1;
+  const certEndIndex = Math.min(currentCertPage * certPerPage, certs.length);
+
+  const certCards = paginatedCerts.map((cert, index) => {
     const style = CATEGORY_STYLE[cert.skill_category] || CATEGORY_STYLE.Others;
     const verified = cert.verification_status === "Verified";
     return (
@@ -215,14 +227,14 @@ export default function SkillsCertifications({ currentUser, employeeProfile, emb
         setCertFeedback({ type: "danger", text: "Issue date cannot be in the future." });
         return;
       }
-      if (certForm.expiryDate && certForm.expiryDate < value) {
-        setCertFeedback({ type: "danger", text: "Expiry date cannot be less than issue date." });
+      if (certForm.expiryDate && certForm.expiryDate <= value) {
+        setCertFeedback({ type: "danger", text: "Expiry date must be later than the issue date." });
       } else {
         setCertFeedback({ type: "", text: "" });
       }
     } else if (name === "expiryDate" && value) {
-      if (certForm.issueDate && value < certForm.issueDate) {
-        setCertFeedback({ type: "danger", text: "Expiry date cannot be less than issue date." });
+      if (certForm.issueDate && value <= certForm.issueDate) {
+        setCertFeedback({ type: "danger", text: "Expiry date must be later than the issue date." });
       } else {
         setCertFeedback({ type: "", text: "" });
       }
@@ -290,8 +302,8 @@ export default function SkillsCertifications({ currentUser, employeeProfile, emb
       return;
     }
 
-    if (certForm.issueDate && certForm.expiryDate && certForm.expiryDate < certForm.issueDate) {
-      setCertFeedback({ type: "danger", text: "Expiry date cannot be less than issue date." });
+    if (certForm.issueDate && certForm.expiryDate && certForm.expiryDate <= certForm.issueDate) {
+      setCertFeedback({ type: "danger", text: "Expiry date must be later than the issue date." });
       return;
     }
 
@@ -445,7 +457,24 @@ export default function SkillsCertifications({ currentUser, employeeProfile, emb
     }
   };
 
-  const skillRows = filteredSkills.map((skill) => {
+  const [skillPage, setSkillPage] = useState(1);
+  const [skillPerPage, setSkillPerPage] = useState(5);
+
+  useEffect(() => {
+    setSkillPage(1);
+  }, [skillSearch, skillCategoryFilter]);
+
+  const totalSkillPages = Math.ceil(filteredSkills.length / skillPerPage) || 1;
+  const currentSkillPage = Math.min(skillPage, totalSkillPages);
+  const paginatedSkills = useMemo(() => {
+    const start = (currentSkillPage - 1) * skillPerPage;
+    return filteredSkills.slice(start, start + skillPerPage);
+  }, [filteredSkills, currentSkillPage, skillPerPage]);
+
+  const skillStartIndex = filteredSkills.length === 0 ? 0 : (currentSkillPage - 1) * skillPerPage + 1;
+  const skillEndIndex = Math.min(currentSkillPage * skillPerPage, filteredSkills.length);
+
+  const skillRows = paginatedSkills.map((skill) => {
     const style = CATEGORY_STYLE[skill.skill_category] || CATEGORY_STYLE.Others;
     const years = skill.years_of_experience === null ? null : Number(skill.years_of_experience);
     const verified = skill.verification_status === "Verified";
@@ -783,6 +812,121 @@ export default function SkillsCertifications({ currentUser, employeeProfile, emb
 
                             </div>
 
+                            {filteredSkills.length > 0 && (
+                                <div
+                                    className="epl-table-footer d-flex align-items-center justify-content-between flex-wrap gap-3"
+                                    style={{
+                                        padding: "16px 24px",
+                                        backgroundColor: "#fafbfc",
+                                        borderTop: "1px solid #f0f0f5",
+                                        borderBottomLeftRadius: "20px",
+                                        borderBottomRightRadius: "20px"
+                                    }}
+                                >
+                                    <div className="d-flex align-items-center gap-3 flex-wrap">
+                                        <span style={{ fontSize: "13px", color: "#64748b" }}>
+                                            Showing <strong style={{ color: "#1e293b" }}>{skillStartIndex}–{skillEndIndex}</strong> of <strong style={{ color: "#1e293b" }}>{filteredSkills.length}</strong> skills
+                                        </span>
+                                        <div className="d-flex align-items-center gap-2">
+                                            <span style={{ fontSize: "12px", color: "#64748b" }}>Per page:</span>
+                                            <select
+                                                className="form-select form-select-sm"
+                                                value={skillPerPage}
+                                                onChange={e => { setSkillPerPage(Number(e.target.value)); setSkillPage(1); }}
+                                                style={{
+                                                    width: "68px",
+                                                    height: "32px",
+                                                    borderRadius: "8px",
+                                                    borderColor: "#e2e8f0",
+                                                    fontSize: "12px",
+                                                    backgroundColor: "#ffffff",
+                                                    color: "#1e293b",
+                                                    fontWeight: 500,
+                                                    cursor: "pointer",
+                                                    boxShadow: "none"
+                                                }}
+                                            >
+                                                <option value={5}>5</option>
+                                                <option value={10}>10</option>
+                                                <option value={20}>20</option>
+                                            </select>
+                                        </div>
+                                    </div>
+
+                                    <div className="epl-pagination d-flex align-items-center gap-1">
+                                        <button 
+                                            type="button"
+                                            className={`epl-page-btn ${currentSkillPage === 1 ? "disabled" : ""}`} 
+                                            disabled={currentSkillPage === 1} 
+                                            onClick={() => setSkillPage(p => Math.max(1, p - 1))}
+                                            title="Previous Page"
+                                            style={{
+                                                width: "32px",
+                                                height: "32px",
+                                                borderRadius: "8px",
+                                                border: "1px solid #e2e8f0",
+                                                backgroundColor: currentSkillPage === 1 ? "#f8fafc" : "#ffffff",
+                                                color: currentSkillPage === 1 ? "#cbd5e1" : "#475569",
+                                                fontSize: "12px",
+                                                display: "inline-flex",
+                                                alignItems: "center",
+                                                justifyContent: "center",
+                                                cursor: currentSkillPage === 1 ? "not-allowed" : "pointer"
+                                            }}
+                                        >
+                                            <i className="bi bi-chevron-left"></i>
+                                        </button>
+                                        {Array.from({ length: totalSkillPages }, (_, i) => i + 1).map(pageNum => (
+                                            <button 
+                                                key={pageNum} 
+                                                type="button" 
+                                                className={`epl-page-btn ${currentSkillPage === pageNum ? 'active' : ''}`} 
+                                                onClick={() => setSkillPage(pageNum)}
+                                                style={{
+                                                    width: "32px",
+                                                    height: "32px",
+                                                    borderRadius: "8px",
+                                                    border: currentSkillPage === pageNum ? "none" : "1px solid #e2e8f0",
+                                                    backgroundColor: currentSkillPage === pageNum ? "#3c2fbc" : "#ffffff",
+                                                    color: currentSkillPage === pageNum ? "#ffffff" : "#475569",
+                                                    fontWeight: currentSkillPage === pageNum ? 600 : 400,
+                                                    fontSize: "12px",
+                                                    display: "inline-flex",
+                                                    alignItems: "center",
+                                                    justifyContent: "center",
+                                                    cursor: "pointer",
+                                                    boxShadow: currentSkillPage === pageNum ? "0 2px 4px rgba(60, 47, 188, 0.2)" : "none"
+                                                }}
+                                            >
+                                                {pageNum}
+                                            </button>
+                                        ))}
+                                        <button 
+                                            type="button"
+                                            className={`epl-page-btn ${currentSkillPage === totalSkillPages ? "disabled" : ""}`} 
+                                            disabled={currentSkillPage === totalSkillPages} 
+                                            onClick={() => setSkillPage(p => Math.min(totalSkillPages, p + 1))}
+                                            title="Next Page"
+                                            style={{
+                                                width: "32px",
+                                                height: "32px",
+                                                borderRadius: "8px",
+                                                border: "1px solid #e2e8f0",
+                                                backgroundColor: currentSkillPage === totalSkillPages ? "#f8fafc" : "#ffffff",
+                                                color: currentSkillPage === totalSkillPages ? "#cbd5e1" : "#475569",
+                                                fontSize: "12px",
+                                                display: "inline-flex",
+                                                alignItems: "center",
+                                                justifyContent: "center",
+                                                cursor: currentSkillPage === totalSkillPages ? "not-allowed" : "pointer"
+                                            }}
+                                        >
+                                            <i className="bi bi-chevron-right"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+
                         </div>
 
             
@@ -830,6 +974,121 @@ export default function SkillsCertifications({ currentUser, employeeProfile, emb
                                 )}
 
                             </div>
+
+                            {certs.length > 0 && (
+                                <div
+                                    className="epl-table-footer d-flex align-items-center justify-content-between flex-wrap gap-3"
+                                    style={{
+                                        padding: "16px 24px",
+                                        backgroundColor: "#fafbfc",
+                                        borderTop: "1px solid #f0f0f5",
+                                        borderBottomLeftRadius: "20px",
+                                        borderBottomRightRadius: "20px"
+                                    }}
+                                >
+                                    <div className="d-flex align-items-center gap-3 flex-wrap">
+                                        <span style={{ fontSize: "13px", color: "#64748b" }}>
+                                            Showing <strong style={{ color: "#1e293b" }}>{certStartIndex}–{certEndIndex}</strong> of <strong style={{ color: "#1e293b" }}>{certs.length}</strong> certifications
+                                        </span>
+                                        <div className="d-flex align-items-center gap-2">
+                                            <span style={{ fontSize: "12px", color: "#64748b" }}>Per page:</span>
+                                            <select
+                                                className="form-select form-select-sm"
+                                                value={certPerPage}
+                                                onChange={e => { setCertPerPage(Number(e.target.value)); setCertPage(1); }}
+                                                style={{
+                                                    width: "68px",
+                                                    height: "32px",
+                                                    borderRadius: "8px",
+                                                    borderColor: "#e2e8f0",
+                                                    fontSize: "12px",
+                                                    backgroundColor: "#ffffff",
+                                                    color: "#1e293b",
+                                                    fontWeight: 500,
+                                                    cursor: "pointer",
+                                                    boxShadow: "none"
+                                                }}
+                                            >
+                                                <option value={6}>6</option>
+                                                <option value={12}>12</option>
+                                                <option value={24}>24</option>
+                                            </select>
+                                        </div>
+                                    </div>
+
+                                    <div className="epl-pagination d-flex align-items-center gap-1">
+                                        <button 
+                                            type="button"
+                                            className={`epl-page-btn ${currentCertPage === 1 ? "disabled" : ""}`} 
+                                            disabled={currentCertPage === 1} 
+                                            onClick={() => setCertPage(p => Math.max(1, p - 1))}
+                                            title="Previous Page"
+                                            style={{
+                                                width: "32px",
+                                                height: "32px",
+                                                borderRadius: "8px",
+                                                border: "1px solid #e2e8f0",
+                                                backgroundColor: currentCertPage === 1 ? "#f8fafc" : "#ffffff",
+                                                color: currentCertPage === 1 ? "#cbd5e1" : "#475569",
+                                                fontSize: "12px",
+                                                display: "inline-flex",
+                                                alignItems: "center",
+                                                justifyContent: "center",
+                                                cursor: currentCertPage === 1 ? "not-allowed" : "pointer"
+                                            }}
+                                        >
+                                            <i className="bi bi-chevron-left"></i>
+                                        </button>
+                                        {Array.from({ length: totalCertPages }, (_, i) => i + 1).map(pageNum => (
+                                            <button 
+                                                key={pageNum} 
+                                                type="button" 
+                                                className={`epl-page-btn ${currentCertPage === pageNum ? 'active' : ''}`} 
+                                                onClick={() => setCertPage(pageNum)}
+                                                style={{
+                                                    width: "32px",
+                                                    height: "32px",
+                                                    borderRadius: "8px",
+                                                    border: currentCertPage === pageNum ? "none" : "1px solid #e2e8f0",
+                                                    backgroundColor: currentCertPage === pageNum ? "#3c2fbc" : "#ffffff",
+                                                    color: currentCertPage === pageNum ? "#ffffff" : "#475569",
+                                                    fontWeight: currentCertPage === pageNum ? 600 : 400,
+                                                    fontSize: "12px",
+                                                    display: "inline-flex",
+                                                    alignItems: "center",
+                                                    justifyContent: "center",
+                                                    cursor: "pointer",
+                                                    boxShadow: currentCertPage === pageNum ? "0 2px 4px rgba(60, 47, 188, 0.2)" : "none"
+                                                }}
+                                            >
+                                                {pageNum}
+                                            </button>
+                                        ))}
+                                        <button 
+                                            type="button"
+                                            className={`epl-page-btn ${currentCertPage === totalCertPages ? "disabled" : ""}`} 
+                                            disabled={currentCertPage === totalCertPages} 
+                                            onClick={() => setCertPage(p => Math.min(totalCertPages, p + 1))}
+                                            title="Next Page"
+                                            style={{
+                                                width: "32px",
+                                                height: "32px",
+                                                borderRadius: "8px",
+                                                border: "1px solid #e2e8f0",
+                                                backgroundColor: currentCertPage === totalCertPages ? "#f8fafc" : "#ffffff",
+                                                color: currentCertPage === totalCertPages ? "#cbd5e1" : "#475569",
+                                                fontSize: "12px",
+                                                display: "inline-flex",
+                                                alignItems: "center",
+                                                justifyContent: "center",
+                                                cursor: currentCertPage === totalCertPages ? "not-allowed" : "pointer"
+                                            }}
+                                        >
+                                            <i className="bi bi-chevron-right"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
 
                         </div>
 

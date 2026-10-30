@@ -3,6 +3,13 @@ import React, { useState, useEffect, useMemo } from "react";
 import Chart from "react-apexcharts";
 import EmptyState from "../components/EmptyState";
 
+const formatDays = (val, fallback = 0) => {
+  if (val === undefined || val === null || val === '') return fallback;
+  const num = Number(val);
+  if (isNaN(num)) return val;
+  return num % 1 === 0 ? String(Math.round(num)) : String(parseFloat(num.toFixed(2)));
+};
+
 export default function Leaves({ currentUser, employeeProfile, embedded = false }) {
   const [data, setData] = useState({ balances: [], leaveTypes: [], approvers: [], requests: [] });
   const [loading, setLoading] = useState(true);
@@ -683,7 +690,7 @@ export default function Leaves({ currentUser, employeeProfile, embedded = false 
                                             <div className="epl-upcoming-content">
                                                 <strong>{req.title}</strong>
                                                 <span>{req.dateStr}</span>
-                                                <small>{req.is_half_day ? `0.5 Day (${req.half_day_period === 'Second Half' ? '2nd Half' : '1st Half'})` : `${req.days} Day${Number(req.days) > 1 ? 's' : ''}`}</small>
+                                                <small>{req.is_half_day ? `0.5 Day (${req.half_day_period === 'Second Half' ? '2nd Half' : '1st Half'})` : `${formatDays(req.days)} Day${Number(req.days) === 1 ? '' : 's'}`}</small>
                                             </div>
                                             <span className={`epl-leave-status ${req.statusClass}`}>
                                                 {req.status}
@@ -821,17 +828,40 @@ export default function Leaves({ currentUser, employeeProfile, embedded = false 
                                                         <td>
                                                             {req.is_half_day ? (
                                                                 <span className="d-inline-flex align-items-center gap-1.5 flex-wrap">
-                                                                    <span>0.50 Day(s)</span>
+                                                                    <span>0.5 Day</span>
                                                                     <span className="badge rounded-pill" style={{ background: '#eef2ff', color: '#4338ca', fontSize: '11px', padding: '3px 8px', fontWeight: '600' }}>
                                                                         {req.half_day_period === 'Second Half' ? '2nd Half' : '1st Half'}
                                                                     </span>
                                                                 </span>
                                                             ) : (
-                                                                `${req.days_requested} Day(s)`
+                                                                `${formatDays(req.days_requested)} Day${Number(req.days_requested) === 1 ? '' : 's'}`
                                                             )}
                                                         </td>
                                                         <td><span className="text-truncate d-inline-block" style={{maxWidth: '150px'}} title={req.reason}>{req.reason || '--'}</span></td>
-                                                        <td>{req.approver_first ? `${req.approver_first} ${req.approver_last}` : '--'}</td>
+                                                        <td>
+                                                            {req.status === 'Approved' ? (
+                                                                <div>
+                                                                    <strong className="d-block text-dark">{req.approved_by_name || (req.approver_first ? `${req.approver_first} ${req.approver_last}` : 'Admin User')}</strong>
+                                                                    <span className="text-muted d-block" style={{ fontSize: '11px', whiteSpace: 'nowrap' }}>
+                                                                        Approved: {req.approved_at || req.reviewed_at || req.updated_at ? new Date(req.approved_at || req.reviewed_at || req.updated_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '--'}
+                                                                    </span>
+                                                                </div>
+                                                            ) : req.status === 'Rejected' ? (
+                                                                <div>
+                                                                    <strong className="d-block text-danger">{req.rejected_by_name || (req.approver_first ? `${req.approver_first} ${req.approver_last}` : 'Admin User')}</strong>
+                                                                    <span className="text-danger d-block" style={{ fontSize: '11px', whiteSpace: 'nowrap' }}>
+                                                                        Rejected: {req.rejected_at || req.reviewed_at || req.updated_at ? new Date(req.rejected_at || req.reviewed_at || req.updated_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '--'}
+                                                                    </span>
+                                                                    {(req.rejection_reason || req.admin_remarks) && (
+                                                                        <span className="text-danger text-truncate d-block" style={{ fontSize: '10.5px', maxWidth: '140px' }} title={`Reason: ${req.rejection_reason || req.admin_remarks}`}>
+                                                                            Reason: {req.rejection_reason || req.admin_remarks}
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+                                                            ) : (
+                                                                <span>{req.approver_first ? `${req.approver_first} ${req.approver_last}` : 'Admin User'}</span>
+                                                            )}
+                                                        </td>
                                                         <td><span className={`badge bg-${statusClass} bg-opacity-10 text-${statusClass} rounded-pill px-3 py-2`}>{req.status}</span></td>
                                                         <td>{appliedFmt}</td>
                                                         <td>
@@ -841,36 +871,30 @@ export default function Leaves({ currentUser, employeeProfile, embedded = false 
                                                                 </button>
                                                                 {openDropdownId === req.id && (
                                                                     <ul className="dropdown-menu dropdown-menu-end shadow border-0 show" style={{ position: 'absolute', right: '100%', top: 0, minWidth: '150px', zIndex: 9999, display: 'block', marginRight: '5px' }}>
-                                                                        <li>
-                                                                            {req.status === 'Pending' ? (
+                                                                        {req.status === 'Pending' && (
+                                                                            <li>
                                                                                 <button className="dropdown-item d-flex align-items-center gap-2 py-2 text-secondary" onClick={() => { setViewLeave(req); setIsEditMode(true); setOpenDropdownId(null); }}>
                                                                                     <i className="bi bi-pencil" style={{fontSize: '14px'}}></i> Edit
                                                                                 </button>
-                                                                            ) : (
-                                                                                <span className="dropdown-item d-flex align-items-center gap-2 py-2 text-muted" style={{ cursor: 'not-allowed' }} title="Can only edit pending leaves">
-                                                                                    <i className="bi bi-pencil" style={{fontSize: '14px'}}></i> Edit
-                                                                                </span>
-                                                                            )}
-                                                                        </li>
+                                                                            </li>
+                                                                        )}
                                                                         <li><button className="dropdown-item d-flex align-items-center gap-2 py-2 text-secondary" onClick={() => { setViewLeave(req); setIsEditMode(false); setOpenDropdownId(null); }}><i className="bi bi-eye" style={{fontSize: '14px'}}></i> View Details</button></li>
-                                                                        <li><hr className="dropdown-divider m-0" /></li>
-                                                                        <li>
-                                                                            {req.status === 'Pending' ? (
-                                                                                <button 
-                                                                                    className="dropdown-item d-flex align-items-center gap-2 py-2 text-danger" 
-                                                                                    onClick={() => {
-                                                                                        setOpenDropdownId(null);
-                                                                                        handleCancelLeave(req.id);
-                                                                                    }}
-                                                                                >
-                                                                                    <i className="bi bi-trash" style={{fontSize: '14px'}}></i> Cancel
-                                                                                </button>
-                                                                            ) : (
-                                                                                <span className="dropdown-item d-flex align-items-center gap-2 py-2 text-muted" style={{ cursor: 'not-allowed' }} title="Can only cancel pending leaves">
-                                                                                    <i className="bi bi-trash" style={{fontSize: '14px'}}></i> Cancel
-                                                                                </span>
-                                                                            )}
-                                                                        </li>
+                                                                        {req.status === 'Pending' && (
+                                                                            <>
+                                                                                <li><hr className="dropdown-divider m-0" /></li>
+                                                                                <li>
+                                                                                    <button 
+                                                                                        className="dropdown-item d-flex align-items-center gap-2 py-2 text-danger" 
+                                                                                        onClick={() => {
+                                                                                            setOpenDropdownId(null);
+                                                                                            handleCancelLeave(req.id);
+                                                                                        }}
+                                                                                    >
+                                                                                        <i className="bi bi-trash" style={{fontSize: '14px'}}></i> Cancel
+                                                                                    </button>
+                                                                                </li>
+                                                                            </>
+                                                                        )}
                                                                     </ul>
                                                                 )}
                                                             </div>
@@ -1387,7 +1411,7 @@ export default function Leaves({ currentUser, employeeProfile, embedded = false 
                         className="form-control"
                         readOnly
                         style={{ backgroundColor: '#f8fafc', fontWeight: '600' }}
-                        value={formData.isHalfDay ? '0.50 Day' : (daysCalculated > 0 ? `${daysCalculated} Day(s)` : 'Automatically calculated')}
+                        value={formData.isHalfDay ? '0.5 Day' : (daysCalculated > 0 ? `${formatDays(daysCalculated)} Day${Number(daysCalculated) === 1 ? '' : 's'}` : 'Automatically calculated')}
                       />
                     </div>
                     <div className="col-md-6">
@@ -1453,13 +1477,15 @@ export default function Leaves({ currentUser, employeeProfile, embedded = false 
           <div className="modal-dialog modal-dialog-centered modal-lg">
             <div className="modal-content epl-modal border-0 shadow" style={{ borderRadius: '12px' }}>
               <div className="modal-header border-0 pb-0 pt-4 px-4">
-                <h5 className="modal-title fw-bold" style={{ color: '#24263d', fontSize: '18px' }}>Leave Information</h5>
+                <h5 className="modal-title fw-bold" style={{ color: '#24263d', fontSize: '18px' }}>
+                  {isEditMode ? 'Edit Leave Request' : 'Leave Information'}
+                </h5>
                 <button type="button" className="btn-close" onClick={() => setViewLeave(null)}></button>
               </div>
               <div className="modal-body px-4 pb-4 pt-3">
                   <div className="row g-3">
                       <div className="col-md-3">
-                          <div className="p-3 rounded" style={{ border: '1px solid #eaeaea' }}>
+                          <div className="p-3 rounded h-100 d-flex flex-column justify-content-between" style={{ border: '1px solid #eaeaea', backgroundColor: '#ffffff' }}>
                               <small className="text-muted d-block mb-1" style={{ fontSize: '13px' }}>Leave Type</small>
                               {isEditMode ? (
                                   <select className="form-select form-select-sm border-0 px-0 fw-bold shadow-none" value={viewLeave.leave_type || ''} onChange={(e) => setViewLeave({...viewLeave, leave_type: e.target.value})}>
@@ -1471,7 +1497,7 @@ export default function Leaves({ currentUser, employeeProfile, embedded = false 
                           </div>
                       </div>
                       <div className="col-md-3">
-                          <div className="p-3 rounded" style={{ border: '1px solid #eaeaea' }}>
+                          <div className="p-3 rounded h-100 d-flex flex-column justify-content-between" style={{ border: '1px solid #eaeaea', backgroundColor: '#ffffff' }}>
                               <small className="text-muted d-block mb-1" style={{ fontSize: '13px' }}>From Date</small>
                               {isEditMode ? (
                                   <input
@@ -1497,7 +1523,7 @@ export default function Leaves({ currentUser, employeeProfile, embedded = false 
                           </div>
                       </div>
                       <div className="col-md-3">
-                          <div className="p-3 rounded" style={{ border: '1px solid #eaeaea' }}>
+                          <div className="p-3 rounded h-100 d-flex flex-column justify-content-between" style={{ border: '1px solid #eaeaea', backgroundColor: '#ffffff' }}>
                               <small className="text-muted d-block mb-1" style={{ fontSize: '13px' }}>To Date</small>
                               {isEditMode ? (
                                   <input
@@ -1523,42 +1549,68 @@ export default function Leaves({ currentUser, employeeProfile, embedded = false 
                           </div>
                       </div>
                       <div className="col-md-3">
-                          <div className="p-3 rounded" style={{ border: '1px solid #eaeaea' }}>
+                          <div className="p-3 rounded h-100 d-flex flex-column justify-content-between" style={{ border: '1px solid #eaeaea', backgroundColor: '#ffffff' }}>
                               <small className="text-muted d-block mb-1" style={{ fontSize: '13px' }}>Number of Days</small>
                               <strong className="d-block text-dark">
                                   {viewLeave.is_half_day 
-                                      ? `0.50 Day (${viewLeave.half_day_period === 'Second Half' ? '2nd Half' : '1st Half'})` 
-                                      : `${viewLeave.days_requested || '--'} Days`}
+                                      ? `0.5 Day (${viewLeave.half_day_period === 'Second Half' ? '2nd Half' : '1st Half'})` 
+                                      : `${formatDays(viewLeave.days_requested) || '--'} Day${Number(viewLeave.days_requested) === 1 ? '' : 's'}`}
                               </strong>
                           </div>
                       </div>
       
-                      <div className="col-md-3">
-                          <div className="p-3 rounded" style={{ border: '1px solid #eaeaea' }}>
-                              <small className="text-muted d-block mb-1" style={{ fontSize: '13px' }}>Approver</small>
-                              <strong className="d-block text-dark">{viewLeave.approver_first ? `${viewLeave.approver_first} ${viewLeave.approver_last || ''}` : 'Admin User'}</strong>
+                      <div className={isEditMode ? "col-md-3" : "col-md-3"}>
+                          <div className="p-3 rounded h-100 d-flex flex-column justify-content-between" style={{ border: '1px solid #eaeaea', backgroundColor: '#ffffff' }}>
+                              <small className="text-muted d-block mb-1" style={{ fontSize: '13px' }}>
+                                  {viewLeave.status === 'Rejected' ? 'Rejected By' : (viewLeave.status === 'Approved' ? 'Approved By' : 'Approver')}
+                              </small>
+                              <strong className="d-block text-dark">
+                                  {viewLeave.status === 'Approved' 
+                                      ? (viewLeave.approved_by_name || (viewLeave.approver_first ? `${viewLeave.approver_first} ${viewLeave.approver_last || ''}`.trim() : 'Admin User'))
+                                      : viewLeave.status === 'Rejected'
+                                      ? (viewLeave.rejected_by_name || (viewLeave.approver_first ? `${viewLeave.approver_first} ${viewLeave.approver_last || ''}`.trim() : 'Admin User'))
+                                      : (viewLeave.approver_first ? `${viewLeave.approver_first} ${viewLeave.approver_last || ''}`.trim() : 'Admin User')}
+                              </strong>
                           </div>
                       </div>
-                      <div className="col-md-3">
-                          <div className="p-3 rounded" style={{ border: '1px solid #eaeaea' }}>
+                      <div className={isEditMode ? "col-md-3" : "col-md-3"}>
+                          <div className="p-3 rounded h-100 d-flex flex-column justify-content-between" style={{ border: '1px solid #eaeaea', backgroundColor: '#ffffff' }}>
                               <small className="text-muted d-block mb-1" style={{ fontSize: '13px' }}>Applied Date</small>
                               <strong className="d-block text-dark">{viewLeave.created_at ? new Date(viewLeave.created_at).toLocaleDateString('en-GB', {day:'2-digit', month:'short', year:'numeric'}).replace(/ /g, '-') : '--'}</strong>
                           </div>
                       </div>
-                      <div className="col-md-3">
-                          <div className="p-3 rounded" style={{ border: '1px solid #eaeaea' }}>
-                              <small className="text-muted d-block mb-1" style={{ fontSize: '13px' }}>Approved Date</small>
-                              <strong className="d-block text-dark">{viewLeave.updated_at && viewLeave.status !== 'Pending' ? new Date(viewLeave.updated_at).toLocaleDateString('en-GB', {day:'2-digit', month:'short', year:'numeric'}).replace(/ /g, '-') : '--'}</strong>
+                      {!isEditMode && (
+                          <div className="col-md-3">
+                              <div className="p-3 rounded h-100 d-flex flex-column justify-content-between" style={{ border: '1px solid #eaeaea', backgroundColor: '#ffffff' }}>
+                                  <small className="text-muted d-block mb-1" style={{ fontSize: '13px' }}>
+                                      {viewLeave.status === 'Rejected' ? 'Rejected Date' : 'Approved Date'}
+                                  </small>
+                                  <strong className="d-block text-dark">
+                                      {viewLeave.status === 'Approved' 
+                                          ? (viewLeave.approved_at || viewLeave.reviewed_at || viewLeave.updated_at 
+                                              ? new Date(viewLeave.approved_at || viewLeave.reviewed_at || viewLeave.updated_at).toLocaleDateString('en-GB', {day:'2-digit', month:'short', year:'numeric'}).replace(/ /g, '-') 
+                                              : '--')
+                                          : viewLeave.status === 'Rejected'
+                                          ? (viewLeave.rejected_at || viewLeave.reviewed_at || viewLeave.updated_at 
+                                              ? new Date(viewLeave.rejected_at || viewLeave.reviewed_at || viewLeave.updated_at).toLocaleDateString('en-GB', {day:'2-digit', month:'short', year:'numeric'}).replace(/ /g, '-') 
+                                              : '--')
+                                          : '--'}
+                                  </strong>
+                              </div>
                           </div>
-                      </div>
-                      <div className="col-md-3">
-                          <div className="p-3 rounded" style={{ border: '1px solid #eaeaea' }}>
-                              <small className="text-muted d-block mb-1" style={{ fontSize: '13px' }}>Supporting Document</small>
-                              {isEditMode ? (
-                                  <div>
+                      )}
+                      <div className={isEditMode ? "col-md-6" : "col-md-3"}>
+                          <div className="p-3 rounded h-100 d-flex flex-column justify-content-between" style={{ border: '1px solid #eaeaea', backgroundColor: '#ffffff' }}>
+                              <div>
+                                  <div className="d-flex align-items-center justify-content-between mb-1">
+                                      <small className="text-muted" style={{ fontSize: '13px' }}>Supporting Document</small>
+                                      {isEditMode && <span className="text-muted" style={{ fontSize: '11px' }}>Max 500 KB</span>}
+                                  </div>
+                                  {isEditMode ? (
                                       <input
                                           type="file"
-                                          className="form-control form-control-sm border-0 px-0 shadow-none"
+                                          className="form-control form-control-sm"
+                                          style={{ fontSize: '12px' }}
                                           onChange={e => {
                                             const file = e.target.files && e.target.files[0] ? e.target.files[0] : null;
                                             if (file && file.size > 500 * 1024) {
@@ -1570,51 +1622,59 @@ export default function Leaves({ currentUser, employeeProfile, embedded = false 
                                             setEditDocFile(file);
                                           }}
                                       />
+                                  ) : null}
+                              </div>
+                              {isEditMode ? (
+                                  <div>
                                       {viewLeave.document_url && !editDocFile && (
-                                          <button 
-                                              type="button"
-                                              onClick={() => handleOpenLeaveDocument(viewLeave.id, viewLeave.document_url, viewLeave.document_name)}
-                                              className="btn btn-link text-primary text-truncate d-inline-flex align-items-center gap-1 mt-1 p-0 text-decoration-none" 
-                                              style={{ fontSize: '11px', maxWidth: '200px', cursor: 'pointer' }} 
-                                              title={viewLeave.document_name || 'View current document in new window'}
-                                          >
-                                              <i className="bi bi-box-arrow-up-right"></i> Current: {viewLeave.document_name || 'Document'}
-                                          </button>
+                                          <div className="mt-2 pt-1 border-top d-flex align-items-center justify-content-between">
+                                              <span className="text-muted small text-truncate" style={{ fontSize: '11px', maxWidth: '170px' }}>
+                                                  <i className="bi bi-paperclip me-1"></i>Current: {viewLeave.document_name || 'Document'}
+                                              </span>
+                                              <button 
+                                                  type="button"
+                                                  onClick={() => handleOpenLeaveDocument(viewLeave.id, viewLeave.document_url, viewLeave.document_name)}
+                                                  className="btn btn-sm btn-link text-primary p-0 text-decoration-none" 
+                                                  style={{ fontSize: '11px', fontWeight: 600 }} 
+                                              >
+                                                  <i className="bi bi-box-arrow-up-right me-1"></i>View Current
+                                              </button>
+                                          </div>
                                       )}
                                       {editDocFile && (
-                                          <div className="mt-1 d-flex align-items-center justify-content-between p-1 px-2 rounded bg-light border">
-                                              <span className="small text-truncate" style={{ fontSize: '11px', maxWidth: '120px' }}>
-                                                  {editDocFile.name}
+                                          <div className="mt-2 d-flex align-items-center justify-content-between p-1 px-2 rounded bg-light border">
+                                              <span className="small text-truncate" style={{ fontSize: '11px', maxWidth: '180px' }}>
+                                                  <i className="bi bi-file-earmark-check text-success me-1"></i>{editDocFile.name}
                                               </span>
                                               <button
                                                   type="button"
-                                                  className="btn btn-sm btn-outline-primary py-0 px-1"
+                                                  className="btn btn-sm btn-outline-primary py-0 px-2"
                                                   style={{ fontSize: '10px' }}
                                                   onClick={() => {
                                                       const blobUrl = URL.createObjectURL(editDocFile);
                                                       window.open(blobUrl, '_blank', 'noopener,noreferrer');
                                                   }}
                                               >
-                                                  <i className="bi bi-box-arrow-up-right"></i> View
+                                                  Preview
                                               </button>
                                           </div>
                                       )}
                                   </div>
                               ) : (
                                   viewLeave.document_url ? (
-                                      <div className="d-flex align-items-center gap-1 mt-1">
+                                      <div className="mt-2">
                                           <button 
                                               type="button"
                                               onClick={() => handleOpenLeaveDocument(viewLeave.id, viewLeave.document_url, viewLeave.document_name)}
-                                              className="btn btn-sm btn-outline-primary d-inline-flex align-items-center gap-1 py-1 px-2" 
-                                              style={{ fontSize: '12px', borderRadius: '6px' }}
+                                              className="btn btn-sm btn-outline-primary d-inline-flex align-items-center justify-content-center gap-1 w-100" 
+                                              style={{ fontSize: '12px', borderRadius: '6px', height: '32px' }} 
                                               title="Open document in new window"
                                           >
-                                              <i className="bi bi-box-arrow-up-right"></i> View Document in New Window
+                                              <i className="bi bi-box-arrow-up-right"></i> View Document
                                           </button>
                                       </div>
                                   ) : (
-                                      <strong className="d-block text-muted">Not Required</strong>
+                                      <strong className="d-block text-muted mt-2">Not Required</strong>
                                   )
                               )}
                           </div>
@@ -1630,11 +1690,32 @@ export default function Leaves({ currentUser, employeeProfile, embedded = false 
                               )}
                           </div>
                       </div>
+
+                      {viewLeave.status === 'Rejected' && (
+                          <div className="col-12">
+                              <div className="p-3 rounded" style={{ border: '1px solid #fecaca', backgroundColor: '#fef2f2' }}>
+                                  <small className="text-danger d-block mb-1 fw-bold" style={{ fontSize: '13px' }}>
+                                      <i className="bi bi-x-circle me-1"></i> Rejected Reason
+                                  </small>
+                                  <strong className="d-block text-danger" style={{ fontWeight: 600 }}>
+                                      {viewLeave.rejection_reason || viewLeave.admin_remarks || 'No rejection reason specified.'}
+                                  </strong>
+                              </div>
+                          </div>
+                      )}
       
                       <div className="col-12">
                           <div className="p-3 rounded" style={{ border: '1px solid #eaeaea' }}>
-                              <small className="text-muted d-block mb-1" style={{ fontSize: '13px' }}>Comments</small>
-                              <strong className="d-block text-dark">{viewLeave.status === 'Approved' ? 'Approved by reporting manager.' : (viewLeave.status === 'Rejected' ? 'Rejected by manager.' : 'Waiting for manager approval.')}</strong>
+                              <small className="text-muted d-block mb-1" style={{ fontSize: '13px' }}>
+                                  {viewLeave.status === 'Approved' ? 'Approval Comments / Remarks' : (viewLeave.status === 'Rejected' ? 'Review Remarks' : 'Comments')}
+                              </small>
+                              <strong className="d-block text-dark">
+                                  {viewLeave.status === 'Approved' 
+                                      ? (viewLeave.admin_remarks || 'Approved by reporting manager.') 
+                                      : (viewLeave.status === 'Rejected' 
+                                          ? (viewLeave.admin_remarks || viewLeave.rejection_reason || 'Rejected by manager.') 
+                                          : 'Waiting for manager approval.')}
+                              </strong>
                           </div>
                       </div>
                   </div>

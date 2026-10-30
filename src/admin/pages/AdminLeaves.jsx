@@ -421,7 +421,8 @@ export default function AdminLeaves({
                   <th className="px-5 py-3.5">Dates & Duration</th>
                   <th className="px-5 py-3.5">Reason</th>
                   <th className="px-5 py-3.5">Status</th>
-                  <th className="px-5 py-3.5">Approval Remark</th>
+                  <th className="px-5 py-3.5">Reviewed By & Date</th>
+                  <th className="px-5 py-3.5">Remark / Reason</th>
                   <th className="px-5 py-3.5 text-right">Recorded Date</th>
                 </tr>
               </thead>
@@ -486,14 +487,42 @@ export default function AdminLeaves({
                         </span>
                       </td>
 
-                      <td className="px-5 py-3.5">
-                        {isAutoApproved ? (
+                      <td className="px-5 py-3.5 text-xs">
+                        {(leave.status || '').toLowerCase() === 'approved' ? (
+                          <div>
+                            <span className="font-semibold text-emerald-700 dark:text-emerald-400">
+                              {leave.approved_by_name || 'Admin User'}
+                            </span>
+                            <div className="text-[11px] text-gray-500">
+                              {leave.approved_at || leave.reviewed_at || leave.updated_at ? new Date(leave.approved_at || leave.reviewed_at || leave.updated_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}
+                            </div>
+                          </div>
+                        ) : (leave.status || '').toLowerCase() === 'rejected' ? (
+                          <div>
+                            <span className="font-semibold text-rose-700 dark:text-rose-400">
+                              {leave.rejected_by_name || 'Admin User'}
+                            </span>
+                            <div className="text-[11px] text-rose-500">
+                              {leave.rejected_at || leave.reviewed_at || leave.updated_at ? new Date(leave.rejected_at || leave.reviewed_at || leave.updated_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}
+                            </div>
+                          </div>
+                        ) : (
+                          <span className="text-gray-400">Pending</span>
+                        )}
+                      </td>
+
+                      <td className="px-5 py-3.5 text-xs">
+                        {(leave.status || '').toLowerCase() === 'rejected' ? (
+                          <span className="text-rose-600 font-medium">
+                            {leave.rejection_reason || leave.admin_remarks || '—'}
+                          </span>
+                        ) : isAutoApproved ? (
                           <span className="inline-flex items-center gap-1 font-mono text-xs font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded dark:bg-emerald-900/30 dark:text-emerald-300">
                             <CheckCircleIcon className="w-3.5 h-3.5" />
                             Admin: auto Approved
                           </span>
                         ) : (
-                          <span className="text-xs text-gray-500">{leave.admin_remarks || '—'}</span>
+                          <span className="text-gray-600 dark:text-gray-300">{leave.admin_remarks || '—'}</span>
                         )}
                       </td>
 

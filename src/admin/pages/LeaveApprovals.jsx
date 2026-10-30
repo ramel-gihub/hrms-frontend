@@ -244,12 +244,33 @@ export default function LeaveApprovals({
 
                   {st !== 'pending' && (
                     <div className="pt-2 border-t border-blue-100 dark:border-blue-900/40 text-center">
-                      <span className="text-xs font-semibold text-gray-500 dark:text-gray-400">
-                        Reviewed & {leave.status}
-                        {leave.reviewed_at && ` on ${new Date(leave.reviewed_at).toLocaleDateString('en-GB')}`}
+                      <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">
+                        {st === 'approved' ? (
+                          <>
+                            <span className="text-emerald-600 font-bold">Approved</span>
+                            {leave.approved_by_name && ` by ${leave.approved_by_name}`}
+                            {(leave.approved_at || leave.reviewed_at) && ` on ${new Date(leave.approved_at || leave.reviewed_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}`}
+                          </>
+                        ) : st === 'rejected' ? (
+                          <>
+                            <span className="text-rose-600 font-bold">Rejected</span>
+                            {leave.rejected_by_name && ` by ${leave.rejected_by_name}`}
+                            {(leave.rejected_at || leave.reviewed_at) && ` on ${new Date(leave.rejected_at || leave.reviewed_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}`}
+                          </>
+                        ) : (
+                          `Reviewed & ${leave.status}`
+                        )}
                       </span>
-                      {leave.admin_remarks && (
-                        <p className="text-[11px] text-gray-400 italic mt-0.5">"{leave.admin_remarks}"</p>
+                      {st === 'rejected' ? (
+                        (leave.rejection_reason || leave.admin_remarks) && (
+                          <p className="text-[11px] text-rose-600 font-medium italic mt-1">
+                            Reason: "{leave.rejection_reason || leave.admin_remarks}"
+                          </p>
+                        )
+                      ) : (
+                        leave.admin_remarks && (
+                          <p className="text-[11px] text-gray-500 italic mt-0.5">"{leave.admin_remarks}"</p>
+                        )
                       )}
                     </div>
                   )}

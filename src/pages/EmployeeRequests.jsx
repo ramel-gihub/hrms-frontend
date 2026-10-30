@@ -78,6 +78,17 @@ const quickActions = [
   }
 ];
 
+const formatActionDate = (value) => {
+  if (!value) return null;
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return String(value);
+  return parsed.toLocaleDateString("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric"
+  });
+};
+
 const statusClass = (status) => {
   if (status === "In Review") return "review";
   if (status === "Settled") return "completed";
@@ -116,6 +127,23 @@ const categoryStyle = (category) => {
     return { color: "green", icon: "bi-briefcase" };
   }
   return { color: "pink", icon: "bi-chat-square-text" };
+};
+
+const formatDateDMY = (dateStr) => {
+  if (!dateStr) return '--';
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return dateStr;
+  const day = String(d.getDate()).padStart(2, '0');
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const year = d.getFullYear();
+  return `${day}-${month}-${year}`;
+};
+
+const formatDays = (val, fallback = 0) => {
+  if (val === undefined || val === null || val === '') return fallback;
+  const num = Number(val);
+  if (isNaN(num)) return val;
+  return num % 1 === 0 ? String(Math.round(num)) : String(parseFloat(num.toFixed(2)));
 };
 
 const emptyForm = {
@@ -208,10 +236,12 @@ export default function EmployeeRequests({ employeeProfile, currentUser }) {
   }, []);
   const [page, setPage] = useState(1);
   const requestModalRef = useRef(null);
+  const [editingRequest, setEditingRequest] = useState(null);
   const [selectedRequest, setSelectedRequest] = useState(null);
   const [showContactPanel, setShowContactPanel] = useState(false);
   const [showContactSuccess, setShowContactSuccess] = useState(false);
   const [form, setForm] = useState(emptyForm);
+  const [fieldErrors, setFieldErrors] = useState({});
   const [attachment, setAttachment] = useState(null);
   const [fileError, setFileError] = useState("");
   const [contactForm, setContactForm] = useState({ subject: "", message: "" });
@@ -220,6 +250,76 @@ export default function EmployeeRequests({ employeeProfile, currentUser }) {
   const [deletingRequest, setDeletingRequest] = useState(false);
   const [updatingPriorityId, setUpdatingPriorityId] = useState(null);
   const pageSize = 5;
+
+  const clearFieldError = (fieldName) => {
+    setFieldErrors((prev) => {
+      if (!prev[fieldName]) return prev;
+      const copy = { ...prev };
+      delete copy[fieldName];
+      return copy;
+    });
+  };
+
+  const validateRequestForm = () => {
+    const errors = {};
+    if (!form.category) {
+      errors.category = "Please select a request category.";
+    }
+    if (!form.subject || !form.subject.trim()) {
+      errors.subject = "Please enter a request subject.";
+    }
+    if (form.category === "Asset Request") {
+      if (!form.assetType) {
+        errors.assetType = "Please select an asset type.";
+      }
+    }
+    if (form.category === "Leave Request") {
+      if (!form.leaveTypeId) {
+        errors.leaveTypeId = "Please select a leave type.";
+      }
+      if (!form.approverId) {
+        errors.approverId = "Please select an approver.";
+      }
+      if (!form.startDate) {
+        errors.startDate = "Please select a start date.";
+      }
+      if (!form.isHalfDay) {
+        if (!form.endDate) {
+          errors.endDate = "Please select an end date.";
+        } else if (form.startDate && form.endDate && form.endDate < form.startDate) {
+          errors.endDate = "To date cannot be earlier than from date.";
+        }
+      }
+    }
+    if (form.category === "Work From Home (WFH)") {
+      if (!form.startDate) {
+        errors.startDate = "Please select a start date.";
+      }
+      if (!form.endDate) {
+        errors.endDate = "Please select an end date.";
+      } else if (form.startDate && form.endDate && form.endDate < form.startDate) {
+        errors.endDate = "To date cannot be earlier than from date.";
+      }
+    }
+    if (form.category === "Expenses & Claims") {
+      if (!form.expenseCategory) {
+        errors.expenseCategory = "Please select an expense category.";
+      }
+      if (!form.claimAmount || Number(form.claimAmount) <= 0) {
+        errors.claimAmount = "Please enter a valid claim amount.";
+      }
+      if (!form.merchantName || !form.merchantName.trim()) {
+        errors.merchantName = "Please enter the merchant/vendor name.";
+      }
+      if (!form.expenseDate) {
+        errors.expenseDate = "Please select the expense date.";
+      }
+    }
+    if (!form.description || !form.description.trim()) {
+      errors.description = "Please provide request details.";
+    }
+    return errors;
+  };
 
   const handleUpdatePriority = async (request, newPriority = "High") => {
     if (!request || !userId || updatingPriorityId) return;
@@ -444,7 +544,42 @@ export default function EmployeeRequests({ employeeProfile, currentUser }) {
   }, [requests]);
 
   const openRequestModal = (category = "") => {
+    setEditingRequest(null);
     setForm({ ...emptyForm, category: requestCategories.includes(category) ? category : "" });
+    setAttachment(null);
+    setFileError("");
+    setFormError("");
+    if (requestModalRef.current) {
+      window.bootstrap.Modal.getOrCreateInstance(requestModalRef.current).show();
+    }
+  };
+
+  const openEditModal = (req) => {
+    setEditingRequest(req);
+    setForm({
+      ...emptyForm,
+      category: req.category || "",
+      subject: req.subject || "",
+      priority: req.priority || "Normal",
+      response: req.response || req.preferred_response || "Email",
+      description: req.description || "",
+      assetType: req.asset_type || "",
+      preferredModel: req.preferred_model || "",
+      dateNeeded: req.date_needed || "",
+      workLocation: req.work_location || "",
+      additionalRequirements: req.additional_requirements || "",
+      leaveTypeId: req.leave_type_id || "",
+      approverId: req.approver_id || "",
+      startDate: req.start_date || "",
+      endDate: req.end_date || "",
+      isHalfDay: req.is_half_day || false,
+      halfDayPeriod: req.half_day_period || "First Half",
+      expenseCategory: req.expense_category || "Travel & Cab",
+      claimAmount: req.claim_amount || "",
+      merchantName: req.merchant_name || "",
+      expenseDate: req.expense_date || new Date().toISOString().split("T")[0],
+      wfhContact: req.wfh_contact || ""
+    });
     setAttachment(null);
     setFileError("");
     setFormError("");
@@ -457,9 +592,11 @@ export default function EmployeeRequests({ employeeProfile, currentUser }) {
     if (requestModalRef.current) {
       window.bootstrap.Modal.getInstance(requestModalRef.current)?.hide();
     }
+    setEditingRequest(null);
     setAttachment(null);
     setFileError("");
     setFormError("");
+    setFieldErrors({});
   };
 
   const submitEmployeeRequest = async (payload) => {
@@ -502,10 +639,47 @@ export default function EmployeeRequests({ employeeProfile, currentUser }) {
 
   const handleCreate = async (event) => {
     event.preventDefault();
-    if (!form.category || !form.subject.trim() || !form.description.trim()) {
-      setFormError("Complete all required fields before submitting.");
+    const errors = validateRequestForm();
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors);
+      setFormError("Please fill out all mandatory fields highlighted below.");
+      const firstField = Object.keys(errors)[0];
+      const el = document.getElementById(`request-${firstField}`) || document.getElementById(`wfh-${firstField}`);
+      if (el) el.focus();
       return;
     }
+    setFieldErrors({});
+    if (editingRequest) {
+      try {
+        setSubmitting(true);
+        setFormError("");
+        const res = await fetch(`${API_BASE}/api/employee-requests/${userId}/${editingRequest.id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            subject: form.subject.trim(),
+            description: form.description.trim(),
+            priority: form.priority,
+            preferredResponse: form.response
+          })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Failed to update request");
+        setToast({
+          type: "success",
+          title: "Request Updated",
+          message: "Your request has been updated successfully."
+        });
+        closeRequestModal();
+        await loadRequests();
+      } catch (err) {
+        setFormError(err.message || "Failed to update request.");
+      } finally {
+        setSubmitting(false);
+      }
+      return;
+    }
+
     setSubmitting(true);
     setFormError("");
     try {
@@ -806,7 +980,25 @@ export default function EmployeeRequests({ employeeProfile, currentUser }) {
                               <span><i className="bi bi-tag" aria-hidden="true"></i>{request.category}</span>
                               <span><i className="bi bi-calendar3" aria-hidden="true"></i>{request.date}</span>
                               <span><i className="bi bi-clock" aria-hidden="true"></i>{request.submitted}</span>
+                              {(request.status === "Approved" || request.status === "Completed") && (request.approved_at || request.reviewed_at) && (
+                                <span style={{ color: "#16a34a", fontWeight: 600 }}>
+                                  <i className="bi bi-check-circle-fill text-success" aria-hidden="true"></i>
+                                  Approved: {formatActionDate(request.approved_at || request.reviewed_at)} {request.approved_by_name ? `by ${request.approved_by_name}` : ""}
+                                </span>
+                              )}
+                              {request.status === "Rejected" && (
+                                <span style={{ color: "#dc2626", fontWeight: 600 }}>
+                                  <i className="bi bi-x-circle-fill text-danger" aria-hidden="true"></i>
+                                  Rejected: {formatActionDate(request.rejected_at || request.reviewed_at)} {request.rejected_by_name ? `by ${request.rejected_by_name}` : ""}
+                                </span>
+                              )}
                             </div>
+                            {request.status === "Rejected" && (request.rejection_reason || request.admin_remarks) && (
+                              <div style={{ marginTop: "6px", fontSize: "0.82rem", color: "#b91c1c", background: "#fef2f2", padding: "6px 12px", borderRadius: "8px", border: "1px solid #fecaca", display: "flex", alignItems: "center", gap: "6px" }}>
+                                <i className="bi bi-info-circle-fill" aria-hidden="true"></i>
+                                <span><strong>Rejection Reason:</strong> {request.rejection_reason || request.admin_remarks}</span>
+                              </div>
+                            )}
                           </div>
                           <div className="request-item-actions">
                             {String(request.priority || "").trim().toLowerCase() === "high" && (
@@ -866,6 +1058,24 @@ export default function EmployeeRequests({ employeeProfile, currentUser }) {
                               >
                                 <i className="bi bi-trash" aria-hidden="true"></i>
                                 Delete
+                              </button>
+                            )}
+                            {request.status === "Pending" && (
+                              <button
+                                className="request-view-btn"
+                                style={{
+                                  backgroundColor: "#f5f3ff",
+                                  color: "#6366f1",
+                                  border: "1px solid #ddd6fe",
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  gap: "6px"
+                                }}
+                                type="button"
+                                onClick={() => openEditModal(request)}
+                              >
+                                <i className="bi bi-pencil" aria-hidden="true"></i>
+                                Edit
                               </button>
                             )}
                             <button
@@ -1012,7 +1222,7 @@ export default function EmployeeRequests({ employeeProfile, currentUser }) {
           <section className="modal-content request-modal">
             <header className="request-modal-header">
               <div>
-                <h2 id="raise-request-title">Raise a Request</h2>
+                <h2 id="raise-request-title">{editingRequest ? "Edit Request" : "Raise a Request"}</h2>
                 <p>Provide the required information and submit your request.</p>
               </div>
               <button
@@ -1024,44 +1234,63 @@ export default function EmployeeRequests({ employeeProfile, currentUser }) {
                 <i className="bi bi-x-lg" aria-hidden="true"></i>
               </button>
             </header>
-            <form className="request-modal-form" onSubmit={handleCreate}>
+            <form className="request-modal-form" noValidate onSubmit={handleCreate}>
               <div className="request-modal-body">
                 <div className="request-form-grid">
                   <div className="request-form-group full">
-                    <label htmlFor="request-category">Request Category</label>
+                    <label htmlFor="request-category">Request Category <span className="text-danger">*</span></label>
                     <select
                       id="request-category"
                       value={form.category}
-                      onChange={(event) => setForm({ ...form, category: event.target.value })}
-                      required
+                      style={{ borderColor: fieldErrors.category ? '#dc2626' : undefined }}
+                      onChange={(event) => {
+                        setForm({ ...form, category: event.target.value });
+                        clearFieldError("category");
+                      }}
                     >
                       <option value="">Select request category</option>
                       {requestCategories.map((category) => (
                         <option key={category} value={category}>{category}</option>
                       ))}
                     </select>
+                    {fieldErrors.category && (
+                      <span className="text-danger small mt-1 d-block" style={{ fontSize: '12px', color: '#dc2626' }}>
+                        {fieldErrors.category}
+                      </span>
+                    )}
                   </div>
                   <div className="request-form-group full">
-                    <label htmlFor="request-subject">Request Subject</label>
+                    <label htmlFor="request-subject">Request Subject <span className="text-danger">*</span></label>
                     <input
                       id="request-subject"
                       type="text"
                       maxLength={120}
                       placeholder="Enter a short subject for your request"
                       value={form.subject}
-                      onChange={(event) => setForm({ ...form, subject: event.target.value })}
-                      required
+                      style={{ borderColor: fieldErrors.subject ? '#dc2626' : undefined }}
+                      onChange={(event) => {
+                        setForm({ ...form, subject: event.target.value });
+                        clearFieldError("subject");
+                      }}
                     />
+                    {fieldErrors.subject && (
+                      <span className="text-danger small mt-1 d-block" style={{ fontSize: '12px', color: '#dc2626' }}>
+                        {fieldErrors.subject}
+                      </span>
+                    )}
                   </div>
                   {form.category === "Asset Request" && (
                     <>
                       <div className="request-form-group">
-                        <label htmlFor="request-asset-type">Asset Type</label>
+                        <label htmlFor="request-asset-type">Asset Type <span className="text-danger">*</span></label>
                         <select
                           id="request-asset-type"
                           value={form.assetType}
-                          onChange={(event) => setForm({ ...form, assetType: event.target.value })}
-                          required
+                          style={{ borderColor: fieldErrors.assetType ? '#dc2626' : undefined }}
+                          onChange={(event) => {
+                            setForm({ ...form, assetType: event.target.value });
+                            clearFieldError("assetType");
+                          }}
                         >
                           <option value="">Select asset type</option>
                           <option value="laptop">Laptop</option>
@@ -1074,6 +1303,11 @@ export default function EmployeeRequests({ employeeProfile, currentUser }) {
                           <option value="security-token">Security Token</option>
                           <option value="other">Other Equipment</option>
                         </select>
+                        {fieldErrors.assetType && (
+                          <span className="text-danger small mt-1 d-block" style={{ fontSize: '12px', color: '#dc2626' }}>
+                            {fieldErrors.assetType}
+                          </span>
+                        )}
                       </div>
                       <div className="request-form-group">
                         <label htmlFor="request-date-needed">Date Needed</label>
@@ -1130,26 +1364,37 @@ export default function EmployeeRequests({ employeeProfile, currentUser }) {
                   {form.category === "Leave Request" && (
                     <>
                       <div className="request-form-group">
-                        <label htmlFor="request-leave-type">Leave Type</label>
+                        <label htmlFor="request-leave-type">Leave Type <span className="text-danger">*</span></label>
                         <select
                           id="request-leave-type"
                           value={form.leaveTypeId}
-                          onChange={(event) => setForm({ ...form, leaveTypeId: event.target.value })}
-                          required
+                          style={{ borderColor: fieldErrors.leaveTypeId ? '#dc2626' : undefined }}
+                          onChange={(event) => {
+                            setForm({ ...form, leaveTypeId: event.target.value });
+                            clearFieldError("leaveTypeId");
+                          }}
                         >
                           <option value="">Select leave type</option>
                           {leaveTypes.map((leaveType) => (
                             <option key={leaveType.id} value={leaveType.id}>{leaveType.name}</option>
                           ))}
                         </select>
+                        {fieldErrors.leaveTypeId && (
+                          <span className="text-danger small mt-1 d-block" style={{ fontSize: '12px', color: '#dc2626' }}>
+                            {fieldErrors.leaveTypeId}
+                          </span>
+                        )}
                       </div>
                       <div className="request-form-group">
-                        <label htmlFor="request-approver">Approver</label>
+                        <label htmlFor="request-approver">Approver <span className="text-danger">*</span></label>
                         <select
                           id="request-approver"
                           value={form.approverId}
-                          onChange={(event) => setForm({ ...form, approverId: event.target.value })}
-                          required
+                          style={{ borderColor: fieldErrors.approverId ? '#dc2626' : undefined }}
+                          onChange={(event) => {
+                            setForm({ ...form, approverId: event.target.value });
+                            clearFieldError("approverId");
+                          }}
                         >
                           <option value="">Select approver</option>
                           {approvers.map((approver) => (
@@ -1159,6 +1404,11 @@ export default function EmployeeRequests({ employeeProfile, currentUser }) {
                             </option>
                           ))}
                         </select>
+                        {fieldErrors.approverId && (
+                          <span className="text-danger small mt-1 d-block" style={{ fontSize: '12px', color: '#dc2626' }}>
+                            {fieldErrors.approverId}
+                          </span>
+                        )}
                       </div>
                       <div className="request-form-group full">
                         <div className="d-flex align-items-center justify-content-between p-2 rounded-2" style={{ background: '#f8fafc', border: '1px solid #e2e8f0' }}>
@@ -1206,11 +1456,12 @@ export default function EmployeeRequests({ employeeProfile, currentUser }) {
                         </div>
                       </div>
                       <div className="request-form-group">
-                        <label htmlFor="request-start-date">{form.isHalfDay ? "Date" : "From Date"}</label>
+                        <label htmlFor="request-start-date">{form.isHalfDay ? "Date" : "From Date"} <span className="text-danger">*</span></label>
                         <input
                           id="request-start-date"
                           type="date"
                           value={form.startDate}
+                          style={{ cursor: "pointer", borderColor: fieldErrors.startDate ? '#dc2626' : undefined }}
                           onChange={(event) => {
                             const val = event.target.value;
                             setForm(prev => ({
@@ -1218,6 +1469,7 @@ export default function EmployeeRequests({ employeeProfile, currentUser }) {
                               startDate: val,
                               ...(prev.isHalfDay ? { endDate: val } : {})
                             }));
+                            clearFieldError("startDate");
                           }}
                           onClick={(e) => {
                             try { e.currentTarget.showPicker(); } catch (_) {}
@@ -1225,28 +1477,38 @@ export default function EmployeeRequests({ employeeProfile, currentUser }) {
                           onFocus={(e) => {
                             try { e.currentTarget.showPicker(); } catch (_) {}
                           }}
-                          style={{ cursor: "pointer" }}
-                          required
                         />
+                        {fieldErrors.startDate && (
+                          <span className="text-danger small mt-1 d-block" style={{ fontSize: '12px', color: '#dc2626' }}>
+                            {fieldErrors.startDate}
+                          </span>
+                        )}
                       </div>
                       {!form.isHalfDay ? (
                         <div className="request-form-group">
-                          <label htmlFor="request-end-date">To Date</label>
+                          <label htmlFor="request-end-date">To Date <span className="text-danger">*</span></label>
                           <input
                             id="request-end-date"
                             type="date"
                             min={form.startDate || undefined}
                             value={form.endDate}
-                            onChange={(event) => setForm({ ...form, endDate: event.target.value })}
+                            style={{ cursor: "pointer", borderColor: fieldErrors.endDate ? '#dc2626' : undefined }}
+                            onChange={(event) => {
+                              setForm({ ...form, endDate: event.target.value });
+                              clearFieldError("endDate");
+                            }}
                             onClick={(e) => {
                               try { e.currentTarget.showPicker(); } catch (_) {}
                             }}
                             onFocus={(e) => {
                               try { e.currentTarget.showPicker(); } catch (_) {}
                             }}
-                            style={{ cursor: "pointer" }}
-                            required
                           />
+                          {fieldErrors.endDate && (
+                            <span className="text-danger small mt-1 d-block" style={{ fontSize: '12px', color: '#dc2626' }}>
+                              {fieldErrors.endDate}
+                            </span>
+                          )}
                         </div>
                       ) : (
                         <div className="request-form-group">
@@ -1254,7 +1516,7 @@ export default function EmployeeRequests({ employeeProfile, currentUser }) {
                           <input
                             type="text"
                             readOnly
-                            value={`0.50 Day · ${form.halfDayPeriod === 'Second Half' ? '2nd Half' : '1st Half'}`}
+                            value={`0.5 Day · ${form.halfDayPeriod === 'Second Half' ? '2nd Half' : '1st Half'}`}
                             style={{ backgroundColor: '#f8fafc', fontWeight: '500', color: '#4338ca' }}
                           />
                         </div>
@@ -1269,6 +1531,7 @@ export default function EmployeeRequests({ employeeProfile, currentUser }) {
                           id="wfh-start-date"
                           type="date"
                           value={form.startDate}
+                          style={{ cursor: "pointer", borderColor: fieldErrors.startDate ? '#dc2626' : undefined }}
                           onChange={(e) => {
                             const val = e.target.value;
                             setForm(prev => ({
@@ -1276,6 +1539,7 @@ export default function EmployeeRequests({ employeeProfile, currentUser }) {
                               startDate: val,
                               endDate: prev.endDate && prev.endDate >= val ? prev.endDate : val
                             }));
+                            clearFieldError("startDate");
                           }}
                           onClick={(e) => {
                             try { e.currentTarget.showPicker(); } catch (_) {}
@@ -1283,9 +1547,12 @@ export default function EmployeeRequests({ employeeProfile, currentUser }) {
                           onFocus={(e) => {
                             try { e.currentTarget.showPicker(); } catch (_) {}
                           }}
-                          style={{ cursor: "pointer" }}
-                          required
                         />
+                        {fieldErrors.startDate && (
+                          <span className="text-danger small mt-1 d-block" style={{ fontSize: '12px', color: '#dc2626' }}>
+                            {fieldErrors.startDate}
+                          </span>
+                        )}
                       </div>
                       <div className="request-form-group">
                         <label htmlFor="wfh-end-date">To Date <span className="text-danger">*</span></label>
@@ -1294,16 +1561,23 @@ export default function EmployeeRequests({ employeeProfile, currentUser }) {
                           type="date"
                           min={form.startDate || undefined}
                           value={form.endDate || form.startDate}
-                          onChange={(e) => setForm({ ...form, endDate: e.target.value })}
+                          style={{ cursor: "pointer", borderColor: fieldErrors.endDate ? '#dc2626' : undefined }}
+                          onChange={(e) => {
+                            setForm({ ...form, endDate: e.target.value });
+                            clearFieldError("endDate");
+                          }}
                           onClick={(e) => {
                             try { e.currentTarget.showPicker(); } catch (_) {}
                           }}
                           onFocus={(e) => {
                             try { e.currentTarget.showPicker(); } catch (_) {}
                           }}
-                          style={{ cursor: "pointer" }}
-                          required
                         />
+                        {fieldErrors.endDate && (
+                          <span className="text-danger small mt-1 d-block" style={{ fontSize: '12px', color: '#dc2626' }}>
+                            {fieldErrors.endDate}
+                          </span>
+                        )}
                       </div>
                       <div className="request-form-group">
                         <label htmlFor="wfh-days-display">Total WFH Days</label>
@@ -1334,12 +1608,15 @@ export default function EmployeeRequests({ employeeProfile, currentUser }) {
                   {form.category === "Expenses & Claims" && (
                     <>
                       <div className="request-form-group">
-                        <label htmlFor="request-expense-category">Expense Category</label>
+                        <label htmlFor="request-expense-category">Expense Category <span className="text-danger">*</span></label>
                         <select
                           id="request-expense-category"
                           value={form.expenseCategory || "Travel & Cab"}
-                          onChange={(event) => setForm({ ...form, expenseCategory: event.target.value })}
-                          required
+                          style={{ borderColor: fieldErrors.expenseCategory ? '#dc2626' : undefined }}
+                          onChange={(event) => {
+                            setForm({ ...form, expenseCategory: event.target.value });
+                            clearFieldError("expenseCategory");
+                          }}
                         >
                           <option value="Travel & Cab">Travel & Cab</option>
                           <option value="Food & Meals">Food & Meals</option>
@@ -1347,9 +1624,14 @@ export default function EmployeeRequests({ employeeProfile, currentUser }) {
                           <option value="Office Supplies">Office Supplies</option>
                           <option value="Certification Fees">Certification Fees</option>
                         </select>
+                        {fieldErrors.expenseCategory && (
+                          <span className="text-danger small mt-1 d-block" style={{ fontSize: '12px', color: '#dc2626' }}>
+                            {fieldErrors.expenseCategory}
+                          </span>
+                        )}
                       </div>
                       <div className="request-form-group">
-                        <label htmlFor="request-claim-amount">Claim Amount (₹)</label>
+                        <label htmlFor="request-claim-amount">Claim Amount (₹) <span className="text-danger">*</span></label>
                         <input
                           id="request-claim-amount"
                           type="number"
@@ -1357,38 +1639,61 @@ export default function EmployeeRequests({ employeeProfile, currentUser }) {
                           min="0.01"
                           placeholder="e.g. 1500.00"
                           value={form.claimAmount || ""}
-                          onChange={(event) => setForm({ ...form, claimAmount: event.target.value })}
-                          required
+                          style={{ borderColor: fieldErrors.claimAmount ? '#dc2626' : undefined }}
+                          onChange={(event) => {
+                            setForm({ ...form, claimAmount: event.target.value });
+                            clearFieldError("claimAmount");
+                          }}
                         />
+                        {fieldErrors.claimAmount && (
+                          <span className="text-danger small mt-1 d-block" style={{ fontSize: '12px', color: '#dc2626' }}>
+                            {fieldErrors.claimAmount}
+                          </span>
+                        )}
                       </div>
                       <div className="request-form-group">
-                        <label htmlFor="request-merchant-name">Merchant / Vendor Name</label>
+                        <label htmlFor="request-merchant-name">Merchant / Vendor Name <span className="text-danger">*</span></label>
                         <input
                           id="request-merchant-name"
                           type="text"
                           placeholder="e.g. Uber, Airtel, Crossword"
                           value={form.merchantName || ""}
-                          onChange={(event) => setForm({ ...form, merchantName: event.target.value })}
-                          required
+                          style={{ borderColor: fieldErrors.merchantName ? '#dc2626' : undefined }}
+                          onChange={(event) => {
+                            setForm({ ...form, merchantName: event.target.value });
+                            clearFieldError("merchantName");
+                          }}
                         />
+                        {fieldErrors.merchantName && (
+                          <span className="text-danger small mt-1 d-block" style={{ fontSize: '12px', color: '#dc2626' }}>
+                            {fieldErrors.merchantName}
+                          </span>
+                        )}
                       </div>
                       <div className="request-form-group">
-                        <label htmlFor="request-expense-date">Expense Date</label>
+                        <label htmlFor="request-expense-date">Expense Date <span className="text-danger">*</span></label>
                         <input
                           id="request-expense-date"
                           type="date"
                           max={new Date().toISOString().split("T")[0]}
                           value={form.expenseDate || ""}
-                          onChange={(event) => setForm({ ...form, expenseDate: event.target.value })}
+                          style={{ cursor: "pointer", borderColor: fieldErrors.expenseDate ? '#dc2626' : undefined }}
+                          onChange={(event) => {
+                            setForm({ ...form, expenseDate: event.target.value });
+                            clearFieldError("expenseDate");
+                          }}
                           onClick={(e) => {
                             try { e.currentTarget.showPicker(); } catch (_) {}
                           }}
                           onFocus={(e) => {
                             try { e.currentTarget.showPicker(); } catch (_) {}
                           }}
-                          style={{ cursor: "pointer" }}
-                          required
                         />
+                        {fieldErrors.expenseDate && (
+                          <span className="text-danger small mt-1 d-block" style={{ fontSize: '12px', color: '#dc2626' }}>
+                            {fieldErrors.expenseDate}
+                          </span>
+                        )}
                       </div>
                     </>
                   )}
@@ -1417,16 +1722,24 @@ export default function EmployeeRequests({ employeeProfile, currentUser }) {
                     </select>
                   </div>
                   <div className="request-form-group full">
-                    <label htmlFor="request-description">Request Details</label>
+                    <label htmlFor="request-description">Request Details <span className="text-danger">*</span></label>
                     <textarea
                       id="request-description"
                       rows="5"
                       maxLength={2000}
                       placeholder="Explain your request clearly..."
                       value={form.description}
-                      onChange={(event) => setForm({ ...form, description: event.target.value })}
-                      required
+                      style={{ borderColor: fieldErrors.description ? '#dc2626' : undefined }}
+                      onChange={(event) => {
+                        setForm({ ...form, description: event.target.value });
+                        clearFieldError("description");
+                      }}
                     ></textarea>
+                    {fieldErrors.description && (
+                      <span className="text-danger small mt-1 d-block" style={{ fontSize: '12px', color: '#dc2626' }}>
+                        {fieldErrors.description}
+                      </span>
+                    )}
                   </div>
                   <div className="request-form-group full">
                     <span className="request-upload-label">Attachment</span>
@@ -1452,7 +1765,7 @@ export default function EmployeeRequests({ employeeProfile, currentUser }) {
                 </button>
                 <button className="requests-primary-btn" type="submit" disabled={submitting}>
                   <i className="bi bi-send" aria-hidden="true"></i>
-                  {submitting ? "Submitting..." : "Submit Request"}
+                  {submitting ? "Saving..." : editingRequest ? "Save Changes" : "Submit Request"}
                 </button>
               </footer>
             </form>
@@ -1511,7 +1824,15 @@ export default function EmployeeRequests({ employeeProfile, currentUser }) {
                     <span className="timeline-dot"><i className={`bi ${statusIcon(selectedRequest.status)}`} aria-hidden="true"></i></span>
                     <div>
                       <strong>{selectedRequest.status === "Pending" ? "Waiting for Manager Review" : selectedRequest.status}</strong>
-                      <span>{selectedRequest.status === "Pending" ? "Awaiting review" : selectedRequest.assignedTo}</span>
+                      <span>
+                        {selectedRequest.status === "Pending"
+                          ? "Awaiting review"
+                          : selectedRequest.status === "Approved"
+                            ? `Approved by ${selectedRequest.approved_by_name || selectedRequest.reviewer_name || selectedRequest.assignedTo || "Manager"}`
+                            : selectedRequest.status === "Rejected"
+                              ? `Rejected by ${selectedRequest.rejected_by_name || selectedRequest.reviewer_name || selectedRequest.assignedTo || "Manager"}`
+                              : selectedRequest.assignedTo}
+                      </span>
                     </div>
                   </div>
                   <div className={`request-detail-timeline-item ${["Approved", "Completed"].includes(selectedRequest.status) ? "completed" : ""}`}>
@@ -1532,11 +1853,54 @@ export default function EmployeeRequests({ employeeProfile, currentUser }) {
                   <div><span>Priority</span><strong>{selectedRequest.priority}</strong></div>
                   <div><span>Assigned To</span><strong>{selectedRequest.assignedTo}</strong></div>
                   <div><span>Preferred Response</span><strong>{selectedRequest.response}</strong></div>
+                  {(selectedRequest.status === "Approved" || selectedRequest.status === "Completed") && (
+                    <>
+                      <div>
+                        <span>Approved Date</span>
+                        <strong style={{ color: "#16a34a" }}>
+                          {formatActionDate(selectedRequest.approved_at || selectedRequest.reviewed_at || selectedRequest.updated_at) || "--"}
+                        </strong>
+                      </div>
+                      <div>
+                        <span>Approved By</span>
+                        <strong>{selectedRequest.approved_by_name || selectedRequest.reviewer_name || "Admin User"}</strong>
+                      </div>
+                    </>
+                  )}
+                  {selectedRequest.status === "Rejected" && (
+                    <>
+                      <div>
+                        <span>Rejected Date</span>
+                        <strong style={{ color: "#dc2626" }}>
+                          {formatActionDate(selectedRequest.rejected_at || selectedRequest.reviewed_at || selectedRequest.updated_at) || "--"}
+                        </strong>
+                      </div>
+                      <div>
+                        <span>Rejected By</span>
+                        <strong>{selectedRequest.rejected_by_name || selectedRequest.reviewer_name || "Admin User"}</strong>
+                      </div>
+                    </>
+                  )}
                   {selectedRequest.leave_type && (
                     <>
                       <div><span>Leave Type</span><strong>{selectedRequest.leave_type}</strong></div>
-                      <div><span>Leave Dates</span><strong>{selectedRequest.start_date}{selectedRequest.is_half_day ? "" : ` – ${selectedRequest.end_date}`}</strong></div>
-                      <div><span>Days Requested</span><strong>{selectedRequest.is_half_day ? `0.50 Day (${selectedRequest.half_day_period === 'Second Half' ? '2nd Half' : '1st Half'})` : `${selectedRequest.days_requested} Day(s)`}</strong></div>
+                      <div>
+                        <span>Leave Dates</span>
+                        <strong>
+                          {formatDateDMY(selectedRequest.start_date)}
+                          {selectedRequest.is_half_day || !selectedRequest.end_date || selectedRequest.start_date === selectedRequest.end_date
+                            ? ""
+                            : ` – ${formatDateDMY(selectedRequest.end_date)}`}
+                        </strong>
+                      </div>
+                      <div>
+                        <span>Days Requested</span>
+                        <strong>
+                          {selectedRequest.is_half_day
+                            ? `0.5 Day (${selectedRequest.half_day_period === 'Second Half' ? '2nd Half' : '1st Half'})`
+                            : `${formatDays(selectedRequest.days_requested)} Day(s)`}
+                        </strong>
+                      </div>
                     </>
                   )}
                   {(selectedRequest.category === "Work From Home (WFH)" || selectedRequest.wfh_start_date) && (
@@ -1612,7 +1976,16 @@ export default function EmployeeRequests({ employeeProfile, currentUser }) {
                     </>
                   )}
                 </div>
-                {selectedRequest.admin_remarks && (
+                {selectedRequest.status === "Rejected" && (selectedRequest.rejection_reason || selectedRequest.admin_remarks) && (
+                  <div className="alert alert-danger mt-3 d-flex align-items-start gap-2" style={{ borderRadius: "8px", fontSize: "0.9rem", border: "1px solid #fca5a5", background: "#fef2f2", color: "#991b1b" }}>
+                    <i className="bi bi-exclamation-octagon-fill fs-5 mt-n1 text-danger"></i>
+                    <div>
+                      <strong style={{ display: "block", marginBottom: "4px" }}>Rejection Reason:</strong>
+                      <span>{selectedRequest.rejection_reason || selectedRequest.admin_remarks}</span>
+                    </div>
+                  </div>
+                )}
+                {selectedRequest.admin_remarks && selectedRequest.status !== "Rejected" && (
                   <div className="request-description-box mt-3">
                     <strong>Reviewer notes:</strong> {selectedRequest.admin_remarks}
                   </div>
@@ -1671,6 +2044,21 @@ export default function EmployeeRequests({ employeeProfile, currentUser }) {
                   </button>
                 )}
               </div>
+              {selectedRequest.status === "Pending" && (
+                <button
+                  className="requests-primary-btn"
+                  style={{ backgroundColor: "#4f46e5", borderColor: "#4f46e5", display: "inline-flex", alignItems: "center", gap: "6px" }}
+                  type="button"
+                  onClick={() => {
+                    const req = selectedRequest;
+                    setSelectedRequest(null);
+                    openEditModal(req);
+                  }}
+                >
+                  <i className="bi bi-pencil" aria-hidden="true"></i>
+                  Edit Request
+                </button>
+              )}
               <button className="requests-secondary-btn" type="button" onClick={() => setSelectedRequest(null)}>
                 Close
               </button>

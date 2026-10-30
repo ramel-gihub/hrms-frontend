@@ -185,9 +185,36 @@ export default function EmployeeRequestApprovals({
                     </button>
                   </div>
                 ) : (
-                  <span className="text-xs font-semibold text-gray-500">
-                    Reviewed ({req.status})
-                  </span>
+                  <div className="text-right">
+                    <span className="text-xs font-semibold text-gray-700 dark:text-gray-300 block">
+                      {st === 'approved' || st === 'completed' ? (
+                        <>
+                          <span className="text-emerald-600 font-bold">Approved</span>
+                          {req.approved_by_name && ` by ${req.approved_by_name}`}
+                          {(req.approved_at || req.reviewed_at) && ` on ${new Date(req.approved_at || req.reviewed_at).toLocaleDateString('en-GB')}`}
+                        </>
+                      ) : st === 'rejected' ? (
+                        <>
+                          <span className="text-rose-600 font-bold">Rejected</span>
+                          {req.rejected_by_name && ` by ${req.rejected_by_name}`}
+                          {(req.rejected_at || req.reviewed_at) && ` on ${new Date(req.rejected_at || req.reviewed_at).toLocaleDateString('en-GB')}`}
+                        </>
+                      ) : (
+                        `Reviewed (${req.status})`
+                      )}
+                    </span>
+                    {st === 'rejected' ? (
+                      (req.rejection_reason || req.admin_remarks) && (
+                        <p className="text-[11px] text-rose-600 font-medium italic mt-0.5">
+                          Reason: "{req.rejection_reason || req.admin_remarks}"
+                        </p>
+                      )
+                    ) : (
+                      req.admin_remarks && (
+                        <p className="text-[11px] text-gray-500 italic mt-0.5">"{req.admin_remarks}"</p>
+                      )
+                    )}
+                  </div>
                 )}
               </div>
             </div>

@@ -69,6 +69,11 @@ export default function AdminSidebar({
       badgeColor: "bg-rose-500 text-white font-bold"
     },
     { id: "holidays", label: "Public Holidays", icon: <CalendarIcon className="w-5 h-5 text-emerald-400" /> },
+    { 
+      id: "announcements", 
+      label: "Announcements", 
+      icon: <i className="bi bi-megaphone-fill w-5 h-5 text-indigo-400 text-lg flex items-center justify-center" /> 
+    },
     /* { id: "calendar", label: "Calendar", icon: <CalendarIcon className="w-5 h-5" /> }, */
     /* 
     { id: "analytics", label: "Analytics & Reports", icon: <PieChartIcon className="w-5 h-5" /> }, 

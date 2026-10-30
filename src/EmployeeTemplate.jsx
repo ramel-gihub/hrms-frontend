@@ -17,6 +17,72 @@ import Expenses from "./pages/Expenses";
 import MyTeam from "./pages/MyTeam";
 import HRAssistant from "./components/HRAssistant";
 import EmptyState from "./components/EmptyState";
+import TeamChatModal from "./components/TeamChatModal";
+import Announcements from "./pages/Announcements";
+
+const SEARCH_DIRECTORY = [
+  // Dashboard & Overview
+  { id: "dashboard", label: "Employee Dashboard", category: "Dashboard", description: "Workspace overview, daily punch and workday progress", icon: "bi-grid", page: "index", keywords: ["dashboard", "home", "overview", "workday", "check in", "check out", "punch"] },
+
+  // Leaves
+  { id: "leaves-main", label: "Leaves & Time Off", category: "Leaves", description: "View leave balances, submit new requests, and history", icon: "bi-calendar-plus", page: "leaves", keywords: ["leave", "leaves", "time off", "vacation", "holiday", "absent"] },
+  { id: "apply-leave", label: "Apply Leave", category: "Leaves", description: "Request annual, sick, or casual leave", icon: "bi-calendar-plus", page: "leaves", keywords: ["apply leave", "request leave", "vacation request", "sick leave", "annual leave", "casual leave"] },
+  { id: "leave-history", label: "Leave History & Requests", category: "Leaves", description: "Track pending, approved, and rejected leave requests", icon: "bi-clock-history", page: "leaves", keywords: ["leave history", "past leaves", "leave status", "cancelled leaves"] },
+  { id: "leave-policy", label: "Leave Policy", category: "Leaves", description: "View annual allowance, carry forward, and company guidelines", icon: "bi-file-text", page: "leaves", action: "open_policy", keywords: ["policy", "leave policy", "carry forward", "rules", "sick policy", "annual policy"] },
+
+  // Attendance
+  { id: "attendance-main", label: "Attendance & Log", category: "Attendance", description: "Check your daily punch records, hours, and logs", icon: "bi-calendar-check", page: "attendance", keywords: ["attendance", "punch", "punch in", "punch out", "checkin", "checkout", "hours", "timesheet"] },
+  { id: "attendance-history", label: "Attendance History", category: "Attendance", description: "Monthly and weekly attendance logs and timings", icon: "bi-journal-check", page: "attendance", keywords: ["attendance history", "monthly log", "work hours", "overtime", "presence"] },
+
+  // Employee Requests & WFH
+  { id: "requests-main", label: "Employee Requests", category: "Requests", description: "Raise HR requests, track tickets, and inquiries", icon: "bi-send", page: "employee-requests", keywords: ["request", "requests", "helpdesk", "tickets", "hr request"] },
+  { id: "wfh-request", label: "Work From Home (WFH)", category: "Requests", description: "Submit remote work / work from home requests", icon: "bi-house-door", page: "employee-requests", keywords: ["wfh", "work from home", "remote", "telecommute", "home work"] },
+  { id: "contact-hr", label: "Contact HR / Help", category: "Requests", description: "Get in touch with HR department for assistance", icon: "bi-headset", page: "employee-requests", keywords: ["contact hr", "help", "support", "hr inquiry", "hr email"] },
+  { id: "asset-request", label: "Request Equipment / Asset", category: "Requests", description: "Request laptops, monitors, accessories, or tokens", icon: "bi-laptop", page: "employee-requests", keywords: ["request asset", "request laptop", "equipment", "hardware", "mouse", "monitor"] },
+
+  // Profile & Personal Information
+  { id: "profile-main", label: "Employee Profile", category: "Profile", description: "View your full profile and job summary", icon: "bi-person-vcard", page: "employee-profile", keywords: ["profile", "my profile", "bio", "employee code", "designation", "avatar"] },
+  { id: "commute-travel", label: "Commute & Travel", category: "Profile", description: "View daily commute details, travel records, and export", icon: "bi-bus-front", page: "employee-profile", keywords: ["commute", "travel", "transport", "vehicle", "bus", "train", "cab"] },
+  { id: "personal-info", label: "Personal Information", category: "Profile", description: "Date of birth, nationality, marital status, gender", icon: "bi-person", page: "settings", keywords: ["personal info", "dob", "birth date", "gender", "marital status", "preferred name"] },
+  { id: "contact-info", label: "Contact Information", category: "Profile", description: "Phone numbers, residential address, and email", icon: "bi-telephone", page: "settings", keywords: ["contact info", "phone", "mobile", "address", "city", "emergency phone"] },
+  { id: "emergency-contact", label: "Emergency Contacts", category: "Profile", description: "Primary and secondary emergency contacts", icon: "bi-person-hearts", page: "settings", keywords: ["emergency", "emergency contact", "next of kin", "kin"] },
+  { id: "bank-details", label: "Bank & Salary Details", category: "Profile", description: "Bank account number, IFSC code, and branch details", icon: "bi-bank", page: "settings", keywords: ["bank", "salary account", "ifsc", "account number", "payroll account"] },
+  { id: "identity-info", label: "Identity & Tax Information", category: "Profile", description: "PAN card, Aadhaar, Passport, or government IDs", icon: "bi-fingerprint", page: "settings", keywords: ["identity", "pan", "aadhaar", "national id", "passport"] },
+
+  // Employment Details
+  { id: "employment-details", label: "Employment Details", category: "Employment", description: "Department, team, reporting manager, and joining date", icon: "bi-briefcase", page: "employement-details", keywords: ["employment details", "department", "team", "manager", "joining date", "work mode", "shift"] },
+
+  // Documents
+  { id: "documents-main", label: "My Documents", category: "Documents", description: "Browse, view, and download uploaded employee files", icon: "bi-folder2-open", page: "documents", keywords: ["documents", "files", "pdf", "uploads", "contracts"] },
+  { id: "upload-document", label: "Upload New Document", category: "Documents", description: "Upload identity, academic, or employment documents", icon: "bi-cloud-arrow-up", page: "documents", keywords: ["upload document", "add document", "submit file", "id proof"] },
+
+  // Skills & Certifications
+  { id: "skills-main", label: "Skills & Certifications", category: "Skills", description: "View technical skills, proficiencies, and certificates", icon: "bi-award", page: "skills-certifications", keywords: ["skills", "certifications", "qualifications", "credentials", "badges"] },
+  { id: "add-cert", label: "Add Certification", category: "Skills", description: "Register a new certificate with credential ID and expiry", icon: "bi-plus-circle", page: "skills-certifications", keywords: ["add certification", "new certificate", "add skill", "verify cert"] },
+
+  // Assets
+  { id: "assets-main", label: "My Assigned Assets", category: "Assets", description: "View company equipment, serial numbers, and status", icon: "bi-laptop", page: "assets", keywords: ["assets", "equipment", "hardware", "assigned devices", "laptop serial"] },
+
+  // Calendar
+  { id: "calendar-main", label: "Company Calendar & Holidays", category: "Calendar", description: "Upcoming public holidays, events, and company schedule", icon: "bi-calendar-date", page: "calendar", keywords: ["calendar", "holidays", "events", "public holidays", "festival days", "schedule"] },
+
+  // Notifications
+  { id: "notifications-main", label: "Notifications & Alerts", category: "System", description: "View announcements, approvals, and reminders", icon: "bi-bell", page: "notifications", keywords: ["notifications", "alerts", "messages", "reminders", "inbox"] },
+
+  // Settings & Security
+  { id: "settings-main", label: "Account Settings", category: "Settings", description: "Manage application preferences, password, and security", icon: "bi-gear", page: "settings", keywords: ["settings", "preferences", "account"] },
+  { id: "account-security", label: "Account & Security", category: "Settings", description: "Change password, setup security questions, session management", icon: "bi-shield-lock", page: "settings", keywords: ["security", "password", "change password", "security questions", "authentication"] },
+  { id: "preferences", label: "Display & Notifications Preferences", category: "Settings", description: "Email notifications, language, theme preferences", icon: "bi-sliders", page: "settings", keywords: ["preferences", "theme", "notification settings", "email alerts"] },
+
+  // Exit Management
+  { id: "exit-main", label: "Resignation & Exit Management", category: "Exit", description: "Submit resignation, handover tasks, and exit clearance", icon: "bi-box-arrow-right", page: "exit-management", keywords: ["exit", "resignation", "resign", "notice period", "clearance", "offboarding"] },
+
+  // Accounts
+  { id: "accounts-main", label: "Access & Accounts", category: "Accounts", description: "Work email, SSO credentials, and system access", icon: "bi-shield-lock", page: "access-accounts", keywords: ["accounts", "access", "login", "credentials", "sso"] },
+
+  // HR Announcements
+  { id: "announcements-main", label: "HR Announcements", category: "HR Management", description: "Create and broadcast company, project, or employee announcements", icon: "bi-megaphone", page: "announcements", keywords: ["announcement", "announcements", "broadcast", "news", "notice", "hr"] }
+];
 
 const SHORTCUT_CONFIG = {
   "dashboard": { id: "dashboard", label: "Employee Dashboard", description: "Your workspace overview", icon: "bi-grid", color: "blue", page: "index" },
@@ -48,6 +114,57 @@ export default function EmployeeTemplate({
   const [unreadNotificationCount, setUnreadNotificationCount] = useState(0);
   const [dynamicPolicies, setDynamicPolicies] = useState([]);
   const [isPolicyModalOpen, setIsPolicyModalOpen] = useState(false);
+  const [isAnnouncementModalOpen, setIsAnnouncementModalOpen] = useState(false);
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [headerSearchQuery, setHeaderSearchQuery] = useState("");
+  const [showCheckOutConfirm, setShowCheckOutConfirm] = useState(false);
+  const [toastNotification, setToastNotification] = useState(null);
+
+  useEffect(() => {
+    if (!toastNotification) return;
+    const timer = setTimeout(() => {
+      setToastNotification(null);
+    }, 4500);
+    return () => clearTimeout(timer);
+  }, [toastNotification]);
+
+  const handleCheckInWithToast = async () => {
+    try {
+      const ok = await handleCheckIn();
+      if (ok !== false) {
+        const nowStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        setToastNotification({
+          type: "success",
+          title: "Checked In Successfully",
+          message: `Welcome! Your check-in at ${nowStr} has been confirmed.`,
+          icon: "bi-box-arrow-in-right"
+        });
+      }
+    } catch (_) {}
+  };
+
+  const handleConfirmCheckOut = async () => {
+    setShowCheckOutConfirm(false);
+    try {
+      const ok = await handleCheckOut();
+      if (ok !== false) {
+        const nowStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        setToastNotification({
+          type: "success",
+          title: "Checked Out Successfully",
+          message: `Your check-out punch at ${nowStr} has been recorded.`,
+          icon: "bi-box-arrow-right"
+        });
+      }
+    } catch (_) {}
+  };
+
+  const formatDays = (val, fallback = 0) => {
+    if (val === undefined || val === null || val === '') return fallback;
+    const num = Number(val);
+    if (isNaN(num)) return val;
+    return num % 1 === 0 ? String(Math.round(num)) : String(parseFloat(num.toFixed(2)));
+  };
   const [pushToast, setPushToast] = useState(null);
   const [headerNotifOpen, setHeaderNotifOpen] = useState(false);
   const headerNotifRef = useRef(null);
@@ -187,8 +304,71 @@ export default function EmployeeTemplate({
   const [todayWorkMode, setTodayWorkMode] = useState(employeeProfile?.work_mode || '');
   const [selectedShortcutIds, setSelectedShortcutIds] = useState([]);
   const [shortcutsLoading, setShortcutsLoading] = useState(true);
+  const [sentWishes, setSentWishes] = useState({});
+  const [sendingWishId, setSendingWishId] = useState(null);
+  const [latestAnnouncement, setLatestAnnouncement] = useState(null);
 
   const API_BASE = import.meta.env.VITE_API_URL || "https://hrms-backend-5xo8.onrender.com";
+
+  const isHR = useMemo(() => {
+    const roleStr = (currentUser?.role || currentUser?.roleName || '').toLowerCase();
+    const desigStr = (employeeProfile?.designation || '').toLowerCase();
+    const deptStr = (employeeProfile?.department || '').toLowerCase();
+    return roleStr.includes('hr') || desigStr.includes('hr') || deptStr.includes('human resources') || deptStr.includes('hr');
+  }, [currentUser, employeeProfile]);
+
+  useEffect(() => {
+    const orgId = currentUser?.tenant?.id || employeeProfile?.organization_id || 1;
+    const uid = currentUser?.id;
+    const eid = employeeProfile?.id || employeeProfile?.employee_id;
+    fetch(`${API_BASE}/api/announcements?orgId=${orgId}&userId=${uid || ''}&employeeId=${eid || ''}`)
+      .then(res => res.json())
+      .then(data => {
+        if (data && data.success && Array.isArray(data.announcements) && data.announcements.length > 0) {
+          setLatestAnnouncement(data.announcements[0]);
+        } else {
+          setLatestAnnouncement(null);
+        }
+      })
+      .catch(() => setLatestAnnouncement(null));
+  }, [currentUser?.id, employeeProfile?.id, employeeProfile?.employee_id]);
+
+  const handleSendWish = async (celebration, type) => {
+    if (!celebration || !currentUser?.id) return;
+    const wishKey = `${type}-${celebration.id || celebration.userId || celebration.name}`;
+    if (sentWishes[wishKey] || sendingWishId === wishKey) return;
+
+    setSendingWishId(wishKey);
+    try {
+      const res = await fetch(`${API_BASE}/api/celebrations/send-wishes`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          senderUserId: currentUser.id,
+          recipientEmployeeId: celebration.employeeId || celebration.id,
+          recipientUserId: celebration.userId,
+          type
+        })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setSentWishes(prev => ({ ...prev, [wishKey]: true }));
+        setPushToast({
+          id: Date.now(),
+          title: type === 'birthday' ? "🎂 Birthday Wishes Sent!" : "🌟 Work Anniversary Wishes Sent!",
+          message: data.message || `Your wishes have been sent to ${celebration.name}!`,
+          created_at: new Date().toISOString()
+        });
+      } else {
+        alert(data.message || data.error || "Failed to send wishes");
+      }
+    } catch (err) {
+      console.error("Error sending wish:", err);
+      alert("Failed to send wishes. Please try again.");
+    } finally {
+      setSendingWishId(null);
+    }
+  };
   const rawAvatar = employeeProfile?.profile_pic || employeeProfile?.avatar_url || "";
   const dynamicAvatarUrl = rawAvatar
     ? (/^(https?:\/\/|data:|blob:)/i.test(rawAvatar) ? rawAvatar : `${API_BASE}/${rawAvatar.replace(/^\/+/, "")}`)
@@ -400,6 +580,7 @@ export default function EmployeeTemplate({
   // DB-based project teams for employee
   const [myTeamData, setMyTeamData] = useState({ teams: [], currentEmployee: null });
   const [selectedDashboardProjectId, setSelectedDashboardProjectId] = useState('all');
+  const [activeChatUser, setActiveChatUser] = useState(null);
 
   useEffect(() => {
     const uid = currentUser?.id || employeeProfile?.user_id;
@@ -801,6 +982,13 @@ export default function EmployeeTemplate({
                   */}
 
                   <span className="menu-label" style={{ fontSize: '11px', fontWeight: 700, color: '#8a90a2', marginLeft: '22px', marginBottom: '8px', display: 'block', marginTop: '24px', letterSpacing: '0.5px' }}>COMMUNICATION</span>
+                  {isHR && (
+                    <span onClick={() => navigateTo("announcements")} className={`menu-item${activePage === "announcements" ? " active" : ""}`} style={{cursor:"pointer"}}>
+                        <i className="bi bi-megaphone-fill text-primary"></i>
+                        <span>Announcements</span>
+                        <span className="badge bg-primary text-white rounded-pill px-2 py-0 ms-auto" style={{ fontSize: '10px' }}>HR</span>
+                    </span>
+                  )}
                   <span onClick={() => navigateTo("calendar")} className={`menu-item${activePage === "calendar" ? " active" : ""}`} style={{cursor:"pointer"}}>
                       <i className="bi bi-calendar-date"></i>
                       <span>Calendar</span>
@@ -887,7 +1075,7 @@ export default function EmployeeTemplate({
                     <div className="d-flex align-items-center gap-3 header-actions">
 
 
-                        <button className="header-action">
+                        <button className="header-action" id="headerSearchBtn" type="button" onClick={() => { setIsSearchOpen(true); setHeaderSearchQuery(""); }} title="Quick Search">
                             <i className="bi bi-search"></i>
                         </button>
 
@@ -1263,9 +1451,27 @@ export default function EmployeeTemplate({
                                     </div>
 
                                     <div className="ed-attendance-actions">
-                                        <button type="button" className="ed-checkin-btn" id="edCheckInBtn" onClick={handleCheckIn} disabled={attendanceLoading || attendanceStatus === "Checked In" || attendanceStatus === "Checked Out"}><i className="bi bi-box-arrow-in-right"></i>{attendanceLoading && attendanceStatus !== "Checked In" ? "..." : "Check In"}</button>
+                                        <button 
+                                            type="button" 
+                                            className={`ed-checkin-btn ${attendanceStatus === 'Checked In' ? 'is-inactive' : 'is-active'}`} 
+                                            id="edCheckInBtn" 
+                                            onClick={handleCheckInWithToast} 
+                                            disabled={attendanceLoading || attendanceStatus === "Checked In"}
+                                        >
+                                            <i className="bi bi-box-arrow-in-right"></i>
+                                            {attendanceLoading && attendanceStatus !== "Checked In" ? "..." : "Check In"}
+                                        </button>
 
-                                        <button type="button" className="ed-checkout-btn" id="edCheckOutBtn" onClick={handleCheckOut} disabled={attendanceLoading || attendanceStatus !== "Checked In"}><i className="bi bi-box-arrow-right"></i>{attendanceLoading && attendanceStatus === "Checked In" ? "..." : "Check Out"}</button>
+                                        <button 
+                                            type="button" 
+                                            className={`ed-checkout-btn ${attendanceStatus === 'Checked In' ? 'is-active' : 'is-inactive'}`} 
+                                            id="edCheckOutBtn" 
+                                            onClick={() => setShowCheckOutConfirm(true)} 
+                                            disabled={attendanceLoading || attendanceStatus !== "Checked In"}
+                                        >
+                                            <i className="bi bi-box-arrow-right"></i>
+                                            {attendanceLoading && attendanceStatus === "Checked In" ? "..." : "Check Out"}
+                                        </button>
                                     </div>
 
                                     <div className="ed-attendance-footer">
@@ -1682,7 +1888,7 @@ export default function EmployeeTemplate({
             <span className="ed-card-kicker">CELEBRATIONS</span>
             <h3>Special days this Month</h3>
         </div>
-        <button className="ed-text-action" onClick={(e) => { e.preventDefault(); navigateTo("calendar"); }}>
+        <button className="ed-text-action" onClick={(e) => { e.preventDefault(); navigateTo("calendar", "wishes"); }}>
             View All
             <i className="bi bi-arrow-up-right"></i>
         </button>
@@ -1690,8 +1896,18 @@ export default function EmployeeTemplate({
     <div className="row g-4">
         <div className="col-md-6">
             <div className="ed-celebration-card">
-                <div className="ed-celebration-avatar">
-                    <img src="https://i.pravatar.cc/100?img=49" alt="Employee" />
+                <div className="ed-celebration-avatar" style={{ overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    {widgetsData.upcomingBirthday?.profilePic ? (
+                        <img 
+                            src={/^(https?:\/\/|data:|blob:)/i.test(widgetsData.upcomingBirthday.profilePic) ? widgetsData.upcomingBirthday.profilePic : `${API_BASE}/${widgetsData.upcomingBirthday.profilePic.replace(/^\/+/, '')}`} 
+                            alt={widgetsData.upcomingBirthday.name} 
+                            style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: "14px" }}
+                        />
+                    ) : (
+                        <div style={{ width: "100%", height: "100%", borderRadius: "14px", background: "#fff1f7", color: "#e8679d", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: "bold", fontSize: "16px" }}>
+                            {widgetsData.upcomingBirthday ? (widgetsData.upcomingBirthday.name?.charAt(0) || "🎂") : <i className="bi bi-balloon-heart"></i>}
+                        </div>
+                    )}
                 </div>
                 <div className="ed-celebration-content">
                     <span className="ed-celebration-type">
@@ -1708,17 +1924,59 @@ export default function EmployeeTemplate({
                                     : new Date(widgetsData.upcomingBirthday.date).toLocaleDateString('en-GB', {day: 'numeric', month: 'long'})
                         ) : "--"}
                     </small>
-                    {/* <button disabled={!widgetsData.upcomingBirthday}>
-                        <i className="bi bi-send"></i>
-                        Send wishes
-                    </button> */}
+                    {widgetsData.upcomingBirthday && (
+                        <button 
+                            type="button"
+                            disabled={
+                                sentWishes[`birthday-${widgetsData.upcomingBirthday.id || widgetsData.upcomingBirthday.userId || widgetsData.upcomingBirthday.name}`] || 
+                                sendingWishId === `birthday-${widgetsData.upcomingBirthday.id || widgetsData.upcomingBirthday.userId || widgetsData.upcomingBirthday.name}` ||
+                                (currentUser?.id && widgetsData.upcomingBirthday.userId && Number(currentUser.id) === Number(widgetsData.upcomingBirthday.userId))
+                            }
+                            onClick={() => handleSendWish(widgetsData.upcomingBirthday, 'birthday')}
+                            style={{
+                                cursor: (sentWishes[`birthday-${widgetsData.upcomingBirthday.id || widgetsData.upcomingBirthday.userId || widgetsData.upcomingBirthday.name}`] || (currentUser?.id && widgetsData.upcomingBirthday.userId && Number(currentUser.id) === Number(widgetsData.upcomingBirthday.userId))) ? "default" : "pointer"
+                            }}
+                        >
+                            {sendingWishId === `birthday-${widgetsData.upcomingBirthday.id || widgetsData.upcomingBirthday.userId || widgetsData.upcomingBirthday.name}` ? (
+                                <>
+                                    <span className="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true" style={{ width: '12px', height: '12px' }}></span>
+                                    Sending...
+                                </>
+                            ) : sentWishes[`birthday-${widgetsData.upcomingBirthday.id || widgetsData.upcomingBirthday.userId || widgetsData.upcomingBirthday.name}`] ? (
+                                <>
+                                    <i className="bi bi-check2-circle text-success me-1"></i>
+                                    Wish Sent ✨
+                                </>
+                            ) : (currentUser?.id && widgetsData.upcomingBirthday.userId && Number(currentUser.id) === Number(widgetsData.upcomingBirthday.userId)) ? (
+                                <>
+                                    <i className="bi bi-stars me-1 text-warning"></i>
+                                    Your Birthday 🎉
+                                </>
+                            ) : (
+                                <>
+                                    <i className="bi bi-send me-1"></i>
+                                    Send wishes
+                                </>
+                            )}
+                        </button>
+                    )}
                 </div>
             </div>
         </div>
         <div className="col-md-6">
             <div className="ed-celebration-card">
-                <div className="ed-celebration-avatar ed-anniversary">
-                    <i className="bi bi-award"></i>
+                <div className="ed-celebration-avatar ed-anniversary" style={{ overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    {widgetsData.upcomingAnniversary?.profilePic ? (
+                        <img 
+                            src={/^(https?:\/\/|data:|blob:)/i.test(widgetsData.upcomingAnniversary.profilePic) ? widgetsData.upcomingAnniversary.profilePic : `${API_BASE}/${widgetsData.upcomingAnniversary.profilePic.replace(/^\/+/, '')}`} 
+                            alt={widgetsData.upcomingAnniversary.name} 
+                            style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: "14px" }}
+                        />
+                    ) : (
+                        <div style={{ width: "100%", height: "100%", borderRadius: "14px", background: "#eeecff", color: "#3c2fbc", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: "bold", fontSize: "16px" }}>
+                            {widgetsData.upcomingAnniversary ? (widgetsData.upcomingAnniversary.name?.charAt(0) || "🏆") : <i className="bi bi-award"></i>}
+                        </div>
+                    )}
                 </div>
                 <div className="ed-celebration-content">
                     <span className="ed-celebration-type">
@@ -1731,10 +1989,42 @@ export default function EmployeeTemplate({
                             `${new Date(widgetsData.upcomingAnniversary.date).toLocaleDateString('en-GB', {day: 'numeric', month: 'long'})} · ${widgetsData.upcomingAnniversary.years} Years`
                         ) : "--"}
                     </small>
-                    {/* <button disabled={!widgetsData.upcomingAnniversary}>
-                        <i className="bi bi-send"></i>
-                        Send wishes
-                    </button> */}
+                    {widgetsData.upcomingAnniversary && (
+                        <button 
+                            type="button"
+                            disabled={
+                                sentWishes[`anniversary-${widgetsData.upcomingAnniversary.id || widgetsData.upcomingAnniversary.userId || widgetsData.upcomingAnniversary.name}`] || 
+                                sendingWishId === `anniversary-${widgetsData.upcomingAnniversary.id || widgetsData.upcomingAnniversary.userId || widgetsData.upcomingAnniversary.name}` ||
+                                (currentUser?.id && widgetsData.upcomingAnniversary.userId && Number(currentUser.id) === Number(widgetsData.upcomingAnniversary.userId))
+                            }
+                            onClick={() => handleSendWish(widgetsData.upcomingAnniversary, 'anniversary')}
+                            style={{
+                                cursor: (sentWishes[`anniversary-${widgetsData.upcomingAnniversary.id || widgetsData.upcomingAnniversary.userId || widgetsData.upcomingAnniversary.name}`] || (currentUser?.id && widgetsData.upcomingAnniversary.userId && Number(currentUser.id) === Number(widgetsData.upcomingAnniversary.userId))) ? "default" : "pointer"
+                            }}
+                        >
+                            {sendingWishId === `anniversary-${widgetsData.upcomingAnniversary.id || widgetsData.upcomingAnniversary.userId || widgetsData.upcomingAnniversary.name}` ? (
+                                <>
+                                    <span className="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true" style={{ width: '12px', height: '12px' }}></span>
+                                    Sending...
+                                </>
+                            ) : sentWishes[`anniversary-${widgetsData.upcomingAnniversary.id || widgetsData.upcomingAnniversary.userId || widgetsData.upcomingAnniversary.name}`] ? (
+                                <>
+                                    <i className="bi bi-check2-circle text-success me-1"></i>
+                                    Wish Sent ✨
+                                </>
+                            ) : (currentUser?.id && widgetsData.upcomingAnniversary.userId && Number(currentUser.id) === Number(widgetsData.upcomingAnniversary.userId)) ? (
+                                <>
+                                    <i className="bi bi-stars me-1 text-warning"></i>
+                                    Your Anniversary 🌟
+                                </>
+                            ) : (
+                                <>
+                                    <i className="bi bi-send me-1"></i>
+                                    Send wishes
+                                </>
+                            )}
+                        </button>
+                    )}
                 </div>
             </div>
         </div>
@@ -1844,43 +2134,73 @@ export default function EmployeeTemplate({
 
                             
                             <div className="col-xl-5">
+                                {latestAnnouncement ? (
+                                    <div className="ed-announcement-panel">
+                                        <div className="ed-announcement-top">
+                                            <div className="ed-announcement-icon">
+                                                <i className="bi bi-megaphone-fill"></i>
+                                            </div>
 
-                                <div className="ed-announcement-panel">
-
-                                    <div className="ed-announcement-top">
-                                        <div className="ed-announcement-icon">
-                                            <i className="bi bi-megaphone-fill"></i>
+                                            <span>{latestAnnouncement.category ? latestAnnouncement.category.toUpperCase() : "HR ANNOUNCEMENT"}</span>
                                         </div>
 
-                                        <span>HR ANNOUNCEMENT</span>
+                                        <h3>{latestAnnouncement.title}</h3>
+
+                                        <p>
+                                            {latestAnnouncement.content && latestAnnouncement.content.length > 140 
+                                                ? `${latestAnnouncement.content.slice(0, 140)}...` 
+                                                : latestAnnouncement.content}
+                                        </p>
+
+                                        <div className="ed-announcement-meta">
+                                            <span>
+                                                <i className="bi bi-calendar3"></i>
+                                                {new Date(latestAnnouncement.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                                            </span>
+
+                                            <span>
+                                                <i className="bi bi-clock"></i>
+                                                {new Date(latestAnnouncement.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                            </span>
+                                        </div>
+
+                                        <button type="button" onClick={() => setIsAnnouncementModalOpen(true)}>
+                                            Read announcement
+                                            <i className="bi bi-arrow-up-right"></i>
+                                        </button>
                                     </div>
+                                ) : (
+                                    <div className="ed-panel h-100 d-flex flex-column" style={{ minHeight: "240px" }}>
+                                        <div className="ed-panel-header mb-1">
+                                            <div>
+                                                <span className="ed-card-kicker">ANNOUNCEMENTS</span>
+                                                <h3 style={{ fontSize: "1.25rem", fontWeight: 700, margin: "4px 0 0 0" }}>HR Announcements</h3>
+                                                <p style={{ margin: "4px 0 0", color: "#85889b", fontSize: "0.85rem" }}>
+                                                    Company and organization announcements.
+                                                </p>
+                                            </div>
+                                        </div>
 
-                                    <h3>Quarterly Town Hall</h3>
-
-                                    <p>
-                                        Join the upcoming employee town hall to hear company
-                                        updates, achievements and what's coming next.
-                                    </p>
-
-                                    <div className="ed-announcement-meta">
-                                        <span>
-                                            <i className="bi bi-calendar3"></i>
-                                            25 Sep 2026
-                                        </span>
-
-                                        <span>
-                                            <i className="bi bi-clock"></i>
-                                            4:00 PM
-                                        </span>
+                                        <div className="flex-grow-1 d-flex align-items-center justify-content-center">
+                                            <EmptyState
+                                                compact
+                                                emoji="📢"
+                                                title="No announcements yet"
+                                                message="There are currently no active company announcements."
+                                                action={isHR ? (
+                                                    <button
+                                                        type="button"
+                                                        className="btn btn-sm btn-primary rounded-pill px-3 py-1.5 fw-semibold d-inline-flex align-items-center gap-1 shadow-xs"
+                                                        onClick={() => navigateTo("announcements")}
+                                                        style={{ fontSize: "12px" }}
+                                                    >
+                                                        <i className="bi bi-plus-lg"></i> Post Announcement
+                                                    </button>
+                                                ) : null}
+                                            />
+                                        </div>
                                     </div>
-
-                                    <button>
-                                        Read announcement
-                                        <i className="bi bi-arrow-up-right"></i>
-                                    </button>
-
-                                </div>
-
+                                )}
                             </div>
 
                         </div>
@@ -1988,8 +2308,19 @@ export default function EmployeeTemplate({
                                                     <span>{member.designation || member.role_name || "Engineering"} {member.project_badge && member.project_badge !== 'No Team Mapped' ? `· ${member.project_badge}` : ''}</span>
                                                 </div>
 
-                                                <div className="ed-team-status">
+                                                <div className="ed-team-status d-flex align-items-center gap-2">
                                                     <span className="ed-status-present">{member.status || "Active"}</span>
+                                                    {!member.is_current_user && (
+                                                        <button
+                                                            type="button"
+                                                            className="btn btn-sm btn-outline-primary rounded-pill px-2.5 py-1 d-inline-flex align-items-center gap-1 shadow-xs"
+                                                            title={`Chat with ${member.full_name || member.email}`}
+                                                            onClick={() => setActiveChatUser(member)}
+                                                            style={{ fontSize: "11.5px", fontWeight: 600, whiteSpace: "nowrap" }}
+                                                        >
+                                                            <i className="bi bi-chat-dots-fill"></i> Chat
+                                                        </button>
+                                                    )}
                                                 </div>
                                             </div>
                                         ))}
@@ -2103,7 +2434,99 @@ export default function EmployeeTemplate({
                 
 
                 
-                {isPolicyModalOpen && (
+                <div className="ed-toast" id="edToast">
+
+                    <div className="ed-toast-icon">
+                        <i className="bi bi-check-lg"></i>
+                    </div>
+
+                    <div>
+                        <strong id="edToastTitle">Action completed</strong>
+                        <span id="edToastMessage">Your request was completed successfully.</span>
+                    </div>
+
+                    <button>
+                        <i className="bi bi-x"></i>
+                    </button>
+
+                </div>
+            </div>
+  </>
+)}
+{activePage === "employee-profile" && <EmployeeProfile currentUser={currentUser} employeeProfile={employeeProfile} onProfileUpdate={fetchEmployeeProfile} onNavigate={navigateTo} />}
+{activePage === "employement-details" && <EmploymentDetails employeeProfile={employeeProfile} currentUser={currentUser} onProfileUpdate={fetchEmployeeProfile} onNavigate={navigateTo} />}
+{activePage === "documents" && <Documents employeeProfile={employeeProfile} currentUser={currentUser} />}
+{activePage === "skills-certifications" && <SkillsCertifications employeeProfile={employeeProfile} currentUser={currentUser} />}
+{activePage === "attendance" && <Attendance currentUser={currentUser} employeeProfile={employeeProfile} onNavigate={navigateTo} />}
+{activePage === "leaves" && <Leaves currentUser={currentUser} employeeProfile={employeeProfile} />}
+{activePage === "expenses" && <Expenses currentUser={currentUser} employeeProfile={employeeProfile} onNavigate={navigateTo} />}
+{activePage === "assets" && <Assets employeeProfile={employeeProfile} currentUser={currentUser} />}
+{activePage === "access-accounts" && <AccessAccounts employeeProfile={employeeProfile} />}
+{activePage === "notifications" && <Notifications currentUser={currentUser} employeeProfile={employeeProfile} />}
+{activePage === "settings" && <Settings employeeProfile={employeeProfile} currentUser={currentUser} onProfileUpdate={fetchEmployeeProfile} onNavigate={navigateTo} />}
+{activePage === "exit-management" && <ExitManagement employeeProfile={employeeProfile} currentUser={currentUser} onNavigate={navigateTo} />}
+{activePage === "employee-requests" && <EmployeeRequests employeeProfile={employeeProfile} currentUser={currentUser} />}
+{activePage === "calendar" && <Calendar employeeProfile={employeeProfile} currentUser={currentUser} initialTab={calendarTab} />}
+{activePage === "announcements" && <Announcements currentUser={currentUser} employeeProfile={employeeProfile} />}
+
+        {/* Check-Out Confirmation Modal */}
+        {showCheckOutConfirm && (
+            <>
+            <div className="modal-backdrop fade show" style={{ zIndex: 9998, backgroundColor: "rgba(0,0,0,0.5)" }} onClick={() => setShowCheckOutConfirm(false)}></div>
+            <div className="modal fade show d-block" id="edCheckOutConfirmModal" tabIndex="-1" role="dialog" style={{ zIndex: 9999 }} onClick={(e) => { if (e.target === e.currentTarget) setShowCheckOutConfirm(false); }}>
+                <div className="modal-dialog modal-dialog-centered" style={{ maxWidth: "440px" }}>
+                    <div className="modal-content" style={{ borderRadius: "20px", border: "none", boxShadow: "0 20px 45px rgba(0,0,0,0.18)", backgroundColor: "#ffffff", padding: "12px" }}>
+                        <div className="modal-body text-center" style={{ padding: "24px 20px 16px 20px" }}>
+                            <div style={{ width: "56px", height: "56px", borderRadius: "18px", backgroundColor: "#fef2f2", color: "#ef4444", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: "26px", marginBottom: "16px" }}>
+                                <i className="bi bi-box-arrow-right"></i>
+                            </div>
+                            <h5 style={{ fontWeight: 700, fontSize: "18px", color: "#1e293b", marginBottom: "8px" }}>Confirm Check Out</h5>
+                            <p style={{ color: "#64748b", fontSize: "14px", lineHeight: "1.5", margin: 0 }}>
+                                Are you sure you want to Check Out for today? Your workday duration and punch details will be recorded.
+                            </p>
+                        </div>
+                        <div className="modal-footer d-flex justify-content-center gap-2" style={{ borderTop: "none", padding: "0 20px 16px 20px" }}>
+                            <button
+                                type="button"
+                                className="btn btn-light"
+                                style={{ borderRadius: "10px", padding: "9px 22px", fontWeight: 600, color: "#64748b", backgroundColor: "#f1f5f9", border: "none" }}
+                                onClick={() => setShowCheckOutConfirm(false)}
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                type="button"
+                                className="btn text-white"
+                                style={{ borderRadius: "10px", padding: "9px 24px", fontWeight: 600, backgroundColor: "#ef4444", border: "none" }}
+                                onClick={handleConfirmCheckOut}
+                                disabled={attendanceLoading}
+                            >
+                                {attendanceLoading ? "Checking Out..." : "Yes, Check Out"}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            </>
+        )}
+
+        {/* Global Pop-up Toaster */}
+        {toastNotification && (
+            <div className="ed-toast show" style={{ zIndex: 99999 }}>
+                <div className="ed-toast-icon" style={{ backgroundColor: toastNotification.type === 'danger' ? '#fef2f2' : '#eafaf4', color: toastNotification.type === 'danger' ? '#ef4444' : '#22b981' }}>
+                    <i className={`bi ${toastNotification.icon || 'bi-check-lg'}`}></i>
+                </div>
+                <div>
+                    <strong>{toastNotification.title}</strong>
+                    <span>{toastNotification.message}</span>
+                </div>
+                <button type="button" onClick={() => setToastNotification(null)}>
+                    <i className="bi bi-x"></i>
+                </button>
+            </div>
+        )}
+
+{isPolicyModalOpen && (
                     <>
                     <div className="modal-backdrop fade show" style={{ zIndex: 9998, backgroundColor: "rgba(0,0,0,0.5)" }} onClick={() => setIsPolicyModalOpen(false)}></div>
                     <div className="modal fade show d-block" id="edLeavePolicyModal" tabIndex="-1" role="dialog" style={{ zIndex: 9999 }} onClick={(e) => { if (e.target === e.currentTarget) setIsPolicyModalOpen(false); }}>
@@ -2131,7 +2554,7 @@ export default function EmployeeTemplate({
                                             <i className="bi bi-calendar-heart" style={{ fontSize: "22px", color: "#4f46e5", display: "inline-block" }}></i>
                                             <h6 style={{ fontWeight: 700, fontSize: "15px", color: "#1e293b", marginTop: "14px", marginBottom: "3px" }}>Annual Leave</h6>
                                             <span style={{ color: "#8a90a2", fontSize: "13.5px" }}>
-                                                {dynamicPolicies.find(p => /annual/i.test(p.name))?.default_days || 18} days per year
+                                                {formatDays(dynamicPolicies.find(p => /annual/i.test(p.name))?.default_days, 18)} days per year
                                             </span>
                                         </div>
 
@@ -2139,7 +2562,7 @@ export default function EmployeeTemplate({
                                             <i className="bi bi-heart-pulse" style={{ fontSize: "22px", color: "#4f46e5", display: "inline-block" }}></i>
                                             <h6 style={{ fontWeight: 700, fontSize: "15px", color: "#1e293b", marginTop: "14px", marginBottom: "3px" }}>Sick Leave</h6>
                                             <span style={{ color: "#8a90a2", fontSize: "13.5px" }}>
-                                                {dynamicPolicies.find(p => /sick/i.test(p.name))?.default_days || 10} days per year
+                                                {formatDays(dynamicPolicies.find(p => /sick/i.test(p.name))?.default_days, 10)} days per year
                                             </span>
                                         </div>
 
@@ -2195,39 +2618,183 @@ export default function EmployeeTemplate({
 
 
                 
-                <div className="ed-toast" id="edToast">
+                {/* HR Announcement Modal */}
+                {isAnnouncementModalOpen && (
+                    <>
+                    <div className="modal-backdrop fade show" style={{ zIndex: 9998, backgroundColor: "rgba(0,0,0,0.5)" }} onClick={() => setIsAnnouncementModalOpen(false)}></div>
+                    <div className="modal fade show d-block" id="edAnnouncementModal" tabIndex="-1" role="dialog" style={{ zIndex: 9999 }} onClick={(e) => { if (e.target === e.currentTarget) setIsAnnouncementModalOpen(false); }}>
+                        <div className="modal-dialog modal-dialog-centered" style={{ maxWidth: "620px" }}>
+                            <div className="modal-content" style={{ borderRadius: "20px", border: "none", boxShadow: "0 20px 45px rgba(0,0,0,0.12)", backgroundColor: "#ffffff", padding: "8px" }}>
+                                <div className="modal-header d-flex justify-content-between align-items-start" style={{ borderBottom: "none", padding: "20px 24px 10px 24px" }}>
+                                    <div>
+                                        <span style={{ color: "#4f46e5", fontSize: "11px", fontWeight: 700, letterSpacing: "0.8px", display: "block", marginBottom: "4px" }}>
+                                            {latestAnnouncement?.category ? latestAnnouncement.category.toUpperCase() : "COMPANY ANNOUNCEMENT"}
+                                        </span>
+                                        <h4 className="modal-title" style={{ fontWeight: 700, fontSize: "20px", color: "#1e293b", margin: 0 }}>
+                                            {latestAnnouncement?.title || "Quarterly Town Hall"}
+                                        </h4>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        className="btn-close"
+                                        style={{ fontSize: "12px", opacity: 0.7 }}
+                                        onClick={() => setIsAnnouncementModalOpen(false)}>
+                                    </button>
+                                </div>
 
-                    <div className="ed-toast-icon">
-                        <i className="bi bi-check-lg"></i>
+                                <div className="modal-body" style={{ padding: "10px 24px 20px 24px" }}>
+                                    <div style={{ display: "flex", gap: "16px", marginBottom: "18px", padding: "12px 16px", backgroundColor: "#f8fafc", borderRadius: "12px", border: "1px solid #edf2f7", flexWrap: "wrap" }}>
+                                        <div style={{ display: "flex", alignItems: "center", gap: "8px", color: "#64748b", fontSize: "13px" }}>
+                                            <i className="bi bi-calendar3" style={{ color: "#4f46e5" }}></i>
+                                            <strong>{latestAnnouncement?.created_at ? new Date(latestAnnouncement.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : "25 Sep 2026"}</strong>
+                                        </div>
+                                        <div style={{ display: "flex", alignItems: "center", gap: "8px", color: "#64748b", fontSize: "13px" }}>
+                                            <i className="bi bi-clock" style={{ color: "#4f46e5" }}></i>
+                                            <strong>{latestAnnouncement?.created_at ? new Date(latestAnnouncement.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "4:00 PM - 5:30 PM (IST)"}</strong>
+                                        </div>
+                                        <div style={{ display: "flex", alignItems: "center", gap: "8px", color: "#64748b", fontSize: "13px" }}>
+                                            <i className="bi bi-bullseye" style={{ color: "#4f46e5" }}></i>
+                                            <strong>{latestAnnouncement?.target_name || "Company-wide"}</strong>
+                                        </div>
+                                    </div>
+
+                                    <h6 style={{ fontWeight: 650, fontSize: "15px", color: "#1e293b", marginBottom: "8px" }}>Overview & Message</h6>
+                                    <div style={{ color: "#475569", fontSize: "14px", lineHeight: "1.6", marginBottom: "14px", whiteSpace: "pre-wrap" }}>
+                                        {latestAnnouncement?.content || "Join our company-wide Quarterly Town Hall meeting! Executive leadership and team heads will share updates on company performance, Q3 milestones, project achievements, and strategic plans for the upcoming quarter."}
+                                    </div>
+                                    <div style={{ padding: "14px", backgroundColor: "#eff6ff", borderRadius: "12px", border: "1px solid #bfdbfe", color: "#1e40af", fontSize: "13px" }}>
+                                        <strong style={{ display: "block", marginBottom: "4px" }}><i className="bi bi-info-circle me-1"></i>Issued by</strong>
+                                        <span>{latestAnnouncement?.author_name || "HR Department"} · Official HR Communication</span>
+                                    </div>
+                                </div>
+
+                                <div className="modal-footer d-flex justify-content-end" style={{ borderTop: "none", padding: "10px 24px 20px 24px" }}>
+                                    <button
+                                        type="button"
+                                        className="btn btn-primary"
+                                        style={{ backgroundColor: "#4f46e5", borderColor: "#4f46e5", borderRadius: "10px", padding: "8px 24px", fontWeight: 600, fontSize: "14px" }}
+                                        onClick={() => setIsAnnouncementModalOpen(false)}>
+                                        Got it
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
                     </div>
+                    </>
+                )}
 
-                    <div>
-                        <strong id="edToastTitle">Action completed</strong>
-                        <span id="edToastMessage">Your request was completed successfully.</span>
+                {/* Header Global Search Modal (Works across all pages) */}
+        {isSearchOpen && (
+            <>
+            <div className="modal-backdrop fade show" style={{ zIndex: 9998, backgroundColor: "rgba(0,0,0,0.5)" }} onClick={() => setIsSearchOpen(false)}></div>
+            <div className="modal fade show d-block" id="edSearchModal" tabIndex="-1" role="dialog" style={{ zIndex: 9999 }} onClick={(e) => { if (e.target === e.currentTarget) setIsSearchOpen(false); }}>
+                <div className="modal-dialog modal-dialog-centered" style={{ maxWidth: "600px" }}>
+                    <div className="modal-content" style={{ borderRadius: "20px", border: "none", boxShadow: "0 20px 45px rgba(0,0,0,0.22)", backgroundColor: "#ffffff", overflow: "hidden" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: "12px", padding: "16px 20px", borderBottom: "1px solid #f1f5f9" }}>
+                            <i className="bi bi-search" style={{ fontSize: "18px", color: "#4f46e5" }}></i>
+                            <input 
+                                type="text" 
+                                className="form-control border-0 shadow-none p-0" 
+                                style={{ fontSize: "15px", fontWeight: 500 }}
+                                placeholder="Search all pages, features, requests, or tools..."
+                                value={headerSearchQuery}
+                                onChange={(e) => setHeaderSearchQuery(e.target.value)}
+                                autoFocus
+                            />
+                            {headerSearchQuery && (
+                                <button 
+                                    type="button" 
+                                    className="btn btn-sm btn-link text-muted p-0 text-decoration-none" 
+                                    onClick={() => setHeaderSearchQuery("")}
+                                    style={{ fontSize: "14px" }}
+                                >
+                                    <i className="bi bi-x-circle-fill"></i>
+                                </button>
+                            )}
+                            <button 
+                                type="button" 
+                                className="btn-close" 
+                                style={{ fontSize: "11px" }} 
+                                onClick={() => setIsSearchOpen(false)}
+                            ></button>
+                        </div>
+                        <div style={{ maxHeight: "380px", overflowY: "auto", padding: "12px 14px" }}>
+                            {(() => {
+                                const q = headerSearchQuery.trim().toLowerCase();
+                                const results = SEARCH_DIRECTORY.filter(item => {
+                                    if (!q) return true;
+                                    return (
+                                        item.label.toLowerCase().includes(q) ||
+                                        item.description.toLowerCase().includes(q) ||
+                                        item.category.toLowerCase().includes(q) ||
+                                        (item.keywords && item.keywords.some(k => k.toLowerCase().includes(q)))
+                                    );
+                                });
+
+                                if (results.length === 0) {
+                                    return (
+                                        <div className="text-center py-4 text-muted">
+                                            <i className="bi bi-search" style={{ fontSize: "24px", color: "#cbd5e1", display: "block", marginBottom: "8px" }}></i>
+                                            <div style={{ fontSize: "14px", fontWeight: 600 }}>No results found</div>
+                                            <div style={{ fontSize: "12.5px" }}>Try searching with keywords like &quot;leave&quot;, &quot;attendance&quot;, &quot;profile&quot;, &quot;request&quot; or &quot;document&quot;</div>
+                                        </div>
+                                    );
+                                }
+
+                                return results.map(item => (
+                                    <div 
+                                        key={item.id}
+                                        onClick={() => {
+                                            navigateTo(item.page);
+                                            setIsSearchOpen(false);
+                                            if (item.action === "open_policy") {
+                                                setTimeout(() => setIsPolicyModalOpen(true), 150);
+                                            }
+                                        }}
+                                        style={{
+                                            display: "flex",
+                                            alignItems: "center",
+                                            gap: "14px",
+                                            padding: "10px 14px",
+                                            borderRadius: "12px",
+                                            cursor: "pointer",
+                                            transition: "background-color 0.15s ease",
+                                            marginBottom: "4px"
+                                        }}
+                                        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "#f8fafc"}
+                                        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "transparent"}
+                                    >
+                                        <div style={{
+                                            width: "38px",
+                                            height: "38px",
+                                            borderRadius: "10px",
+                                            backgroundColor: "#eef2ff",
+                                            color: "#4f46e5",
+                                            display: "flex",
+                                            alignItems: "center",
+                                            justifyContent: "center",
+                                            fontSize: "17px",
+                                            flexShrink: 0
+                                        }}>
+                                            <i className={`bi ${item.icon}`}></i>
+                                        </div>
+                                        <div style={{ flex: 1, minWidth: 0 }}>
+                                            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                                                <span style={{ fontWeight: 600, fontSize: "14px", color: "#1e293b" }}>{item.label}</span>
+                                                <span style={{ fontSize: "10.5px", fontWeight: 600, padding: "2px 7px", borderRadius: "6px", backgroundColor: "#f1f5f9", color: "#64748b" }}>{item.category}</span>
+                                            </div>
+                                            <div style={{ fontSize: "12px", color: "#64748b", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.description}</div>
+                                        </div>
+                                        <i className="bi bi-chevron-right" style={{ color: "#94a3b8", fontSize: "13px" }}></i>
+                                    </div>
+                                ));
+                            })()}
+                        </div>
                     </div>
-
-                    <button>
-                        <i className="bi bi-x"></i>
-                    </button>
-
                 </div>
             </div>
-  </>
-)}
-{activePage === "employee-profile" && <EmployeeProfile currentUser={currentUser} employeeProfile={employeeProfile} onProfileUpdate={fetchEmployeeProfile} onNavigate={navigateTo} />}
-{activePage === "employement-details" && <EmploymentDetails employeeProfile={employeeProfile} currentUser={currentUser} onProfileUpdate={fetchEmployeeProfile} onNavigate={navigateTo} />}
-{activePage === "documents" && <Documents employeeProfile={employeeProfile} currentUser={currentUser} />}
-{activePage === "skills-certifications" && <SkillsCertifications employeeProfile={employeeProfile} currentUser={currentUser} />}
-{activePage === "attendance" && <Attendance currentUser={currentUser} employeeProfile={employeeProfile} onNavigate={navigateTo} />}
-{activePage === "leaves" && <Leaves currentUser={currentUser} employeeProfile={employeeProfile} />}
-{activePage === "expenses" && <Expenses currentUser={currentUser} employeeProfile={employeeProfile} onNavigate={navigateTo} />}
-{activePage === "assets" && <Assets employeeProfile={employeeProfile} currentUser={currentUser} />}
-{activePage === "access-accounts" && <AccessAccounts employeeProfile={employeeProfile} />}
-{activePage === "notifications" && <Notifications currentUser={currentUser} employeeProfile={employeeProfile} />}
-{activePage === "settings" && <Settings employeeProfile={employeeProfile} currentUser={currentUser} onProfileUpdate={fetchEmployeeProfile} />}
-{activePage === "exit-management" && <ExitManagement employeeProfile={employeeProfile} currentUser={currentUser} onNavigate={navigateTo} />}
-{activePage === "employee-requests" && <EmployeeRequests employeeProfile={employeeProfile} currentUser={currentUser} />}
-{activePage === "calendar" && <Calendar employeeProfile={employeeProfile} currentUser={currentUser} initialTab={calendarTab} />}
+            </>
+        )}
         </div>
     </main>
 
@@ -2368,6 +2935,16 @@ export default function EmployeeTemplate({
         </div>
       </div>
     )}
+
+    {/* Team Colleague Chat Modal */}
+    <TeamChatModal
+      isOpen={!!activeChatUser}
+      onClose={() => setActiveChatUser(null)}
+      targetUser={activeChatUser}
+      currentUser={currentUser}
+      currentEmployee={myTeamData.currentEmployee}
+      employeeProfile={employeeProfile}
+    />
 
     </div>
   );

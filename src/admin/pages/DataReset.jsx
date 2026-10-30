@@ -10,15 +10,35 @@ export default function DataReset({
   const API_URL = import.meta.env.VITE_API_URL || (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') ? 'http://localhost:5002' : 'https://hrms-backend-5xo8.onrender.com');
   const orgId = currentTenantId || currentUser?.organization_id || 1;
 
-  // Filter out superadmins so only actual employees are shown in dropdown
+  // Filter out superadmins and organization admins so only actual non-admin employees are shown in dropdown and counted
   const visibleEmployees = useMemo(() => {
     return employees.filter(e => {
-      const role = (e.role_name || e.roleKey || e.role || '').toLowerCase();
+      const role = (e.role_name || e.roleKey || e.role_key || e.role || '').toLowerCase();
       const code = (e.employee_code || '').toLowerCase();
       const email = (e.email || '').toLowerCase();
-      return !role.includes('super_admin') && !code.includes('emp-super') && !email.includes('superadmin');
+      const name = (e.full_name || `${e.first_name || ''} ${e.last_name || ''}`).toLowerCase();
+
+      const isSuperAdmin = (
+        role.includes('super_admin') || 
+        role.includes('superadmin') || 
+        code.includes('emp-super') || 
+        email.includes('superadmin') || 
+        name.includes('super administrator')
+      );
+
+      const isOrgAdmin = (
+        role.includes('org_admin') || 
+        role.includes('organization admin') || 
+        role === 'admin' || 
+        code.includes('emp-admin') || 
+        code === 'emp001' || 
+        email.startsWith('admin@') || 
+        (currentUser?.id && (String(e.user_id) === String(currentUser.id) || String(e.id) === String(currentUser.id)))
+      );
+
+      return !isSuperAdmin && !isOrgAdmin;
     });
-  }, [employees]);
+  }, [employees, currentUser]);
 
   // State
   const [targetType, setTargetType] = useState('single'); // 'single' or 'all'
@@ -124,6 +144,90 @@ export default function DataReset({
 
 
 
+  const moduleDefinitions = [
+    {
+      id: 'attendance',
+      name: 'Attendance Records',
+      icon: 'bi-clock-history',
+      color: 'blue',
+      badgeBg: 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-300',
+      description: 'Clock-in / Clock-out punches, working hours, punch device, location, and attendance corrections.',
+      countKey: 'attendance'
+    },
+    {
+      id: 'leaves',
+      name: 'Leaves & Balances',
+      icon: 'bi-calendar2-minus',
+      color: 'purple',
+      badgeBg: 'bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-900/30 dark:text-purple-300',
+      description: 'Leave requests history, approvals, and resets used/pending leave days back to allocated balance.',
+      countKey: 'leaves'
+    },
+    {
+      id: 'wfh',
+      name: 'Work From Home (WFH)',
+      icon: 'bi-house-door',
+      color: 'emerald',
+      badgeBg: 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300',
+      description: 'Submitted Work From Home applications, remote dates, and WFH approval records.',
+      countKey: 'wfh'
+    },
+    {
+      id: 'requests',
+      name: 'Employee Tickets & Asset Requests',
+      icon: 'bi-file-earmark-text',
+      color: 'amber',
+      badgeBg: 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-300',
+      description: 'General HR requests, company equipment/asset requests, and helpdesk queries.',
+      countKey: 'requests'
+    },
+    {
+      id: 'expenses',
+      name: 'Expenses & Claims',
+      icon: 'bi-wallet2',
+      color: 'rose',
+      badgeBg: 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-900/30 dark:text-rose-300',
+      description: 'Submitted reimbursement claims, expense receipts, and claim approval status.',
+      countKey: 'expenses'
+    },
+    {
+      id: 'firstlogin',
+      name: 'First Login & Password Reset',
+      icon: 'bi-shield-lock',
+      color: 'indigo',
+      badgeBg: 'bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-900/30 dark:text-indigo-300',
+      description: 'Resets employee account to first-time login state. Clears saved security questions, restores initial credentials (password123), and requires creating a new password upon their next login.',
+      countKey: 'firstlogin'
+    },
+    {
+      id: 'commute',
+      name: 'Commute & Travel Records',
+      icon: 'bi-car-front',
+      color: 'teal',
+      badgeBg: 'bg-teal-50 text-teal-700 border-teal-200 dark:bg-teal-900/30 dark:text-teal-300',
+      description: 'Daily commute logs, transport mode, vehicle details, travel distance preferences, and commute approval requests.',
+      countKey: 'commute'
+    },
+    {
+      id: 'documents',
+      name: 'Employee Documents & Uploads',
+      icon: 'bi-file-earmark-arrow-up',
+      color: 'cyan',
+      badgeBg: 'bg-cyan-50 text-cyan-700 border-cyan-200 dark:bg-cyan-900/30 dark:text-cyan-300',
+      description: 'Uploaded government ID proofs, education certificates, resumes, and HR verification files.',
+      countKey: 'documents'
+    },
+    {
+      id: 'skills',
+      name: 'Skills & Certifications',
+      icon: 'bi-award',
+      color: 'violet',
+      badgeBg: 'bg-violet-50 text-violet-700 border-violet-200 dark:bg-violet-900/30 dark:text-violet-300',
+      description: 'Employee-submitted technical skills, proficiency levels, and professional certifications.',
+      countKey: 'skills'
+    }
+  ];
+
   const toggleModule = (modId) => {
     setSelectedModules(prev =>
       prev.includes(modId) ? prev.filter(m => m !== modId) : [...prev, modId]
@@ -131,7 +235,7 @@ export default function DataReset({
   };
 
   const selectAllModules = () => {
-    setSelectedModules(['attendance', 'leaves', 'wfh', 'requests', 'expenses']);
+    setSelectedModules(moduleDefinitions.map(m => m.id));
   };
 
   const deselectAllModules = () => {
@@ -211,54 +315,6 @@ export default function DataReset({
     }
   };
 
-  const moduleDefinitions = [
-    {
-      id: 'attendance',
-      name: 'Attendance Records',
-      icon: 'bi-clock-history',
-      color: 'blue',
-      badgeBg: 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-300',
-      description: 'Clock-in / Clock-out punches, working hours, punch device, location, and attendance corrections.',
-      countKey: 'attendance'
-    },
-    {
-      id: 'leaves',
-      name: 'Leaves & Balances',
-      icon: 'bi-calendar2-minus',
-      color: 'purple',
-      badgeBg: 'bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-900/30 dark:text-purple-300',
-      description: 'Leave requests history, approvals, and resets used/pending leave days back to allocated balance.',
-      countKey: 'leaves'
-    },
-    {
-      id: 'wfh',
-      name: 'Work From Home (WFH)',
-      icon: 'bi-house-door',
-      color: 'emerald',
-      badgeBg: 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300',
-      description: 'Submitted Work From Home applications, remote dates, and WFH approval records.',
-      countKey: 'wfh'
-    },
-    {
-      id: 'requests',
-      name: 'Employee Tickets & Asset Requests',
-      icon: 'bi-file-earmark-text',
-      color: 'amber',
-      badgeBg: 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-300',
-      description: 'General HR requests, company equipment/asset requests, and helpdesk queries.',
-      countKey: 'requests'
-    },
-    {
-      id: 'expenses',
-      name: 'Expenses & Claims',
-      icon: 'bi-wallet2',
-      color: 'rose',
-      badgeBg: 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-900/30 dark:text-rose-300',
-      description: 'Submitted reimbursement claims, expense receipts, and claim approval status.',
-      countKey: 'expenses'
-    }
-  ];
-
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -326,6 +382,26 @@ export default function DataReset({
                 {feedback.details.expenses !== undefined && (
                   <span className="bg-white/80 dark:bg-black/30 px-2 py-1 rounded border border-emerald-300 dark:border-emerald-700 font-mono">
                     Expenses: {feedback.details.expenses} deleted
+                  </span>
+                )}
+                {feedback.details.firstlogin !== undefined && (
+                  <span className="bg-white/80 dark:bg-black/30 px-2 py-1 rounded border border-emerald-300 dark:border-emerald-700 font-mono">
+                    First Login Reset: {feedback.details.firstlogin} account(s)
+                  </span>
+                )}
+                {feedback.details.commute !== undefined && (
+                  <span className="bg-white/80 dark:bg-black/30 px-2 py-1 rounded border border-emerald-300 dark:border-emerald-700 font-mono">
+                    Commute & Travel: {feedback.details.commute} deleted
+                  </span>
+                )}
+                {feedback.details.documents !== undefined && (
+                  <span className="bg-white/80 dark:bg-black/30 px-2 py-1 rounded border border-emerald-300 dark:border-emerald-700 font-mono">
+                    Documents: {feedback.details.documents} deleted
+                  </span>
+                )}
+                {feedback.details.skills !== undefined && (
+                  <span className="bg-white/80 dark:bg-black/30 px-2 py-1 rounded border border-emerald-300 dark:border-emerald-700 font-mono">
+                    Skills & Certifications: {feedback.details.skills} deleted
                   </span>
                 )}
               </div>

@@ -17,7 +17,7 @@ const DEFAULT_EMPLOYEE = {
   designation: 'Developer',
 };
 
-const ADMIN_ROLES = ['admin', 'org_admin', 'super_admin', 'hr'];
+const ADMIN_ROLES = ['admin', 'org_admin', 'super_admin'];
 
 export default function App() {
   // ============================================================
@@ -47,6 +47,21 @@ export default function App() {
   const [firstTimeShowPassword, setFirstTimeShowPassword] = useState(false);
   const [firstTimeError, setFirstTimeError] = useState('');
   const [firstTimeLoading, setFirstTimeLoading] = useState(false);
+
+  // Forgot Password State
+  const [isForgotPasswordActive, setIsForgotPasswordActive] = useState(false);
+  const [forgotStep, setForgotStep] = useState(1); // 1: identify, 2: answer question, 3: set new password
+  const [forgotIdentifier, setForgotIdentifier] = useState('');
+  const [forgotUser, setForgotUser] = useState(null);
+  const [selectedForgotQuestion, setSelectedForgotQuestion] = useState('');
+  const [forgotAnswer, setForgotAnswer] = useState('');
+  const [forgotResetToken, setForgotResetToken] = useState('');
+  const [forgotNewPassword, setForgotNewPassword] = useState('');
+  const [forgotConfirmPassword, setForgotConfirmPassword] = useState('');
+  const [forgotShowPassword, setForgotShowPassword] = useState(false);
+  const [forgotLoading, setForgotLoading] = useState(false);
+  const [forgotError, setForgotError] = useState('');
+  const [forgotSuccess, setForgotSuccess] = useState('');
 
   // ============================================================
   // ADMIN EMPLOYEE DIRECTORY
@@ -276,7 +291,7 @@ export default function App() {
     }
   };
 
-  const updateAdminRequestStatus = async (requestId, status) => {
+  const updateAdminRequestStatus = async (requestId, status, adminRemarks = '') => {
     setUpdatingRequestIds((ids) => [...ids, requestId]);
     setAdminRequestError('');
     try {
@@ -285,7 +300,7 @@ export default function App() {
         {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ adminUserId: currentUser.id, status }),
+          body: JSON.stringify({ adminUserId: currentUser.id, status, adminRemarks }),
         }
       );
       const data = await response.json();
@@ -356,6 +371,8 @@ export default function App() {
         if (data.today.check_out_time) {
           const d = new Date(data.today.check_out_time);
           setCheckOutTime(d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+        } else {
+          setCheckOutTime('--:--');
         }
         if (data.today.working_hours_display) {
           setWorkingTime(data.today.working_hours_display);
@@ -639,6 +656,130 @@ export default function App() {
     setAttendanceStatus('Checked Out');
     setCheckInTime('--:--');
     setCheckOutTime('--:--');
+  };
+
+  const handleForgotIdentify = async (e) => {
+    e.preventDefault();
+    setForgotError('');
+    if (!forgotIdentifier.trim()) {
+      setForgotError('Please enter your corporate email or employee ID.');
+      return;
+    }
+
+    setForgotLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/auth/forgot-password/get-questions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ identifier: forgotIdentifier.trim() })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.message || 'Unable to find user account.');
+      }
+      setForgotUser({
+        userId: data.userId,
+        email: data.email,
+        name: data.name,
+        questions: data.questions
+      });
+      if (data.questions && data.questions.length > 0) {
+        setSelectedForgotQuestion(data.questions[0]);
+      }
+      setForgotStep(2);
+    } catch (err) {
+      setForgotError(err.message || 'Unable to retrieve security questions.');
+    } finally {
+      setForgotLoading(false);
+    }
+  };
+
+  const handleForgotVerifyAnswer = async (e) => {
+    e.preventDefault();
+    setForgotError('');
+    if (!selectedForgotQuestion) {
+      setForgotError('Please select a security question.');
+      return;
+    }
+    if (!forgotAnswer.trim()) {
+      setForgotError('Please enter your answer.');
+      return;
+    }
+
+    setForgotLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/auth/forgot-password/verify-answer`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: forgotUser.userId,
+          question: selectedForgotQuestion,
+          answer: forgotAnswer.trim()
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.message || 'Incorrect answer. Please try again.');
+      }
+      setForgotResetToken(data.token);
+      setForgotStep(3);
+    } catch (err) {
+      setForgotError(err.message || 'Verification failed.');
+    } finally {
+      setForgotLoading(false);
+    }
+  };
+
+  const handleForgotResetPassword = async (e) => {
+    e.preventDefault();
+    setForgotError('');
+    setForgotSuccess('');
+
+    if (!forgotNewPassword) {
+      setForgotError('Please enter a new password.');
+      return;
+    }
+    if (forgotNewPassword.length < 6) {
+      setForgotError('New password must be at least 6 characters long.');
+      return;
+    }
+    if (forgotNewPassword !== forgotConfirmPassword) {
+      setForgotError('Passwords do not match.');
+      return;
+    }
+
+    setForgotLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/auth/forgot-password/reset-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: forgotUser.userId,
+          token: forgotResetToken,
+          newPassword: forgotNewPassword
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.message || 'Failed to reset password.');
+      }
+      setForgotSuccess('✓ Password reset successfully! Logging you in...');
+      setTimeout(() => {
+        localStorage.setItem('hrms_user', JSON.stringify(data.user));
+        setCurrentUser(data.user);
+        setIsForgotPasswordActive(false);
+        setForgotStep(1);
+        setForgotIdentifier('');
+        setForgotUser(null);
+        setForgotAnswer('');
+        setForgotNewPassword('');
+        setForgotConfirmPassword('');
+      }, 800);
+    } catch (err) {
+      setForgotError(err.message || 'Unable to reset password.');
+    } finally {
+      setForgotLoading(false);
+    }
   };
 
   const handleFirstTimePasswordSubmit = async (e) => {
@@ -978,14 +1119,14 @@ export default function App() {
   };
 
   const handlePunch = async (type) => {
-    if (!currentUser) return;
+    if (!currentUser) return false;
     try {
       setAttendanceLoading(true);
       const device = await getDeviceName();
       const locObj = await detectDynamicLocation(true);
       if (!locObj) {
         setAttendanceLoading(false);
-        return;
+        return false;
       }
       const { location, area, city, state, latitude, longitude } = locObj;
       const isOffice = isOfficeLocation(location, latitude, longitude);
@@ -1022,12 +1163,15 @@ export default function App() {
           setEmployeeProfile(prev => ({ ...(prev || {}), work_mode: wm }));
         }
         await fetchAttendance(); // refresh the view
+        return true;
       } else {
         showCloseAlert('Attendance Notice', data.message || 'Error updating attendance', 'error');
+        return false;
       }
     } catch (error) {
       console.error('Punch error:', error);
       showCloseAlert('Attendance Notice', 'Unable to process attendance punch. Please check your network and try again.', 'error');
+      return false;
     } finally {
       setAttendanceLoading(false);
     }
@@ -1037,16 +1181,16 @@ export default function App() {
   // CHECK IN
   // ============================================================
 
-  const handleCheckIn = () => {
-    handlePunch('CHECK_IN');
+  const handleCheckIn = async () => {
+    return await handlePunch('CHECK_IN');
   };
 
   // ============================================================
   // CHECK OUT
   // ============================================================
 
-  const handleCheckOut = () => {
-    handlePunch('CHECK_OUT');
+  const handleCheckOut = async () => {
+    return await handlePunch('CHECK_OUT');
   };
 
   // ============================================================
@@ -1144,7 +1288,241 @@ export default function App() {
                       <span>Ramel HR</span>
                     </div>
 
-                    {pendingFirstTimeUser ? (
+                    {isForgotPasswordActive ? (
+                      /* Forgot Password Multi-Step Form */
+                      <div>
+                        {forgotStep === 1 && (
+                          <div>
+                            <div className="login-heading">
+                              <h1 style={{ fontSize: '1.5rem', marginBottom: '8px' }}>Reset Password</h1>
+                              <p style={{ fontSize: '0.9rem', color: '#64748b' }}>
+                                Enter your corporate email or employee ID to retrieve your security verification.
+                              </p>
+                            </div>
+
+                            {forgotError && (
+                              <div className="alert alert-danger mb-3" role="alert" style={{ borderRadius: 8, fontSize: '0.875rem' }}>
+                                {forgotError}
+                              </div>
+                            )}
+
+                            <form onSubmit={handleForgotIdentify} noValidate>
+                              <div className="form-group mb-3">
+                                <label className="form-label" style={{ fontWeight: 600, fontSize: '0.85rem' }}>
+                                  Corporate Email or Employee ID <span className="text-danger">*</span>
+                                </label>
+                                <div className="input-wrapper">
+                                  <i className="bi bi-person-badge input-icon"></i>
+                                  <input
+                                    type="text"
+                                    className="form-control"
+                                    placeholder="e.g. dev@ramel.co.in or EMP-00101"
+                                    value={forgotIdentifier}
+                                    onChange={(e) => setForgotIdentifier(e.target.value)}
+                                    required
+                                    autoFocus
+                                  />
+                                </div>
+                              </div>
+
+                              <button
+                                type="submit"
+                                className="login-btn w-100 mb-2"
+                                disabled={forgotLoading}
+                                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+                              >
+                                <span>{forgotLoading ? 'Verifying...' : 'Continue'}</span>
+                                <i className="bi bi-arrow-right"></i>
+                              </button>
+
+                              <button
+                                type="button"
+                                className="btn btn-link w-100 text-center"
+                                style={{ textDecoration: 'none', color: '#64748b', fontSize: '0.875rem' }}
+                                onClick={() => {
+                                  setIsForgotPasswordActive(false);
+                                  setForgotError('');
+                                }}
+                              >
+                                <i className="bi bi-arrow-left me-1"></i> Back to Sign In
+                              </button>
+                            </form>
+                          </div>
+                        )}
+
+                        {forgotStep === 2 && (
+                          <div>
+                            <div className="login-heading">
+                              <h1 style={{ fontSize: '1.5rem', marginBottom: '8px' }}>Security Question</h1>
+                              <p style={{ fontSize: '0.9rem', color: '#64748b' }}>
+                                Please answer any 1 of your security questions to verify identity for <strong>{forgotUser?.name || forgotUser?.email}</strong>.
+                              </p>
+                            </div>
+
+                            {forgotError && (
+                              <div className="alert alert-danger mb-3" role="alert" style={{ borderRadius: 8, fontSize: '0.875rem' }}>
+                                {forgotError}
+                              </div>
+                            )}
+
+                            <form onSubmit={handleForgotVerifyAnswer} noValidate>
+                              <div className="form-group mb-3">
+                                <label className="form-label" style={{ fontWeight: 600, fontSize: '0.85rem' }}>
+                                  Choose a Security Question <span className="text-danger">*</span>
+                                </label>
+                                <select
+                                  className="form-select"
+                                  value={selectedForgotQuestion}
+                                  onChange={(e) => {
+                                    setSelectedForgotQuestion(e.target.value);
+                                    setForgotError('');
+                                  }}
+                                  style={{ height: '48px', borderRadius: '10px', fontSize: '0.9rem' }}
+                                  required
+                                >
+                                  {(forgotUser?.questions || []).map((q, idx) => (
+                                    <option key={idx} value={q}>
+                                      {idx + 1}. {q}
+                                    </option>
+                                  ))}
+                                </select>
+                              </div>
+
+                              <div className="form-group mb-3">
+                                <label className="form-label" style={{ fontWeight: 600, fontSize: '0.85rem' }}>
+                                  Your Answer <span className="text-danger">*</span>
+                                </label>
+                                <div className="input-wrapper">
+                                  <i className="bi bi-key input-icon"></i>
+                                  <input
+                                    type="text"
+                                    className="form-control"
+                                    placeholder="Enter your answer"
+                                    value={forgotAnswer}
+                                    onChange={(e) => setForgotAnswer(e.target.value)}
+                                    required
+                                    autoFocus
+                                  />
+                                </div>
+                              </div>
+
+                              <button
+                                type="submit"
+                                className="login-btn w-100 mb-2"
+                                disabled={forgotLoading}
+                                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+                              >
+                                <span>{forgotLoading ? 'Verifying Answer...' : 'Verify Answer'}</span>
+                                <i className="bi bi-arrow-right"></i>
+                              </button>
+
+                              <button
+                                type="button"
+                                className="btn btn-link w-100 text-center"
+                                style={{ textDecoration: 'none', color: '#64748b', fontSize: '0.875rem' }}
+                                onClick={() => {
+                                  setForgotStep(1);
+                                  setForgotError('');
+                                  setForgotAnswer('');
+                                }}
+                              >
+                                <i className="bi bi-arrow-left me-1"></i> Back to Previous Step
+                              </button>
+                            </form>
+                          </div>
+                        )}
+
+                        {forgotStep === 3 && (
+                          <div>
+                            <div className="login-heading">
+                              <h1 style={{ fontSize: '1.5rem', marginBottom: '8px' }}>Set New Password</h1>
+                              <p style={{ fontSize: '0.9rem', color: '#64748b' }}>
+                                Security verified! Create a new password and sign in directly.
+                              </p>
+                            </div>
+
+                            {forgotSuccess && (
+                              <div className="alert alert-success mb-3" role="alert" style={{ borderRadius: 8, fontSize: '0.875rem' }}>
+                                {forgotSuccess}
+                              </div>
+                            )}
+                            {forgotError && (
+                              <div className="alert alert-danger mb-3" role="alert" style={{ borderRadius: 8, fontSize: '0.875rem' }}>
+                                {forgotError}
+                              </div>
+                            )}
+
+                            <form onSubmit={handleForgotResetPassword} noValidate>
+                              <div className="form-group mb-3">
+                                <label className="form-label" style={{ fontWeight: 600, fontSize: '0.85rem' }}>
+                                  New Password <span className="text-danger">*</span>
+                                </label>
+                                <div className="input-wrapper" style={{ position: 'relative' }}>
+                                  <i className="bi bi-lock input-icon"></i>
+                                  <input
+                                    type={forgotShowPassword ? 'text' : 'password'}
+                                    className="form-control"
+                                    placeholder="Enter new password (min. 6 characters)"
+                                    value={forgotNewPassword}
+                                    onChange={(e) => setForgotNewPassword(e.target.value)}
+                                    required
+                                    autoFocus
+                                  />
+                                  <button
+                                    type="button"
+                                    className="password-toggle"
+                                    onClick={() => setForgotShowPassword((prev) => !prev)}
+                                    aria-label="Toggle password visibility"
+                                  >
+                                    <i className={`bi ${forgotShowPassword ? 'bi-eye-slash' : 'bi-eye'}`}></i>
+                                  </button>
+                                </div>
+                              </div>
+
+                              <div className="form-group mb-3">
+                                <label className="form-label" style={{ fontWeight: 600, fontSize: '0.85rem' }}>
+                                  Confirm New Password <span className="text-danger">*</span>
+                                </label>
+                                <div className="input-wrapper">
+                                  <i className="bi bi-shield-check input-icon"></i>
+                                  <input
+                                    type={forgotShowPassword ? 'text' : 'password'}
+                                    className="form-control"
+                                    placeholder="Re-enter new password"
+                                    value={forgotConfirmPassword}
+                                    onChange={(e) => setForgotConfirmPassword(e.target.value)}
+                                    required
+                                  />
+                                </div>
+                              </div>
+
+                              <button
+                                type="submit"
+                                className="login-btn w-100 mb-2"
+                                disabled={forgotLoading}
+                                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+                              >
+                                <span>{forgotLoading ? 'Resetting & Logging in...' : 'Reset Password & Sign In'}</span>
+                                <i className="bi bi-arrow-right"></i>
+                              </button>
+
+                              <button
+                                type="button"
+                                className="btn btn-link w-100 text-center"
+                                style={{ textDecoration: 'none', color: '#64748b', fontSize: '0.875rem' }}
+                                onClick={() => {
+                                  setIsForgotPasswordActive(false);
+                                  setForgotError('');
+                                  setForgotSuccess('');
+                                }}
+                              >
+                                <i className="bi bi-arrow-left me-1"></i> Back to Sign In
+                              </button>
+                            </form>
+                          </div>
+                        )}
+                      </div>
+                    ) : pendingFirstTimeUser ? (
                       /* First Time Password Change Form */
                       <div>
                         <div className="login-heading">
@@ -1312,13 +1690,23 @@ export default function App() {
                           </label>
                         </div>
 
-                        {/* <a
-                          href="#forgot"
-                          className="forgot-link"
-                          onClick={(e) => e.preventDefault()}
+                        <button
+                          type="button"
+                          className="btn btn-link forgot-link p-0"
+                          style={{ textDecoration: 'none', border: 'none', background: 'none' }}
+                          onClick={() => {
+                            setIsForgotPasswordActive(true);
+                            setForgotStep(1);
+                            setForgotIdentifier(loginEmail || '');
+                            setForgotError('');
+                            setForgotSuccess('');
+                            setForgotAnswer('');
+                            setForgotNewPassword('');
+                            setForgotConfirmPassword('');
+                          }}
                         >
                           Forgot password?
-                        </a> */}
+                        </button>
                       </div>
 
                       {/* Submit */}

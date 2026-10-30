@@ -1,5 +1,8 @@
 import React, { useState, useEffect, useMemo } from "react";
 import EmptyState from "../components/EmptyState";
+import TeamChatModal from "../components/TeamChatModal";
+
+const API_BASE = import.meta.env.VITE_API_URL || "https://hrms-backend-5xo8.onrender.com";
 
 export default function Calendar({ employeeProfile, currentUser, initialTab = "calendar" }) {
   const profile = employeeProfile || {};
@@ -23,8 +26,49 @@ export default function Calendar({ employeeProfile, currentUser, initialTab = "c
   const [upcomingHolidays, setUpcomingHolidays] = useState([]);
   const [allUsers, setAllUsers] = useState([]);
   const [myTeamData, setMyTeamData] = useState({ teams: [], currentEmployee: null });
+  const [activeChatUser, setActiveChatUser] = useState(null);
   const [showModal, setShowModal] = useState(false);
   const [modalData, setModalData] = useState({ title: '', list: [] });
+
+  const [sentWishes, setSentWishes] = useState({});
+  const [sendingWishId, setSendingWishId] = useState(null);
+  const [wishToast, setWishToast] = useState(null);
+
+  const handleSendWish = async (user, type) => {
+    if (!user || !currentUser?.id) return;
+    const wishKey = `${type}-${user.id || user.userId || user.name}`;
+    if (sentWishes[wishKey] || sendingWishId === wishKey) return;
+
+    setSendingWishId(wishKey);
+    try {
+      const res = await fetch(`${API_BASE}/api/celebrations/send-wishes`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          senderUserId: currentUser.id,
+          recipientEmployeeId: user.employeeId || user.id,
+          recipientUserId: user.userId,
+          type
+        })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setSentWishes(prev => ({ ...prev, [wishKey]: true }));
+        setWishToast({
+          title: type === 'birthday' ? "🎂 Birthday Wishes Sent!" : "🌟 Work Anniversary Wishes Sent!",
+          message: data.message || `Wishes sent to ${user.name}!`
+        });
+        setTimeout(() => setWishToast(null), 6000);
+      } else {
+        alert(data.message || data.error || "Failed to send wishes");
+      }
+    } catch (err) {
+      console.error("Error sending wish:", err);
+      alert("Failed to send wishes. Please try again.");
+    } finally {
+      setSendingWishId(null);
+    }
+  };
 
   useEffect(() => {
     const uid = currentUser?.id || profile.user_id || 1; 
@@ -34,7 +78,7 @@ export default function Calendar({ employeeProfile, currentUser, initialTab = "c
     // Fetch My Teams (DB-based project teams for the employee)
     const myTeamsUid = currentUser?.id || profile.user_id;
     if (myTeamsUid) {
-      fetch(`${import.meta.env.VITE_API_URL || "https://hrms-backend-5xo8.onrender.com"}/api/employee/my-teams/${myTeamsUid}`)
+      fetch(`${API_BASE}/api/employee/my-teams/${myTeamsUid}`)
         .then(res => res.json())
         .then(data => {
           if (data && data.success) {
@@ -46,28 +90,40 @@ export default function Calendar({ employeeProfile, currentUser, initialTab = "c
         })
         .catch(console.error);
     }
-    // Fetch Celebrations (lightweight endpoint: no heavy base64 profile pictures)
-    fetch(`${import.meta.env.VITE_API_URL || "https://hrms-backend-5xo8.onrender.com"}/api/celebrations?orgId=${targetOrgId}`)
+    // Fetch Celebrations with profile pictures
+    fetch(`${API_BASE}/api/celebrations?orgId=${targetOrgId}`)
         .then(res => res.json())
         .then(data => {
             if (Array.isArray(data) && data.length > 0) {
                 const mappedUsers = data.map(u => ({
+                    id: u.id,
+                    employeeId: u.id,
+                    userId: u.user_id,
                     name: u.name || 'Employee',
+                    profilePic: u.profile_pic || null,
                     dob: u.dob,
-                    doj: u.doj
+                    doj: u.doj,
+                    department: u.department,
+                    designation: u.designation
                 }));
                 setAllUsers(mappedUsers);
             }
         })
         .catch(() => {
-            fetch(`${import.meta.env.VITE_API_URL || "https://hrms-backend-5xo8.onrender.com"}/api/admin/employees?orgId=${targetOrgId}`)
+            fetch(`${API_BASE}/api/admin/employees?orgId=${targetOrgId}`)
                 .then(res => res.json())
                 .then(data => {
                     if (Array.isArray(data)) {
                         const mappedUsers = data.map(u => ({
+                            id: u.id,
+                            employeeId: u.id,
+                            userId: u.user_id,
                             name: u.full_name || `${u.first_name || ''} ${u.last_name || ''}`.trim() || 'Employee',
+                            profilePic: u.profile_pic || u.avatar_url || null,
                             dob: u.date_of_birth,
-                            doj: u.joining_date
+                            doj: u.joining_date,
+                            department: u.department,
+                            designation: u.designation
                         }));
                         setAllUsers(mappedUsers);
                     }
@@ -77,7 +133,7 @@ export default function Calendar({ employeeProfile, currentUser, initialTab = "c
 
     if (uid) {
         // Fetch Holidays (the widgets endpoint still returns allHolidays safely)
-        fetch(`${import.meta.env.VITE_API_URL || "https://hrms-backend-5xo8.onrender.com"}/api/dashboard/widgets/${uid}`)
+        fetch(`${API_BASE}/api/dashboard/widgets/${uid}`)
             .then(res => res.json())
             .then(data => {
                 if (data.allHolidays) {
@@ -317,21 +373,87 @@ export default function Calendar({ employeeProfile, currentUser, initialTab = "c
   const monthName = currentMonth.toLocaleDateString('en-GB', {month: 'long'});
   const yearName = currentMonth.getFullYear();
 
-  // Helper arrays for Overview Tab (Birthdays & Work Anniversaries)
-  const thisMonthBdays = allUsers.filter(u => {
-    if (!u.dob) return false;
-    const p = parseDateParts(u.dob);
-    return p && p.month === month;
-  });
-  const thisMonthAnnivs = allUsers.filter(u => {
-    if (!u.doj) return false;
-    const p = parseDateParts(u.doj);
-    return p && p.month === month;
-  });
-  
-  const today = new Date();
-  today.setHours(0,0,0,0);
+  const today = useMemo(() => {
+    const t = new Date();
+    t.setHours(0,0,0,0);
+    return t;
+  }, []);
   const currentCalendarYear = currentMonth.getFullYear();
+
+  // Helper arrays for Overview Tab & Send Wishes Tab (Birthdays & Work Anniversaries)
+  const thisMonthBdays = useMemo(() => {
+    return allUsers
+      .filter(u => {
+        if (!u.dob) return false;
+        const p = parseDateParts(u.dob);
+        return p && p.month === month;
+      })
+      .map(u => {
+        const p = parseDateParts(u.dob);
+        const bdayDate = new Date(year, month, p.day);
+        const daysUntil = Math.ceil((bdayDate - today) / (1000 * 60 * 60 * 24));
+        return {
+          ...u,
+          day: p.day,
+          date: bdayDate,
+          daysUntil
+        };
+      })
+      .sort((a, b) => a.day - b.day);
+  }, [allUsers, month, year, today]);
+
+  const thisMonthAnnivs = useMemo(() => {
+    return allUsers
+      .filter(u => {
+        if (!u.doj) return false;
+        const p = parseDateParts(u.doj);
+        return p && p.month === month;
+      })
+      .map(u => {
+        const p = parseDateParts(u.doj);
+        const annivDate = new Date(year, month, p.day);
+        const daysUntil = Math.ceil((annivDate - today) / (1000 * 60 * 60 * 24));
+        const joinYear = p.year || new Date(u.doj).getFullYear();
+        const years = year - joinYear;
+        return {
+          ...u,
+          day: p.day,
+          date: annivDate,
+          years: years > 0 ? years : 1,
+          daysUntil
+        };
+      })
+      .sort((a, b) => a.day - b.day);
+  }, [allUsers, month, year, today]);
+
+  // Send Wishes Tab Pagination
+  const [bdayPage, setBdayPage] = useState(1);
+  const [bdayPerPage, setBdayPerPage] = useState(5);
+  const [annivPage, setAnnivPage] = useState(1);
+  const [annivPerPage, setAnnivPerPage] = useState(5);
+
+  useEffect(() => {
+    setBdayPage(1);
+    setAnnivPage(1);
+  }, [currentMonth]);
+
+  const totalBdayPages = Math.ceil(thisMonthBdays.length / bdayPerPage) || 1;
+  const currentBdayPage = Math.min(bdayPage, totalBdayPages);
+  const paginatedBdays = useMemo(() => {
+    const start = (currentBdayPage - 1) * bdayPerPage;
+    return thisMonthBdays.slice(start, start + bdayPerPage);
+  }, [thisMonthBdays, currentBdayPage, bdayPerPage]);
+  const bdayStartIndex = thisMonthBdays.length === 0 ? 0 : (currentBdayPage - 1) * bdayPerPage + 1;
+  const bdayEndIndex = Math.min(currentBdayPage * bdayPerPage, thisMonthBdays.length);
+
+  const totalAnnivPages = Math.ceil(thisMonthAnnivs.length / annivPerPage) || 1;
+  const currentAnnivPage = Math.min(annivPage, totalAnnivPages);
+  const paginatedAnnivs = useMemo(() => {
+    const start = (currentAnnivPage - 1) * annivPerPage;
+    return thisMonthAnnivs.slice(start, start + annivPerPage);
+  }, [thisMonthAnnivs, currentAnnivPage, annivPerPage]);
+  const annivStartIndex = thisMonthAnnivs.length === 0 ? 0 : (currentAnnivPage - 1) * annivPerPage + 1;
+  const annivEndIndex = Math.min(currentAnnivPage * annivPerPage, thisMonthAnnivs.length);
 
   // Public holidays: show only current year pending holidays
   const pendingCurrentYearHolidays = holidays.filter(h => {
@@ -476,6 +598,9 @@ export default function Calendar({ employeeProfile, currentUser, initialTab = "c
                   </button>
                   <button className={`calendar-tab ${activeTab === 'overview' ? 'active' : ''}`} onClick={() => setActiveTab('overview')} type="button">
                     <i className="bi bi-layout-text-window-reverse"></i> Days & Team
+                  </button>
+                  <button className={`calendar-tab ${activeTab === 'wishes' ? 'active' : ''}`} onClick={() => setActiveTab('wishes')} type="button">
+                    <i className="bi bi-gift"></i> Send Wishes
                   </button>
                 </div>
               </div>
@@ -717,13 +842,26 @@ export default function Calendar({ employeeProfile, currentUser, initialTab = "c
                                            {u.name.charAt(0)}
                                        </div>
                                        <div style={{minWidth: 0, flexGrow: 1}}>
-                                           <div className="d-flex align-items-center gap-2 mb-1">
-                                             <h6 className="mb-0 text-truncate" title={u.name}>{u.name}</h6>
-                                             {u.is_current_user && (
-                                               <span className="badge bg-primary text-white rounded-pill px-2 py-0" style={{fontSize: '10px', flexShrink: 0}}>You</span>
-                                             )}
-                                             {u.is_lead && (
-                                               <span className="badge bg-warning text-dark rounded-pill px-2 py-0" style={{fontSize: '10px', flexShrink: 0}}>Lead</span>
+                                           <div className="d-flex align-items-center justify-content-between gap-2 mb-1">
+                                             <div className="d-flex align-items-center gap-2 text-truncate">
+                                               <h6 className="mb-0 text-truncate" title={u.name}>{u.name}</h6>
+                                               {u.is_current_user && (
+                                                 <span className="badge bg-primary text-white rounded-pill px-2 py-0" style={{fontSize: '10px', flexShrink: 0}}>You</span>
+                                               )}
+                                               {u.is_lead && (
+                                                 <span className="badge bg-warning text-dark rounded-pill px-2 py-0" style={{fontSize: '10px', flexShrink: 0}}>Lead</span>
+                                               )}
+                                             </div>
+                                             {!u.is_current_user && (
+                                               <button
+                                                 type="button"
+                                                 className="btn btn-sm btn-outline-primary rounded-pill px-2.5 py-0.5 d-inline-flex align-items-center gap-1 shadow-xs"
+                                                 title={`Chat with ${u.name}`}
+                                                 onClick={() => setActiveChatUser({ id: u.id, full_name: u.name, designation: u.designation })}
+                                                 style={{ fontSize: '11px', fontWeight: 600, flexShrink: 0 }}
+                                               >
+                                                 <i className="bi bi-chat-dots-fill"></i> Chat
+                                               </button>
                                              )}
                                            </div>
                                            <small className="text-muted text-truncate d-block">{u.designation || 'Team Member'}</small>
@@ -741,6 +879,525 @@ export default function Calendar({ employeeProfile, currentUser, initialTab = "c
                            )))}
                        </div>
                    </div>
+                </section>
+              )}
+
+              {activeTab === 'wishes' && (
+                <section className="calendar-tab-content active" id="wishesTab">
+                  <div className="overview-toolbar d-flex align-items-center justify-content-between flex-wrap gap-3 mb-3">
+                    <div>
+                      <h2>Send Wishes & Greetings</h2>
+                      <p className="text-muted mb-0">Celebrate your colleagues' special moments this month ({monthName} {yearName}) with heartfelt greetings.</p>
+                    </div>
+                  </div>
+
+                  {wishToast && (
+                    <div 
+                      className="alert alert-success alert-dismissible fade show d-flex align-items-center gap-2 mb-4" 
+                      role="alert"
+                      style={{ borderRadius: "14px", border: "1px solid #bbf7d0", backgroundColor: "#f0fdf4", color: "#166534" }}
+                    >
+                      <i className="bi bi-check-circle-fill text-success fs-5"></i>
+                      <div className="flex-grow-1">
+                        <strong>{wishToast.title}</strong> {wishToast.message}
+                      </div>
+                      <button type="button" className="btn-close" onClick={() => setWishToast(null)} aria-label="Close"></button>
+                    </div>
+                  )}
+
+                  <div className="row g-4 mt-1">
+                    {/* Column 1: Current Month Upcoming Birthdays */}
+                    <div className="col-12 col-lg-6">
+                      <div className="side-card h-100 mb-0 d-flex flex-column" style={{ borderRadius: "20px", border: "1px solid #ebecf3", background: "#ffffff", padding: "22px" }}>
+                        <div className="side-card-header d-flex align-items-center justify-content-between pb-3 border-bottom mb-3">
+                          <div>
+                            <span className="section-label text-uppercase fw-semibold" style={{ fontSize: "11px", letterSpacing: "0.5px", color: "#e8679d" }}>
+                              {monthName.toUpperCase()} {yearName} CELEBRATIONS
+                            </span>
+                            <div className="d-flex align-items-center gap-2 mt-1">
+                              <h3 className="mb-0" style={{ fontSize: "18px", fontWeight: "700" }}>Upcoming Birthdays</h3>
+                              <span className="badge rounded-pill" style={{ backgroundColor: "#fff1f7", color: "#e8679d", fontSize: "12px", padding: "4px 10px" }}>
+                                {thisMonthBdays.length}
+                              </span>
+                            </div>
+                          </div>
+                          <div style={{ width: "42px", height: "42px", borderRadius: "12px", background: "#fff1f7", color: "#e8679d", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "20px" }}>
+                            <i className="bi bi-balloon-heart-fill"></i>
+                          </div>
+                        </div>
+
+                        <div className="flex-grow-1 d-flex flex-column justify-content-between">
+                          {thisMonthBdays.length === 0 ? (
+                            <EmptyState
+                              compact
+                              emoji="🎂"
+                              title="No birthdays this month"
+                              message={`There are no colleagues celebrating birthdays in ${monthName}.`}
+                            />
+                          ) : (
+                            <div className="d-flex flex-column gap-2">
+                              {paginatedBdays.map((u, i) => {
+                                const isCurrentUser = currentUser?.id && u.userId && Number(currentUser.id) === Number(u.userId);
+                                const wishKey = `birthday-${u.id || u.userId || u.name}`;
+                                const isSent = sentWishes[wishKey];
+                                const isSending = sendingWishId === wishKey;
+                                const avatarSrc = u.profilePic 
+                                  ? (/^(https?:\/\/|data:|blob:)/i.test(u.profilePic) ? u.profilePic : `${API_BASE}/${u.profilePic.replace(/^\/+/, '')}`)
+                                  : null;
+
+                                return (
+                                  <div
+                                    key={`wbday-${u.id || i}`}
+                                    className="d-flex align-items-center justify-content-between p-3 rounded-4"
+                                    style={{
+                                      background: "#fafbfc",
+                                      border: "1px solid #f0f0f5",
+                                      transition: "all 0.2s ease"
+                                    }}
+                                  >
+                                    <div className="d-flex align-items-center gap-3 min-w-0">
+                                      <div style={{ width: "48px", height: "48px", borderRadius: "14px", overflow: "hidden", flexShrink: 0, border: "1px solid #e2e8f0" }}>
+                                        {avatarSrc ? (
+                                          <img
+                                            src={avatarSrc}
+                                            alt={u.name}
+                                            style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                                          />
+                                        ) : (
+                                          <div style={{ width: "100%", height: "100%", background: "#fff1f7", color: "#e8679d", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: "700", fontSize: "16px" }}>
+                                            {u.name?.charAt(0) || "🎂"}
+                                          </div>
+                                        )}
+                                      </div>
+                                      <div className="min-w-0">
+                                        <div className="d-flex align-items-center gap-2">
+                                          <strong className="d-block text-truncate" style={{ fontSize: "14.5px", color: "#1e293b" }}>{u.name}</strong>
+                                          {isCurrentUser && (
+                                            <span className="badge bg-primary text-white rounded-pill px-2 py-0" style={{ fontSize: "10px" }}>You</span>
+                                          )}
+                                        </div>
+                                        <span className="d-block text-truncate text-muted" style={{ fontSize: "12px" }}>
+                                          {u.designation || u.department || "Team Member"}
+                                        </span>
+                                        <small style={{ fontSize: "11.5px", color: u.daysUntil === 0 ? "#16a34a" : "#64748b", fontWeight: u.daysUntil === 0 ? 600 : 400 }}>
+                                          <i className="bi bi-calendar-event me-1"></i>
+                                          {u.daysUntil === 0 ? "Today 🎉" : u.daysUntil === 1 ? "Tomorrow" : `${u.day} ${monthName}`}
+                                        </small>
+                                      </div>
+                                    </div>
+
+                                    <div className="flex-shrink-0 ms-2">
+                                      <button
+                                        type="button"
+                                        className="btn btn-sm"
+                                        disabled={isSent || isSending || isCurrentUser}
+                                        onClick={() => handleSendWish(u, 'birthday')}
+                                        style={{
+                                          borderRadius: "10px",
+                                          padding: "7px 14px",
+                                          fontSize: "12.5px",
+                                          fontWeight: 600,
+                                          backgroundColor: isSent ? "#dcfce7" : isCurrentUser ? "#f1f5f9" : "#3c2fbc",
+                                          color: isSent ? "#15803d" : isCurrentUser ? "#94a3b8" : "#ffffff",
+                                          border: "none",
+                                          display: "inline-flex",
+                                          alignItems: "center",
+                                          gap: "6px",
+                                          cursor: (isSent || isCurrentUser) ? "default" : "pointer",
+                                          boxShadow: (isSent || isCurrentUser) ? "none" : "0 2px 6px rgba(60, 47, 188, 0.25)"
+                                        }}
+                                      >
+                                        {isSending ? (
+                                          <>
+                                            <span className="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                                            <span>Sending...</span>
+                                          </>
+                                        ) : isSent ? (
+                                          <>
+                                            <i className="bi bi-check-circle-fill"></i>
+                                            <span>Wish Sent ✨</span>
+                                          </>
+                                        ) : isCurrentUser ? (
+                                          <>
+                                            <span>Your Day 🎉</span>
+                                          </>
+                                        ) : (
+                                          <>
+                                            <i className="bi bi-send-fill"></i>
+                                            <span>Send Wishes</span>
+                                          </>
+                                        )}
+                                      </button>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+
+                          {thisMonthBdays.length > 0 && (
+                            <div
+                              className="d-flex align-items-center justify-content-between flex-wrap gap-2 pt-3 mt-3 border-top"
+                              style={{
+                                padding: "12px 14px",
+                                backgroundColor: "#fafbfc",
+                                borderRadius: "14px",
+                                border: "1px solid #f0f0f5"
+                              }}
+                            >
+                              <div className="d-flex align-items-center gap-2 flex-wrap">
+                                <span style={{ fontSize: "12.5px", color: "#64748b" }}>
+                                  Showing <strong style={{ color: "#1e293b" }}>{bdayStartIndex}–{bdayEndIndex}</strong> of <strong style={{ color: "#1e293b" }}>{thisMonthBdays.length}</strong>
+                                </span>
+                                <div className="d-flex align-items-center gap-1.5 ms-1">
+                                  <span style={{ fontSize: "12px", color: "#64748b" }}>Per page:</span>
+                                  <select
+                                    className="form-select form-select-sm"
+                                    value={bdayPerPage}
+                                    onChange={e => { setBdayPerPage(Number(e.target.value)); setBdayPage(1); }}
+                                    style={{
+                                      width: "66px",
+                                      height: "30px",
+                                      borderRadius: "8px",
+                                      borderColor: "#e2e8f0",
+                                      fontSize: "12px",
+                                      backgroundColor: "#ffffff",
+                                      color: "#1e293b",
+                                      fontWeight: 500,
+                                      cursor: "pointer",
+                                      boxShadow: "none"
+                                    }}
+                                  >
+                                    <option value={5}>5</option>
+                                    <option value={10}>10</option>
+                                    <option value={20}>20</option>
+                                  </select>
+                                </div>
+                              </div>
+
+                              <div className="d-flex align-items-center gap-1">
+                                <button 
+                                  type="button"
+                                  className="btn btn-sm"
+                                  disabled={currentBdayPage === 1} 
+                                  onClick={() => setBdayPage(p => Math.max(1, p - 1))}
+                                  title="Previous Page"
+                                  style={{
+                                    width: "30px",
+                                    height: "30px",
+                                    borderRadius: "8px",
+                                    border: "1px solid #e2e8f0",
+                                    backgroundColor: currentBdayPage === 1 ? "#f8fafc" : "#ffffff",
+                                    color: currentBdayPage === 1 ? "#cbd5e1" : "#475569",
+                                    fontSize: "11px",
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                    cursor: currentBdayPage === 1 ? "not-allowed" : "pointer"
+                                  }}
+                                >
+                                  <i className="bi bi-chevron-left"></i>
+                                </button>
+                                {Array.from({ length: totalBdayPages }, (_, i) => i + 1).map(pageNum => (
+                                  <button 
+                                    key={pageNum} 
+                                    type="button" 
+                                    className="btn btn-sm"
+                                    onClick={() => setBdayPage(pageNum)}
+                                    style={{
+                                      width: "30px",
+                                      height: "30px",
+                                      borderRadius: "8px",
+                                      border: currentBdayPage === pageNum ? "none" : "1px solid #e2e8f0",
+                                      backgroundColor: currentBdayPage === pageNum ? "#3c2fbc" : "#ffffff",
+                                      color: currentBdayPage === pageNum ? "#ffffff" : "#475569",
+                                      fontWeight: currentBdayPage === pageNum ? 600 : 400,
+                                      fontSize: "11.5px",
+                                      display: "inline-flex",
+                                      alignItems: "center",
+                                      justifyContent: "center",
+                                      cursor: "pointer",
+                                      boxShadow: currentBdayPage === pageNum ? "0 2px 4px rgba(60, 47, 188, 0.2)" : "none"
+                                    }}
+                                  >
+                                    {pageNum}
+                                  </button>
+                                ))}
+                                <button 
+                                  type="button"
+                                  className="btn btn-sm"
+                                  disabled={currentBdayPage === totalBdayPages} 
+                                  onClick={() => setBdayPage(p => Math.min(totalBdayPages, p + 1))}
+                                  title="Next Page"
+                                  style={{
+                                    width: "30px",
+                                    height: "30px",
+                                    borderRadius: "8px",
+                                    border: "1px solid #e2e8f0",
+                                    backgroundColor: currentBdayPage === totalBdayPages ? "#f8fafc" : "#ffffff",
+                                    color: currentBdayPage === totalBdayPages ? "#cbd5e1" : "#475569",
+                                    fontSize: "11px",
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                    cursor: currentBdayPage === totalBdayPages ? "not-allowed" : "pointer"
+                                  }}
+                                >
+                                  <i className="bi bi-chevron-right"></i>
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Column 2: Current Month Upcoming Work Anniversaries */}
+                    <div className="col-12 col-lg-6">
+                      <div className="side-card h-100 mb-0 d-flex flex-column" style={{ borderRadius: "20px", border: "1px solid #ebecf3", background: "#ffffff", padding: "22px" }}>
+                        <div className="side-card-header d-flex align-items-center justify-content-between pb-3 border-bottom mb-3">
+                          <div>
+                            <span className="section-label text-uppercase fw-semibold" style={{ fontSize: "11px", letterSpacing: "0.5px", color: "#3c2fbc" }}>
+                              {monthName.toUpperCase()} {yearName} MILESTONES
+                            </span>
+                            <div className="d-flex align-items-center gap-2 mt-1">
+                              <h3 className="mb-0" style={{ fontSize: "18px", fontWeight: "700" }}>Upcoming Work Anniversaries</h3>
+                              <span className="badge rounded-pill" style={{ backgroundColor: "#eeecff", color: "#3c2fbc", fontSize: "12px", padding: "4px 10px" }}>
+                                {thisMonthAnnivs.length}
+                              </span>
+                            </div>
+                          </div>
+                          <div style={{ width: "42px", height: "42px", borderRadius: "12px", background: "#eeecff", color: "#3c2fbc", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "20px" }}>
+                            <i className="bi bi-stars"></i>
+                          </div>
+                        </div>
+
+                        <div className="flex-grow-1 d-flex flex-column justify-content-between">
+                          {thisMonthAnnivs.length === 0 ? (
+                            <EmptyState
+                              compact
+                              emoji="🏆"
+                              title="No work anniversaries this month"
+                              message={`There are no work anniversaries scheduled for ${monthName}.`}
+                            />
+                          ) : (
+                            <div className="d-flex flex-column gap-2">
+                              {paginatedAnnivs.map((u, i) => {
+                                const isCurrentUser = currentUser?.id && u.userId && Number(currentUser.id) === Number(u.userId);
+                                const wishKey = `anniversary-${u.id || u.userId || u.name}`;
+                                const isSent = sentWishes[wishKey];
+                                const isSending = sendingWishId === wishKey;
+                                const avatarSrc = u.profilePic 
+                                  ? (/^(https?:\/\/|data:|blob:)/i.test(u.profilePic) ? u.profilePic : `${API_BASE}/${u.profilePic.replace(/^\/+/, '')}`)
+                                  : null;
+
+                                return (
+                                  <div
+                                    key={`wanniv-${u.id || i}`}
+                                    className="d-flex align-items-center justify-content-between p-3 rounded-4"
+                                    style={{
+                                      background: "#fafbfc",
+                                      border: "1px solid #f0f0f5",
+                                      transition: "all 0.2s ease"
+                                    }}
+                                  >
+                                    <div className="d-flex align-items-center gap-3 min-w-0">
+                                      <div style={{ width: "48px", height: "48px", borderRadius: "14px", overflow: "hidden", flexShrink: 0, border: "1px solid #e2e8f0" }}>
+                                        {avatarSrc ? (
+                                          <img
+                                            src={avatarSrc}
+                                            alt={u.name}
+                                            style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                                          />
+                                        ) : (
+                                          <div style={{ width: "100%", height: "100%", background: "#eeecff", color: "#3c2fbc", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: "700", fontSize: "16px" }}>
+                                            {u.name?.charAt(0) || "🏆"}
+                                          </div>
+                                        )}
+                                      </div>
+                                      <div className="min-w-0">
+                                        <div className="d-flex align-items-center gap-2">
+                                          <strong className="d-block text-truncate" style={{ fontSize: "14.5px", color: "#1e293b" }}>{u.name}</strong>
+                                          {isCurrentUser && (
+                                            <span className="badge bg-primary text-white rounded-pill px-2 py-0" style={{ fontSize: "10px" }}>You</span>
+                                          )}
+                                        </div>
+                                        <span className="d-block text-truncate text-muted" style={{ fontSize: "12px" }}>
+                                          {u.designation || u.department || "Team Member"}
+                                        </span>
+                                        <small style={{ fontSize: "11.5px", color: u.daysUntil === 0 ? "#16a34a" : "#64748b", fontWeight: u.daysUntil === 0 ? 600 : 400 }}>
+                                          <i className="bi bi-award me-1"></i>
+                                          {u.years} Year{u.years !== 1 ? 's' : ''} · {u.daysUntil === 0 ? "Today 🎉" : u.daysUntil === 1 ? "Tomorrow" : `${u.day} ${monthName}`}
+                                        </small>
+                                      </div>
+                                    </div>
+
+                                    <div className="flex-shrink-0 ms-2">
+                                      <button
+                                        type="button"
+                                        className="btn btn-sm"
+                                        disabled={isSent || isSending || isCurrentUser}
+                                        onClick={() => handleSendWish(u, 'anniversary')}
+                                        style={{
+                                          borderRadius: "10px",
+                                          padding: "7px 14px",
+                                          fontSize: "12.5px",
+                                          fontWeight: 600,
+                                          backgroundColor: isSent ? "#dcfce7" : isCurrentUser ? "#f1f5f9" : "#3c2fbc",
+                                          color: isSent ? "#15803d" : isCurrentUser ? "#94a3b8" : "#ffffff",
+                                          border: "none",
+                                          display: "inline-flex",
+                                          alignItems: "center",
+                                          gap: "6px",
+                                          cursor: (isSent || isCurrentUser) ? "default" : "pointer",
+                                          boxShadow: (isSent || isCurrentUser) ? "none" : "0 2px 6px rgba(60, 47, 188, 0.25)"
+                                        }}
+                                      >
+                                        {isSending ? (
+                                          <>
+                                            <span className="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                                            <span>Sending...</span>
+                                          </>
+                                        ) : isSent ? (
+                                          <>
+                                            <i className="bi bi-check-circle-fill"></i>
+                                            <span>Wish Sent ✨</span>
+                                          </>
+                                        ) : isCurrentUser ? (
+                                          <>
+                                            <span>Your Milestone 🌟</span>
+                                          </>
+                                        ) : (
+                                          <>
+                                            <i className="bi bi-send-fill"></i>
+                                            <span>Send Wishes</span>
+                                          </>
+                                        )}
+                                      </button>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+
+                          {thisMonthAnnivs.length > 0 && (
+                            <div
+                              className="d-flex align-items-center justify-content-between flex-wrap gap-2 pt-3 mt-3 border-top"
+                              style={{
+                                padding: "12px 14px",
+                                backgroundColor: "#fafbfc",
+                                borderRadius: "14px",
+                                border: "1px solid #f0f0f5"
+                              }}
+                            >
+                              <div className="d-flex align-items-center gap-2 flex-wrap">
+                                <span style={{ fontSize: "12.5px", color: "#64748b" }}>
+                                  Showing <strong style={{ color: "#1e293b" }}>{annivStartIndex}–{annivEndIndex}</strong> of <strong style={{ color: "#1e293b" }}>{thisMonthAnnivs.length}</strong>
+                                </span>
+                                <div className="d-flex align-items-center gap-1.5 ms-1">
+                                  <span style={{ fontSize: "12px", color: "#64748b" }}>Per page:</span>
+                                  <select
+                                    className="form-select form-select-sm"
+                                    value={annivPerPage}
+                                    onChange={e => { setAnnivPerPage(Number(e.target.value)); setAnnivPage(1); }}
+                                    style={{
+                                      width: "66px",
+                                      height: "30px",
+                                      borderRadius: "8px",
+                                      borderColor: "#e2e8f0",
+                                      fontSize: "12px",
+                                      backgroundColor: "#ffffff",
+                                      color: "#1e293b",
+                                      fontWeight: 500,
+                                      cursor: "pointer",
+                                      boxShadow: "none"
+                                    }}
+                                  >
+                                    <option value={5}>5</option>
+                                    <option value={10}>10</option>
+                                    <option value={20}>20</option>
+                                  </select>
+                                </div>
+                              </div>
+
+                              <div className="d-flex align-items-center gap-1">
+                                <button 
+                                  type="button"
+                                  className="btn btn-sm"
+                                  disabled={currentAnnivPage === 1} 
+                                  onClick={() => setAnnivPage(p => Math.max(1, p - 1))}
+                                  title="Previous Page"
+                                  style={{
+                                    width: "30px",
+                                    height: "30px",
+                                    borderRadius: "8px",
+                                    border: "1px solid #e2e8f0",
+                                    backgroundColor: currentAnnivPage === 1 ? "#f8fafc" : "#ffffff",
+                                    color: currentAnnivPage === 1 ? "#cbd5e1" : "#475569",
+                                    fontSize: "11px",
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                    cursor: currentAnnivPage === 1 ? "not-allowed" : "pointer"
+                                  }}
+                                >
+                                  <i className="bi bi-chevron-left"></i>
+                                </button>
+                                {Array.from({ length: totalAnnivPages }, (_, i) => i + 1).map(pageNum => (
+                                  <button 
+                                    key={pageNum} 
+                                    type="button" 
+                                    className="btn btn-sm"
+                                    onClick={() => setAnnivPage(pageNum)}
+                                    style={{
+                                      width: "30px",
+                                      height: "30px",
+                                      borderRadius: "8px",
+                                      border: currentAnnivPage === pageNum ? "none" : "1px solid #e2e8f0",
+                                      backgroundColor: currentAnnivPage === pageNum ? "#3c2fbc" : "#ffffff",
+                                      color: currentAnnivPage === pageNum ? "#ffffff" : "#475569",
+                                      fontWeight: currentAnnivPage === pageNum ? 600 : 400,
+                                      fontSize: "11.5px",
+                                      display: "inline-flex",
+                                      alignItems: "center",
+                                      justifyContent: "center",
+                                      cursor: "pointer",
+                                      boxShadow: currentAnnivPage === pageNum ? "0 2px 4px rgba(60, 47, 188, 0.2)" : "none"
+                                    }}
+                                  >
+                                    {pageNum}
+                                  </button>
+                                ))}
+                                <button 
+                                  type="button"
+                                  className="btn btn-sm"
+                                  disabled={currentAnnivPage === totalAnnivPages} 
+                                  onClick={() => setAnnivPage(p => Math.min(totalAnnivPages, p + 1))}
+                                  title="Next Page"
+                                  style={{
+                                    width: "30px",
+                                    height: "30px",
+                                    borderRadius: "8px",
+                                    border: "1px solid #e2e8f0",
+                                    backgroundColor: currentAnnivPage === totalAnnivPages ? "#f8fafc" : "#ffffff",
+                                    color: currentAnnivPage === totalAnnivPages ? "#cbd5e1" : "#475569",
+                                    fontSize: "11px",
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                    cursor: currentAnnivPage === totalAnnivPages ? "not-allowed" : "pointer"
+                                  }}
+                                >
+                                  <i className="bi bi-chevron-right"></i>
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 </section>
               )}
               
@@ -842,6 +1499,17 @@ export default function Calendar({ employeeProfile, currentUser, initialTab = "c
                 </div>
             </div>
         )}
+
+        {/* Team Colleague Chat Modal */}
+        <TeamChatModal
+          isOpen={!!activeChatUser}
+          onClose={() => setActiveChatUser(null)}
+          targetUser={activeChatUser}
+          currentUser={currentUser}
+          currentEmployee={myTeamData.currentEmployee}
+          employeeProfile={employeeProfile}
+          apiBase={API_BASE}
+        />
 
       </main>
     </>

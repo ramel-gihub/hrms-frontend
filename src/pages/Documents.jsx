@@ -345,6 +345,16 @@ export default function Documents({ currentUser, employeeProfile, embedded = fal
       if (value > today) {
         setFeedback({ type: "danger", text: "Issued date cannot be in the future." });
         return;
+      }
+      if (form.expiryDate && form.expiryDate <= value) {
+        setFeedback({ type: "danger", text: "Expiry date must be later than the issued date." });
+      } else {
+        setFeedback({ type: "", text: "" });
+      }
+    }
+    if (name === "expiryDate" && value) {
+      if (form.issuedDate && value <= form.issuedDate) {
+        setFeedback({ type: "danger", text: "Expiry date must be later than the issued date." });
       } else {
         setFeedback({ type: "", text: "" });
       }
@@ -370,6 +380,11 @@ export default function Documents({ currentUser, employeeProfile, embedded = fal
     const today = new Date().toISOString().split("T")[0];
     if (form.issuedDate && form.issuedDate > today) {
       setFeedback({ type: "danger", text: "Issued date cannot be in the future." });
+      return;
+    }
+
+    if (form.issuedDate && form.expiryDate && form.expiryDate <= form.issuedDate) {
+      setFeedback({ type: "danger", text: "Expiry date must be later than the issued date." });
       return;
     }
 
@@ -1252,6 +1267,7 @@ export default function Documents({ currentUser, employeeProfile, embedded = fal
                                                         id="epdExpiryDate"
                                                         name="expiryDate"
                                                         value={form.expiryDate}
+                                                        min={form.issuedDate || undefined}
                                                         onChange={updateField}
                                                         onClick={(e) => {
                                                             try { e.currentTarget.showPicker(); } catch (_) {}

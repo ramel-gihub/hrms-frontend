@@ -83,6 +83,16 @@ const EMPLOYEE_SHORTCUTS = [
     { id: "exit-management", label: "Resignation & Exit", description: "View exit information", icon: "bi-box-arrow-right", color: "orange" },
 ];
 
+const SECURITY_QUESTIONS_LIST = [
+    "What was the name of your first school?",
+    "What was the name of your first pet?",
+    "In what city were you born?",
+    "What is the first name of your oldest cousin?",
+    "What was your childhood nickname?",
+    "What was the make of your first car?",
+    "What was the street you grew up on?"
+];
+
 const SETTINGS_NAV_ITEMS = [
     { id: "esPersonal", label: "Personal Information", icon: "bi-person" },
     { id: "esContact", label: "Contact Information", icon: "bi-telephone" },
@@ -104,7 +114,7 @@ const getLatestEligibleDateOfBirth = () => {
     return `${date.getFullYear()}-${month}-${day}`;
 };
 
-export default function Settings({ currentUser, employeeProfile, onProfileUpdate }) {
+export default function Settings({ currentUser, employeeProfile, onProfileUpdate, onNavigate }) {
     const [activeSection, setActiveSection] = useState(() => {
         if (typeof window !== "undefined" && window.location.hash) {
             const hash = window.location.hash.replace("#", "");
@@ -334,6 +344,21 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
     const [showNewPassword, setShowNewPassword] = useState(false);
     const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
+    // Security Questions States
+    const [hasSecurityQuestions, setHasSecurityQuestions] = useState(false);
+    const [isSecurityModalOpen, setIsSecurityModalOpen] = useState(false);
+    const [securityQuestionsForm, setSecurityQuestionsForm] = useState({
+        question1: "",
+        answer1: "",
+        question2: "",
+        answer2: "",
+        question3: "",
+        answer3: ""
+    });
+    const [securityModalFeedback, setSecurityModalFeedback] = useState("");
+    const [securityModalSuccess, setSecurityModalSuccess] = useState("");
+    const [securityModalSubmitting, setSecurityModalSubmitting] = useState(false);
+
     // Preferences States
     const [preferencesForm, setPreferencesForm] = useState({
         preferredLanguage: "English",
@@ -420,6 +445,84 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
             window.dispatchEvent(new CustomEvent("preferencesUpdated", { detail: updated }));
         } catch (err) {
             console.error("Error auto-saving preference toggle:", err);
+        }
+    };
+
+    const fetchUserSecurityQuestions = async () => {
+        if (!currentUser?.id) return;
+        try {
+            const res = await fetch(`${API_BASE}/api/user/security-questions/${currentUser.id}`);
+            const data = await res.json();
+            if (res.ok && data.success) {
+                setHasSecurityQuestions(Boolean(data.hasQuestions));
+                if (data.questions && data.questions.length === 3) {
+                    setSecurityQuestionsForm(prev => ({
+                        ...prev,
+                        question1: data.questions[0] || "",
+                        question2: data.questions[1] || "",
+                        question3: data.questions[2] || ""
+                    }));
+                }
+            }
+        } catch (err) {
+            console.error("Error fetching security questions:", err);
+        }
+    };
+
+    useEffect(() => {
+        fetchUserSecurityQuestions();
+    }, [currentUser?.id]);
+
+    const submitSecurityQuestions = async (e) => {
+        e.preventDefault();
+        setSecurityModalFeedback("");
+        setSecurityModalSuccess("");
+
+        const { question1, answer1, question2, answer2, question3, answer3 } = securityQuestionsForm;
+
+        if (!question1 || !question2 || !question3) {
+            setSecurityModalFeedback("Please select all 3 security questions.");
+            return;
+        }
+
+        if (question1 === question2 || question1 === question3 || question2 === question3) {
+            setSecurityModalFeedback("Please choose three distinct security questions.");
+            return;
+        }
+
+        if (!answer1?.trim() || !answer2?.trim() || !answer3?.trim()) {
+            setSecurityModalFeedback("Please enter answers for all 3 questions.");
+            return;
+        }
+
+        setSecurityModalSubmitting(true);
+        try {
+            const res = await fetch(`${API_BASE}/api/user/security-questions/${currentUser?.id}`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    question1,
+                    answer1: answer1.trim(),
+                    question2,
+                    answer2: answer2.trim(),
+                    question3,
+                    answer3: answer3.trim()
+                })
+            });
+            const data = await res.json();
+            if (!res.ok) {
+                throw new Error(data.message || "Failed to save security questions.");
+            }
+            setHasSecurityQuestions(true);
+            setSecurityModalSuccess("✓ Security questions saved successfully!");
+            setTimeout(() => {
+                setIsSecurityModalOpen(false);
+                setSecurityModalSuccess("");
+            }, 1500);
+        } catch (err) {
+            setSecurityModalFeedback(err.message || "Unable to save security questions.");
+        } finally {
+            setSecurityModalSubmitting(false);
         }
     };
 
@@ -1521,7 +1624,16 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
                 <div className="es-help-icon"><i className="bi bi-headset"></i></div>
                 <strong>Need help?</strong>
                 <p>Contact HR if you need help updating your employee information.</p>
-                <button type="button">
+                <button 
+                    type="button"
+                    onClick={() => {
+                        if (onNavigate) {
+                            onNavigate("employee-requests");
+                        } else {
+                            window.location.hash = "#employee-requests";
+                        }
+                    }}
+                >
                     Contact HR <i className="bi bi-arrow-up-right"></i>
                 </button>
             </div>
@@ -2047,6 +2159,28 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
                             }}
                         >
                             Change
+                        </button>
+                    </div>
+
+                    <div className="es-security-row">
+                        <div className="es-security-row-icon"><i className="bi bi-display"></i></div>
+                        <div className="es-security-row-content">
+                            <strong>Security Questions</strong>
+                            <span>Adding security questions to help verify your identity.</span>
+                        </div>
+                        <button 
+                            className="btn es-edit-btn"
+                            type="button"
+                            style={EDIT_TRIGGER_STYLE}
+                            onMouseEnter={(event) => setEditTriggerHover(event, true)}
+                            onMouseLeave={(event) => setEditTriggerHover(event, false)}
+                            onClick={() => {
+                                setIsSecurityModalOpen(true);
+                                setSecurityModalFeedback("");
+                                setSecurityModalSuccess("");
+                            }}
+                        >
+                            {hasSecurityQuestions ? "Change" : "Set up"}
                         </button>
                     </div>
 
@@ -2812,6 +2946,159 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
                     ></button>
                 </div>
             )}
+
+            {/* Set Up Security Questions Modal */}
+            {isSecurityModalOpen && (
+                <div className="modal-backdrop fade show" onClick={() => setIsSecurityModalOpen(false)}></div>
+            )}
+            <div
+                className={`modal fade${isSecurityModalOpen ? " show d-block" : ""}`}
+                id="esSecurityQuestionsModal"
+                tabIndex="-1"
+                aria-hidden={!isSecurityModalOpen}
+                aria-modal={isSecurityModalOpen || undefined}
+                role={isSecurityModalOpen ? "dialog" : undefined}
+                onClick={(event) => {
+                    if (event.target === event.currentTarget) setIsSecurityModalOpen(false);
+                }}
+            >
+                <div className="modal-dialog modal-dialog-centered modal-dialog-scrollable" style={{ maxWidth: 540 }}>
+                    <form className="modal-content es-modal-content" onSubmit={submitSecurityQuestions} noValidate>
+                        <div className="modal-header" style={{ borderBottom: '1px solid #f1f5f9', padding: '20px 24px' }}>
+                            <div>
+                                <h5 className="modal-title" style={{ fontWeight: 700, fontSize: '1.25rem', color: '#1e293b' }}>Set Up Security Questions</h5>
+                                <p className="es-modal-subtitle" style={{ margin: '4px 0 0', color: '#64748b', fontSize: '0.875rem' }}>
+                                    Choose three questions and enter answers you can remember.
+                                </p>
+                            </div>
+                            <button type="button" className="btn-close" aria-label="Close" onClick={() => setIsSecurityModalOpen(false)}></button>
+                        </div>
+                        <div className="modal-body" style={{ padding: '20px 24px' }}>
+                            {securityModalSuccess && (
+                                <div className="alert alert-success d-flex align-items-center gap-2 py-2 px-3 mb-3" role="alert" style={{ borderRadius: 10, fontSize: 13 }}>
+                                    <i className="bi bi-check-circle-fill"></i>
+                                    <span>{securityModalSuccess}</span>
+                                </div>
+                            )}
+                            {securityModalFeedback && (
+                                <div className="alert alert-danger d-flex align-items-center gap-2 py-2 px-3 mb-3" role="alert" style={{ borderRadius: 10, fontSize: 13 }}>
+                                    <i className="bi bi-exclamation-circle-fill"></i>
+                                    <span>{securityModalFeedback}</span>
+                                </div>
+                            )}
+
+                            {/* Question 1 */}
+                            <div className="mb-3">
+                                <label className="form-label mb-1" style={{ fontSize: '0.85rem', fontWeight: 600, color: '#334155' }}>
+                                    Security Question 1
+                                </label>
+                                <select
+                                    className="form-select mb-2"
+                                    value={securityQuestionsForm.question1}
+                                    onChange={(e) => setSecurityQuestionsForm(prev => ({ ...prev, question1: e.target.value }))}
+                                    style={{ borderRadius: 8, borderColor: '#cbd5e1', fontSize: '0.9rem' }}
+                                >
+                                    <option value="">Select a question</option>
+                                    {SECURITY_QUESTIONS_LIST.map((q, idx) => (
+                                        <option key={idx} value={q} disabled={q === securityQuestionsForm.question2 || q === securityQuestionsForm.question3}>
+                                            {q}
+                                        </option>
+                                    ))}
+                                </select>
+                                <input
+                                    type="text"
+                                    className="form-control"
+                                    placeholder="Enter your answer"
+                                    value={securityQuestionsForm.answer1}
+                                    onChange={(e) => setSecurityQuestionsForm(prev => ({ ...prev, answer1: e.target.value }))}
+                                    style={{ borderRadius: 8, borderColor: '#cbd5e1', fontSize: '0.9rem' }}
+                                />
+                            </div>
+
+                            {/* Question 2 */}
+                            <div className="mb-3">
+                                <label className="form-label mb-1" style={{ fontSize: '0.85rem', fontWeight: 600, color: '#334155' }}>
+                                    Security Question 2
+                                </label>
+                                <select
+                                    className="form-select mb-2"
+                                    value={securityQuestionsForm.question2}
+                                    onChange={(e) => setSecurityQuestionsForm(prev => ({ ...prev, question2: e.target.value }))}
+                                    style={{ borderRadius: 8, borderColor: '#cbd5e1', fontSize: '0.9rem' }}
+                                >
+                                    <option value="">Select a question</option>
+                                    {SECURITY_QUESTIONS_LIST.map((q, idx) => (
+                                        <option key={idx} value={q} disabled={q === securityQuestionsForm.question1 || q === securityQuestionsForm.question3}>
+                                            {q}
+                                        </option>
+                                    ))}
+                                </select>
+                                <input
+                                    type="text"
+                                    className="form-control"
+                                    placeholder="Enter your answer"
+                                    value={securityQuestionsForm.answer2}
+                                    onChange={(e) => setSecurityQuestionsForm(prev => ({ ...prev, answer2: e.target.value }))}
+                                    style={{ borderRadius: 8, borderColor: '#cbd5e1', fontSize: '0.9rem' }}
+                                />
+                            </div>
+
+                            {/* Question 3 */}
+                            <div className="mb-3">
+                                <label className="form-label mb-1" style={{ fontSize: '0.85rem', fontWeight: 600, color: '#334155' }}>
+                                    Security Question 3
+                                </label>
+                                <select
+                                    className="form-select mb-2"
+                                    value={securityQuestionsForm.question3}
+                                    onChange={(e) => setSecurityQuestionsForm(prev => ({ ...prev, question3: e.target.value }))}
+                                    style={{ borderRadius: 8, borderColor: '#cbd5e1', fontSize: '0.9rem' }}
+                                >
+                                    <option value="">Select a question</option>
+                                    {SECURITY_QUESTIONS_LIST.map((q, idx) => (
+                                        <option key={idx} value={q} disabled={q === securityQuestionsForm.question1 || q === securityQuestionsForm.question2}>
+                                            {q}
+                                        </option>
+                                    ))}
+                                </select>
+                                <input
+                                    type="text"
+                                    className="form-control"
+                                    placeholder="Enter your answer"
+                                    value={securityQuestionsForm.answer3}
+                                    onChange={(e) => setSecurityQuestionsForm(prev => ({ ...prev, answer3: e.target.value }))}
+                                    style={{ borderRadius: 8, borderColor: '#cbd5e1', fontSize: '0.9rem' }}
+                                />
+                            </div>
+                        </div>
+                        <div className="modal-footer" style={{ borderTop: '1px solid #f1f5f9', padding: '16px 24px', display: 'flex', justifyContent: 'flex-end', gap: 12 }}>
+                            <button
+                                type="button"
+                                className="btn"
+                                style={{ border: '1px solid #cbd5e1', color: '#475569', borderRadius: 8, padding: '8px 18px', fontWeight: 500 }}
+                                onClick={() => setIsSecurityModalOpen(false)}
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                type="submit"
+                                className="btn"
+                                disabled={securityModalSubmitting}
+                                style={{
+                                    backgroundColor: '#4338ca',
+                                    borderColor: '#4338ca',
+                                    color: '#ffffff',
+                                    borderRadius: 8,
+                                    padding: '8px 20px',
+                                    fontWeight: 600
+                                }}
+                            >
+                                {securityModalSubmitting ? "Saving..." : "Save Security Questions"}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
 
             {/* Change Password Modal */}
             {isPasswordModalOpen && (

@@ -19,6 +19,154 @@ export default function EmployeeProfile({ currentUser, employeeProfile, onProfil
     const [wfhRequests, setWfhRequests] = useState([]);
     const [wfhLoading, setWfhLoading] = useState(false);
     const [wfhPage, setWfhPage] = useState(1);
+    const [commuteRecords, setCommuteRecords] = useState([]);
+    const [commuteLoading, setCommuteLoading] = useState(false);
+    const [commutePage, setCommutePage] = useState(1);
+    const [commutePageSize, setCommutePageSize] = useState(5); // 5, 10, 25, 50, 100, or 'all'
+
+    const handlePrintCommute = () => {
+        try {
+            const printWin = window.open("", "_blank");
+            if (!printWin) {
+                window.print();
+                return;
+            }
+
+            const rowsHtml = commuteRecords.map((r, i) => {
+                const dateStr = r.entry_date ? new Date(r.entry_date).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "-";
+                const modeStr = r.commute_mode || r.mode || "-";
+                const distStr = r.commute_distance_km || r.distance ? `${parseFloat(r.commute_distance_km || r.distance).toFixed(1)} km` : "—";
+                const vehicleDetails = [
+                    r.vehicle_type ? `${r.vehicle_type}${r.vehicle_make_model ? ` (${r.vehicle_make_model})` : ''}` : null,
+                    r.transport_type,
+                    r.route_details ? `Route: ${r.route_details}` : null
+                ].filter(Boolean).join(" · ") || "—";
+                const fuelMileage = [
+                    r.vehicle_mileage ? `${r.vehicle_mileage} km/L` : null,
+                    r.fuel_type
+                ].filter(Boolean).join(" · ") || "—";
+                const statusColor = (r.status || "").toLowerCase() === "approved" ? "#16a34a" : (r.status || "").toLowerCase() === "rejected" ? "#dc2626" : "#d97706";
+                const reviewerInfo = r.approved_by_name ? `Approved by ${r.approved_by_name}` : r.rejected_by_name ? `Rejected by ${r.rejected_by_name}` : r.reviewer_name ? `Reviewed by ${r.reviewer_name}` : "—";
+                const remarks = r.rejection_reason || r.admin_remarks || "—";
+
+                return `
+                    <tr>
+                        <td style="padding: 10px 12px; border-bottom: 1px solid #e2e8f0; font-size: 12px; text-align: center;">${i + 1}</td>
+                        <td style="padding: 10px 12px; border-bottom: 1px solid #e2e8f0; font-size: 12px; font-weight: 600;">${dateStr}</td>
+                        <td style="padding: 10px 12px; border-bottom: 1px solid #e2e8f0; font-size: 12px;">${modeStr}</td>
+                        <td style="padding: 10px 12px; border-bottom: 1px solid #e2e8f0; font-size: 12px; font-weight: 600;">${distStr}</td>
+                        <td style="padding: 10px 12px; border-bottom: 1px solid #e2e8f0; font-size: 12px;">${vehicleDetails}</td>
+                        <td style="padding: 10px 12px; border-bottom: 1px solid #e2e8f0; font-size: 12px;">${fuelMileage}</td>
+                        <td style="padding: 10px 12px; border-bottom: 1px solid #e2e8f0; font-size: 12px; font-weight: 700; color: ${statusColor};">${r.status || "Pending"}</td>
+                        <td style="padding: 10px 12px; border-bottom: 1px solid #e2e8f0; font-size: 11.5px;">${reviewerInfo}</td>
+                        <td style="padding: 10px 12px; border-bottom: 1px solid #e2e8f0; font-size: 11.5px; color: #475569;">${remarks}</td>
+                    </tr>
+                `;
+            }).join("");
+
+            printWin.document.write(`
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <title>Commute & Travel Statement - ${employeeName || 'Employee'}</title>
+                    <style>
+                        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; color: #0f172a; margin: 30px; font-size: 13px; }
+                        .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #16a34a; padding-bottom: 14px; margin-bottom: 20px; }
+                        .header h1 { margin: 0; font-size: 20px; color: #0f172a; font-weight: 800; }
+                        .header p { margin: 4px 0 0; color: #64748b; font-size: 12px; }
+                        .emp-card { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px 16px; margin-bottom: 20px; }
+                        .emp-card div span { display: block; font-size: 10.5px; text-transform: uppercase; color: #64748b; font-weight: 600; }
+                        .emp-card div strong { font-size: 13px; color: #1e293b; }
+                        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+                        th { background: #f1f5f9; color: #334155; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; padding: 10px 12px; text-align: left; border-bottom: 2px solid #cbd5e1; }
+                        .footer { margin-top: 25px; padding-top: 10px; border-top: 1px solid #e2e8f0; display: flex; justify-content: space-between; font-size: 11px; color: #94a3b8; }
+                        @media print {
+                            button { display: none !important; }
+                            body { margin: 15mm; }
+                        }
+                    </style>
+                </head>
+                <body>
+                    <div class="header">
+                        <div>
+                            <h1>Employee Commute &amp; Travel Statement</h1>
+                            <p>Official record of daily conveyance, transport modes, and approval status</p>
+                        </div>
+                        <div>
+                            <button onclick="window.print()" style="padding: 7px 16px; background: #16a34a; color: white; border: none; border-radius: 6px; font-weight: 600; cursor: pointer; font-size: 12px;">Print Now</button>
+                        </div>
+                    </div>
+
+                    <div class="emp-card">
+                        <div><span>Employee Name</span><strong>${employeeName || "Employee"}</strong></div>
+                        <div><span>Employee ID</span><strong>${employeeCodeDisplay || "EMP-0001"}</strong></div>
+                        <div><span>Department</span><strong>${employeeProfile?.department || "Staff"}</strong></div>
+                        <div><span>Designation</span><strong>${employeeProfile?.designation || "Staff Member"}</strong></div>
+                    </div>
+
+                    <table>
+                        <thead>
+                            <tr>
+                                <th style="width: 30px; text-align: center;">#</th>
+                                <th>Date</th>
+                                <th>Mode</th>
+                                <th>Distance</th>
+                                <th>Vehicle / Route</th>
+                                <th>Mileage / Fuel</th>
+                                <th>Status</th>
+                                <th>Reviewer</th>
+                                <th>Remarks</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${rowsHtml || '<tr><td colspan="9" style="text-align: center; padding: 24px; color: #94a3b8;">No commute records found.</td></tr>'}
+                        </tbody>
+                    </table>
+
+                    <div class="footer">
+                        <span>Report generated on: ${new Date().toLocaleString("en-GB")}</span>
+                        <span>HRMS Employee Portal</span>
+                    </div>
+                </body>
+                </html>
+            `);
+            printWin.document.close();
+            printWin.focus();
+        } catch (_) {
+            window.print();
+        }
+    };
+
+    const handleExportCommuteCSV = () => {
+        if (!commuteRecords.length) return;
+        const headers = ["#", "Date", "Commute Mode", "Distance (km)", "Transport Type", "Route Details", "Vehicle Type", "Vehicle Model", "Mileage (km/L)", "Fuel Type", "Status", "Reviewed / Approved By", "Review Date", "Remarks / Reason"];
+        const rows = commuteRecords.map((r, idx) => [
+            idx + 1,
+            `"${r.entry_date || ''}"`,
+            `"${r.commute_mode || r.mode || ''}"`,
+            r.commute_distance_km || r.distance || '',
+            `"${r.transport_type || ''}"`,
+            `"${r.route_details || ''}"`,
+            `"${r.vehicle_type || ''}"`,
+            `"${r.vehicle_make_model || ''}"`,
+            r.vehicle_mileage || '',
+            `"${r.fuel_type || ''}"`,
+            `"${r.status || 'Pending'}"`,
+            `"${r.approved_by_name || r.rejected_by_name || r.reviewer_name || ''}"`,
+            `"${r.approved_at || r.rejected_at || r.reviewed_at ? new Date(r.approved_at || r.rejected_at || r.reviewed_at).toLocaleDateString('en-GB') : ''}"`,
+            `"${(r.rejection_reason || r.admin_remarks || '').replace(/"/g, '""')}"`
+        ]);
+
+        const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map(e => e.join(","))].join("\n");
+        const encodedUri = encodeURI(csvContent);
+        const link = document.createElement("a");
+        link.setAttribute("href", encodedUri);
+        link.setAttribute("download", `commute_and_travel_${employeeCodeDisplay}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
+
     const handleApplyWfh = () => {
         sessionStorage.setItem("open_wfh_request", "true");
         if (typeof onNavigate === "function") {
@@ -108,6 +256,21 @@ export default function EmployeeProfile({ currentUser, employeeProfile, onProfil
                 }
             })
             .catch((err) => console.error("Failed to load documents:", err));
+
+        // Fetch Commute & Travel records
+        setCommuteLoading(true);
+        fetch(`${API_BASE}/api/employee/commute-travel/${effectiveUserId}`)
+            .then((res) => (res.ok ? res.json() : { records: [] }))
+            .then((data) => {
+                if (!isCancelled) {
+                    const records = Array.isArray(data?.records) ? data.records : [];
+                    setCommuteRecords(records);
+                }
+            })
+            .catch((err) => console.error("Failed to load commute records:", err))
+            .finally(() => {
+                if (!isCancelled) setCommuteLoading(false);
+            });
 
         return () => {
             isCancelled = true;
@@ -338,6 +501,11 @@ export default function EmployeeProfile({ currentUser, employeeProfile, onProfil
                             <button type="button" className={`ep-profile-tab${activeProfileTab === "wfh" ? " active" : ""}`} data-profile-tab="wfh" onClick={() => { setActiveProfileTab("wfh"); setWfhPage(1); }}>
                                 <i className="bi bi-house-door"></i>
                                 Work From Home
+                            </button>
+
+                            <button type="button" className={`ep-profile-tab${activeProfileTab === "commute" ? " active" : ""}`} data-profile-tab="commute" onClick={() => { setActiveProfileTab("commute"); setCommutePage(1); }}>
+                                <i className="bi bi-car-front"></i>
+                                Commute &amp; Travel
                             </button>
 
                             {/*
@@ -1071,7 +1239,379 @@ export default function EmployeeProfile({ currentUser, employeeProfile, onProfil
                         <Expenses employeeProfile={employeeProfile} currentUser={currentUser} embedded />
                     )}
 
-                    <section className={`ep-profile-tab-content${["overview", "employment", "documents", "skills", "attendance", "leave", "assets", "expenses", "wfh"].includes(activeProfileTab) ? " d-none" : ""}`} id="profileTabPlaceholder">
+                    {activeProfileTab === "commute" && (
+                        <div className="ep-profile-content" id="profileCommuteTravel">
+                            <div className="ep-info-card" style={{ padding: 0, overflow: "hidden" }}>
+                                {/* Header with title, record count, and Print/Export option */}
+                                <div style={{
+                                    padding: "20px 24px",
+                                    borderBottom: "1px solid #f1f5f9",
+                                    display: "flex",
+                                    alignItems: "center",
+                                    justifyContent: "space-between",
+                                    flexWrap: "wrap",
+                                    gap: "12px",
+                                    backgroundColor: "#ffffff"
+                                }}>
+                                    <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                                        <div style={{
+                                            width: "40px",
+                                            height: "40px",
+                                            borderRadius: "10px",
+                                            backgroundColor: "#f0fdf4",
+                                            color: "#16a34a",
+                                            display: "flex",
+                                            alignItems: "center",
+                                            justifyContent: "center",
+                                            fontSize: "20px"
+                                        }}>
+                                            <i className="bi bi-car-front"></i>
+                                        </div>
+                                        <div>
+                                            <h3 style={{ margin: 0, fontSize: "16px", fontWeight: 700, color: "#0f172a" }}>
+                                                Commute &amp; Travel Records
+                                            </h3>
+                                            <p style={{ margin: "2px 0 0", fontSize: "12.5px", color: "#64748b" }}>
+                                                Daily travel logs, conveyance modes, distance, vehicles, and approval history ({commuteRecords.length} records)
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
+                                        {/* Pagination page size selector: 5, 10, 25, 50, 100, all */}
+                                        <div style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "13px", color: "#64748b" }}>
+                                            <span>Show:</span>
+                                            <select
+                                                value={commutePageSize}
+                                                onChange={(e) => {
+                                                    const val = e.target.value === "all" ? "all" : Number(e.target.value);
+                                                    setCommutePageSize(val);
+                                                    setCommutePage(1);
+                                                }}
+                                                className="form-select form-select-sm"
+                                                style={{
+                                                    width: "auto",
+                                                    fontSize: "12.5px",
+                                                    borderRadius: "8px",
+                                                    padding: "4px 28px 4px 10px",
+                                                    borderColor: "#cbd5e1",
+                                                    cursor: "pointer"
+                                                }}
+                                            >
+                                                <option value={5}>5 per page</option>
+                                                <option value={10}>10 per page</option>
+                                                <option value={25}>25 per page</option>
+                                                <option value={50}>50 per page</option>
+                                                <option value={100}>100 per page</option>
+                                                <option value="all">All records</option>
+                                            </select>
+                                        </div>
+
+                                        {/* Export to CSV Button */}
+                                        <button
+                                            type="button"
+                                            onClick={handleExportCommuteCSV}
+                                            disabled={commuteRecords.length === 0}
+                                            style={{
+                                                padding: "7px 14px",
+                                                backgroundColor: "#ffffff",
+                                                color: "#0f172a",
+                                                borderRadius: "10px",
+                                                border: "1px solid #cbd5e1",
+                                                fontSize: "13px",
+                                                fontWeight: 600,
+                                                display: "flex",
+                                                alignItems: "center",
+                                                gap: "6px",
+                                                cursor: commuteRecords.length === 0 ? "not-allowed" : "pointer",
+                                                boxShadow: "0 1px 2px rgba(0,0,0,0.05)",
+                                                opacity: commuteRecords.length === 0 ? 0.6 : 1
+                                            }}
+                                            title="Export to CSV"
+                                        >
+                                            <i className="bi bi-file-earmark-spreadsheet text-success"></i>
+                                            Export CSV
+                                        </button>
+
+                                        {/* Export / Print Button */}
+                                        <button
+                                            type="button"
+                                            onClick={handlePrintCommute}
+                                            style={{
+                                                padding: "7px 14px",
+                                                backgroundColor: "#16a34a",
+                                                color: "#ffffff",
+                                                borderRadius: "10px",
+                                                border: "none",
+                                                fontSize: "13px",
+                                                fontWeight: 600,
+                                                display: "flex",
+                                                alignItems: "center",
+                                                gap: "6px",
+                                                cursor: "pointer",
+                                                boxShadow: "0 1px 2px rgba(0,0,0,0.1)"
+                                            }}
+                                            title="Print or Export Commute & Travel records"
+                                        >
+                                            <i className="bi bi-printer"></i>
+                                            Export / Print
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {/* Table */}
+                                <div className="table-responsive" style={{ margin: 0 }}>
+                                    <table className="table align-middle" style={{ margin: 0, fontSize: "13px" }}>
+                                        <thead style={{ backgroundColor: "#f8fafc", color: "#475569", fontWeight: 600, fontSize: "12px", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                                            <tr>
+                                                <th style={{ padding: "14px 20px", borderBottom: "1px solid #e2e8f0" }}>Date</th>
+                                                <th style={{ padding: "14px 16px", borderBottom: "1px solid #e2e8f0" }}>Commute Mode</th>
+                                                <th style={{ padding: "14px 16px", borderBottom: "1px solid #e2e8f0" }}>Distance</th>
+                                                <th style={{ padding: "14px 16px", borderBottom: "1px solid #e2e8f0" }}>Vehicle / Route Details</th>
+                                                <th style={{ padding: "14px 16px", borderBottom: "1px solid #e2e8f0" }}>Mileage / Fuel</th>
+                                                <th style={{ padding: "14px 16px", borderBottom: "1px solid #e2e8f0" }}>Status</th>
+                                                <th style={{ padding: "14px 20px", borderBottom: "1px solid #e2e8f0" }}>Reviewed By &amp; Remarks</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {commuteLoading ? (
+                                                <tr>
+                                                    <td colSpan="7" style={{ textAlign: "center", padding: "40px 20px", color: "#64748b" }}>
+                                                        <div className="spinner-border spinner-border-sm text-primary me-2" role="status"></div>
+                                                        Loading Commute &amp; Travel records...
+                                                    </td>
+                                                </tr>
+                                            ) : commuteRecords.length === 0 ? (
+                                                <tr>
+                                                    <td colSpan="7" style={{ textAlign: "center", padding: "48px 20px" }}>
+                                                        <div style={{ width: "56px", height: "56px", borderRadius: "50%", backgroundColor: "#f1f5f9", color: "#94a3b8", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: "24px", marginBottom: "12px" }}>
+                                                            <i className="bi bi-car-front"></i>
+                                                        </div>
+                                                        <div style={{ fontWeight: 600, color: "#334155", fontSize: "15px" }}>No Commute &amp; Travel Records</div>
+                                                        <div style={{ color: "#94a3b8", fontSize: "13px", marginTop: "4px" }}>No commute or daily travel records have been submitted yet.</div>
+                                                    </td>
+                                                </tr>
+                                            ) : (
+                                                (commutePageSize === "all"
+                                                    ? commuteRecords
+                                                    : commuteRecords.slice((commutePage - 1) * commutePageSize, commutePage * commutePageSize)
+                                                ).map((rec, idx) => {
+                                                    const eDate = rec.entry_date ? new Date(rec.entry_date).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "-";
+                                                    const statusNorm = (rec.status || "Pending").toLowerCase();
+
+                                                    return (
+                                                        <tr key={rec.id || idx} style={{ borderBottom: "1px solid #f1f5f9" }}>
+                                                            <td style={{ padding: "14px 20px", whiteSpace: "nowrap" }}>
+                                                                <div style={{ fontWeight: 700, color: "#1e293b" }}>{eDate}</div>
+                                                                <span style={{ fontSize: "11px", color: "#94a3b8" }}>ID: #{rec.id}</span>
+                                                            </td>
+                                                            <td style={{ padding: "14px 16px" }}>
+                                                                <span style={{
+                                                                    fontWeight: 600,
+                                                                    color: rec.commute_mode === "Personal vehicle" || rec.mode === "Personal vehicle" ? "#0284c7" : "#0d9488",
+                                                                    backgroundColor: rec.commute_mode === "Personal vehicle" || rec.mode === "Personal vehicle" ? "#e0f2fe" : "#ccfbf1",
+                                                                    padding: "3px 10px",
+                                                                    borderRadius: "6px",
+                                                                    fontSize: "12px",
+                                                                    display: "inline-flex",
+                                                                    alignItems: "center",
+                                                                    gap: "5px"
+                                                                }}>
+                                                                    <i className={`bi ${rec.commute_mode === "Personal vehicle" || rec.mode === "Personal vehicle" ? "bi-car-front" : rec.commute_mode === "Two-wheeler" ? "bi-bicycle" : "bi-bus-front"}`}></i>
+                                                                    {rec.commute_mode || rec.mode || "Commute"}
+                                                                </span>
+                                                            </td>
+                                                            <td style={{ padding: "14px 16px", whiteSpace: "nowrap" }}>
+                                                                <span style={{ fontWeight: 700, color: "#0f172a" }}>
+                                                                    {rec.commute_distance_km || rec.distance ? `${parseFloat(rec.commute_distance_km || rec.distance).toFixed(1)} km` : "—"}
+                                                                </span>
+                                                            </td>
+                                                            <td style={{ padding: "14px 16px", maxWidth: "260px" }}>
+                                                                {rec.vehicle_type || rec.vehicle_make_model ? (
+                                                                    <div>
+                                                                        <div style={{ fontWeight: 600, color: "#0f172a" }}>
+                                                                            {rec.vehicle_type ? `${rec.vehicle_type}: ` : ""}{rec.vehicle_make_model || "—"}
+                                                                        </div>
+                                                                        {rec.route_details && (
+                                                                            <div style={{ fontSize: "12px", color: "#64748b", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                                                                                Route: {rec.route_details}
+                                                                            </div>
+                                                                        )}
+                                                                    </div>
+                                                                ) : rec.transport_type || rec.route_details ? (
+                                                                    <div>
+                                                                        <div style={{ fontWeight: 600, color: "#0f172a" }}>
+                                                                            {rec.transport_type || "Public Transport"}
+                                                                        </div>
+                                                                        {rec.route_details && (
+                                                                            <div style={{ fontSize: "12px", color: "#64748b", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                                                                                Route: {rec.route_details}
+                                                                            </div>
+                                                                        )}
+                                                                    </div>
+                                                                ) : (
+                                                                    <span style={{ color: "#94a3b8" }}>—</span>
+                                                                )}
+                                                            </td>
+                                                            <td style={{ padding: "14px 16px", whiteSpace: "nowrap" }}>
+                                                                {rec.vehicle_mileage || rec.fuel_type ? (
+                                                                    <div>
+                                                                        {rec.vehicle_mileage && <span style={{ fontWeight: 600, color: "#334155" }}>{rec.vehicle_mileage} km/L</span>}
+                                                                        {rec.fuel_type && (
+                                                                            <span style={{ display: "block", fontSize: "11px", color: "#64748b" }}>
+                                                                                {rec.fuel_type}
+                                                                            </span>
+                                                                        )}
+                                                                    </div>
+                                                                ) : (
+                                                                    <span style={{ color: "#94a3b8" }}>—</span>
+                                                                )}
+                                                            </td>
+                                                            <td style={{ padding: "14px 16px" }}>
+                                                                {statusNorm === "approved" ? (
+                                                                    <span style={{ display: "inline-flex", alignItems: "center", gap: "4px", backgroundColor: "#dcfce7", color: "#15803d", fontWeight: 600, fontSize: "12px", padding: "4px 10px", borderRadius: "20px" }}>
+                                                                        <i className="bi bi-check-circle-fill"></i> Approved
+                                                                    </span>
+                                                                ) : statusNorm === "rejected" ? (
+                                                                    <span style={{ display: "inline-flex", alignItems: "center", gap: "4px", backgroundColor: "#fee2e2", color: "#b91c1c", fontWeight: 600, fontSize: "12px", padding: "4px 10px", borderRadius: "20px" }}>
+                                                                        <i className="bi bi-x-circle-fill"></i> Rejected
+                                                                    </span>
+                                                                ) : (
+                                                                    <span style={{ display: "inline-flex", alignItems: "center", gap: "4px", backgroundColor: "#fef3c7", color: "#b45309", fontWeight: 600, fontSize: "12px", padding: "4px 10px", borderRadius: "20px" }}>
+                                                                        <i className="bi bi-clock-history"></i> Pending
+                                                                    </span>
+                                                                )}
+                                                            </td>
+                                                            <td style={{ padding: "14px 20px", fontSize: "12.5px" }}>
+                                                                {statusNorm === "approved" ? (
+                                                                    <div>
+                                                                        <span style={{ color: "#15803d", fontWeight: 600 }}>
+                                                                            Approved by {rec.approved_by_name || rec.reviewer_name || "Admin"}
+                                                                        </span>
+                                                                        {rec.approved_at && (
+                                                                            <div style={{ fontSize: "11px", color: "#64748b" }}>
+                                                                                {new Date(rec.approved_at).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}
+                                                                            </div>
+                                                                        )}
+                                                                        {rec.admin_remarks && <div style={{ fontSize: "11.5px", color: "#475569", marginTop: "2px" }}>"{rec.admin_remarks}"</div>}
+                                                                    </div>
+                                                                ) : statusNorm === "rejected" ? (
+                                                                    <div>
+                                                                        <span style={{ color: "#b91c1c", fontWeight: 600 }}>
+                                                                            Rejected by {rec.rejected_by_name || rec.reviewer_name || "Admin"}
+                                                                        </span>
+                                                                        {rec.rejected_at && (
+                                                                            <div style={{ fontSize: "11px", color: "#64748b" }}>
+                                                                                {new Date(rec.rejected_at).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}
+                                                                            </div>
+                                                                        )}
+                                                                        {(rec.rejection_reason || rec.admin_remarks) && (
+                                                                            <div style={{ fontSize: "11.5px", color: "#b91c1c", marginTop: "2px" }}>
+                                                                                Reason: "{rec.rejection_reason || rec.admin_remarks}"
+                                                                            </div>
+                                                                        )}
+                                                                    </div>
+                                                                ) : (
+                                                                    <span style={{ color: "#94a3b8" }}>{rec.admin_remarks || "Awaiting review"}</span>
+                                                                )}
+                                                            </td>
+                                                        </tr>
+                                                    );
+                                                })
+                                            )}
+                                        </tbody>
+                                    </table>
+                                </div>
+
+                                {/* Pagination Controls */}
+                                {commuteRecords.length > 0 && (
+                                    <div style={{
+                                        padding: "14px 24px",
+                                        backgroundColor: "#fafbfc",
+                                        borderTop: "1px solid #f1f5f9",
+                                        display: "flex",
+                                        alignItems: "center",
+                                        justifyContent: "space-between",
+                                        flexWrap: "wrap",
+                                        gap: "12px"
+                                    }}>
+                                        <div style={{ fontSize: "13px", color: "#64748b" }}>
+                                            {commutePageSize === "all" ? (
+                                                <>Showing all <strong style={{ color: "#0f172a" }}>{commuteRecords.length}</strong> records</>
+                                            ) : (
+                                                <>Showing <strong style={{ color: "#0f172a" }}>{(commutePage - 1) * commutePageSize + 1}</strong> to <strong style={{ color: "#0f172a" }}>{Math.min(commutePage * commutePageSize, commuteRecords.length)}</strong> of <strong style={{ color: "#0f172a" }}>{commuteRecords.length}</strong> records</>
+                                            )}
+                                        </div>
+
+                                        {commutePageSize !== "all" && Math.ceil(commuteRecords.length / commutePageSize) > 1 && (
+                                            <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                                                <button
+                                                    type="button"
+                                                    disabled={commutePage <= 1}
+                                                    onClick={() => setCommutePage((prev) => Math.max(1, prev - 1))}
+                                                    style={{
+                                                        padding: "6px 12px",
+                                                        border: "1px solid #e2e8f0",
+                                                        backgroundColor: commutePage <= 1 ? "#f8fafc" : "#ffffff",
+                                                        color: commutePage <= 1 ? "#cbd5e1" : "#334155",
+                                                        borderRadius: "8px",
+                                                        fontSize: "13px",
+                                                        cursor: commutePage <= 1 ? "not-allowed" : "pointer"
+                                                    }}
+                                                >
+                                                    <i className="bi bi-chevron-left me-1"></i> Prev
+                                                </button>
+
+                                                {Array.from({ length: Math.ceil(commuteRecords.length / commutePageSize) || 1 }).map((_, i) => {
+                                                    const pNum = i + 1;
+                                                    const isActive = pNum === commutePage;
+                                                    return (
+                                                        <button
+                                                            key={pNum}
+                                                            type="button"
+                                                            onClick={() => setCommutePage(pNum)}
+                                                            style={{
+                                                                width: "32px",
+                                                                height: "32px",
+                                                                borderRadius: "8px",
+                                                                border: isActive ? "none" : "1px solid #e2e8f0",
+                                                                backgroundColor: isActive ? "#16a34a" : "#ffffff",
+                                                                color: isActive ? "#ffffff" : "#334155",
+                                                                fontWeight: isActive ? 600 : 400,
+                                                                fontSize: "13px",
+                                                                cursor: "pointer"
+                                                            }}
+                                                        >
+                                                            {pNum}
+                                                        </button>
+                                                    );
+                                                })}
+
+                                                <button
+                                                    type="button"
+                                                    disabled={commutePage >= Math.ceil(commuteRecords.length / commutePageSize)}
+                                                    onClick={() => setCommutePage((prev) => Math.min(Math.ceil(commuteRecords.length / commutePageSize), prev + 1))}
+                                                    style={{
+                                                        padding: "6px 12px",
+                                                        border: "1px solid #e2e8f0",
+                                                        backgroundColor: commutePage >= Math.ceil(commuteRecords.length / commutePageSize) ? "#f8fafc" : "#ffffff",
+                                                        color: commutePage >= Math.ceil(commuteRecords.length / commutePageSize) ? "#cbd5e1" : "#334155",
+                                                        borderRadius: "8px",
+                                                        fontSize: "13px",
+                                                        cursor: commutePage >= Math.ceil(commuteRecords.length / commutePageSize) ? "not-allowed" : "pointer"
+                                                    }}
+                                                >
+                                                    Next <i className="bi bi-chevron-right ms-1"></i>
+                                                </button>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    )}
+
+                    <section className={`ep-profile-tab-content${["overview", "employment", "documents", "skills", "attendance", "leave", "assets", "expenses", "wfh", "commute"].includes(activeProfileTab) ? " d-none" : ""}`} id="profileTabPlaceholder">
                         <div className="ep-placeholder-card">
                             <div className="ep-placeholder-icon">
                                 <i className="bi bi-window-stack"></i>

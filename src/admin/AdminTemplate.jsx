@@ -17,6 +17,7 @@ import HolidaysManagement from './pages/HolidaysManagement';
 import AdminLeaves from './pages/AdminLeaves';
 import AdminWFH from './pages/AdminWFH';
 import DataReset from './pages/DataReset';
+import Announcements from '../pages/Announcements';
 
 export default function AdminTemplate({
   currentUser,
@@ -346,6 +347,16 @@ export default function AdminTemplate({
               currentTenantId={currentTenantId}
               currentUser={currentUser}
             />
+          )}
+
+          {/* HR & Company Announcements */}
+          {activeTab === 'announcements' && (
+            <div className="bg-white rounded-xl shadow-xs border border-gray-100 p-2 sm:p-4">
+              <Announcements
+                currentUser={currentUser}
+                employeeProfile={null}
+              />
+            </div>
           )}
 
           {/* Tenants (Super Admin Only) */}
