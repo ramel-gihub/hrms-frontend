@@ -822,7 +822,7 @@ export default function EmployeeTemplate({
   }, [widgetsData, finalHolidays, today]);
 
   const activeBirthday = useMemo(() => {
-    if (widgetsData?.upcomingBirthday) return activeBirthday;
+    if (widgetsData?.upcomingBirthday) return widgetsData.upcomingBirthday;
     const users = widgetsData?.allCelebrationUsers || [];
     const curMonth = today.getMonth();
     const curYear = today.getFullYear();
@@ -850,7 +850,7 @@ export default function EmployeeTemplate({
   }, [widgetsData, today]);
 
   const activeAnniversary = useMemo(() => {
-    if (widgetsData?.upcomingAnniversary) return activeAnniversary;
+    if (widgetsData?.upcomingAnniversary) return widgetsData.upcomingAnniversary;
     const users = widgetsData?.allCelebrationUsers || [];
     const curMonth = today.getMonth();
     const curYear = today.getFullYear();
