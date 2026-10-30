@@ -26,13 +26,31 @@ export default function App() {
 
   const [currentUser, setCurrentUser] = useState(() => {
     try {
-      const saved = localStorage.getItem('hrms_user');
+      // Session-only persistence: clear when browser is closed
+      const saved = sessionStorage.getItem('hrms_user');
+      localStorage.removeItem('hrms_user');
       return saved ? JSON.parse(saved) : null;
     } catch (error) {
       console.error('Failed to read logged-in user:', error);
       return null;
     }
   });
+
+  // Cross-tab logout listener
+  useEffect(() => {
+    const handleStorageSync = (e) => {
+      if (e.key === 'hrms_logout_signal') {
+        sessionStorage.removeItem('hrms_user');
+        localStorage.removeItem('hrms_user');
+        setCurrentUser(null);
+        setPendingFirstTimeUser(null);
+        setEmployeeProfile(null);
+        setEmployees([]);
+      }
+    };
+    window.addEventListener('storage', handleStorageSync);
+    return () => window.removeEventListener('storage', handleStorageSync);
+  }, []);
 
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
@@ -620,10 +638,11 @@ export default function App() {
         return;
       }
 
-      localStorage.setItem(
+      sessionStorage.setItem(
         'hrms_user',
         JSON.stringify(data.user)
       );
+      localStorage.removeItem('hrms_user');
 
       setCurrentUser(data.user);
 
@@ -645,7 +664,11 @@ export default function App() {
   // ============================================================
 
   const handleLogout = () => {
+    sessionStorage.removeItem('hrms_user');
     localStorage.removeItem('hrms_user');
+    try {
+      localStorage.setItem('hrms_logout_signal', String(Date.now()));
+    } catch (_) {}
 
     setCurrentUser(null);
     setPendingFirstTimeUser(null);
@@ -765,7 +788,8 @@ export default function App() {
       }
       setForgotSuccess('✓ Password reset successfully! Logging you in...');
       setTimeout(() => {
-        localStorage.setItem('hrms_user', JSON.stringify(data.user));
+        sessionStorage.setItem('hrms_user', JSON.stringify(data.user));
+        localStorage.removeItem('hrms_user');
         setCurrentUser(data.user);
         setIsForgotPasswordActive(false);
         setForgotStep(1);
@@ -819,7 +843,8 @@ export default function App() {
       const activeUser = data.user || pendingFirstTimeUser;
       activeUser.requirePasswordChange = false;
 
-      localStorage.setItem('hrms_user', JSON.stringify(activeUser));
+      sessionStorage.setItem('hrms_user', JSON.stringify(activeUser));
+      localStorage.removeItem('hrms_user');
       setCurrentUser(activeUser);
       setPendingFirstTimeUser(null);
       setFirstTimeNewPassword('');
