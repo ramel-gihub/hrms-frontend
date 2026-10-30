@@ -494,15 +494,14 @@ export default function EmployeeTemplate({
 
 
     useEffect(() => {
-        if (currentUser?.id) {
-            fetch(`${API_BASE}/api/dashboard/widgets/${currentUser.id}`)
-                .then(res => res.json())
-                .then(data => {
-                    if (!data.error) setWidgetsData(data);
-                })
-                .catch(console.error);
-        }
-    }, [currentUser]);
+        const uid = currentUser?.id || employeeProfile?.user_id || 1;
+        fetch(`${API_BASE}/api/dashboard/widgets/${uid}`)
+            .then(res => res.json())
+            .then(data => {
+                if (data && !data.error) setWidgetsData(data);
+            })
+            .catch(console.error);
+    }, [currentUser, employeeProfile]);
 
   useEffect(() => {
       if (currentUser?.id) {
@@ -810,9 +809,76 @@ export default function EmployeeTemplate({
 
   const finalHolidays = widgetsData.allHolidays || [];
 
-  const dashNextHoliday = finalHolidays
-      .filter(h => new Date(h.holiday_date) >= today)
-      .sort((a,b) => new Date(a.holiday_date) - new Date(b.holiday_date))[0] || widgetsData.nextHoliday;
+  const dashNextHoliday = useMemo(() => {
+    if (widgetsData?.nextHoliday) return widgetsData.nextHoliday;
+    const upcoming = finalHolidays.filter(h => {
+      if (!h.holiday_date) return false;
+      const dStr = typeof h.holiday_date === 'string' ? h.holiday_date.split('T')[0] : '';
+      const d = dStr ? new Date(`${dStr}T00:00:00`) : new Date(h.holiday_date);
+      d.setHours(0,0,0,0);
+      return d >= today;
+    }).sort((a, b) => new Date(a.holiday_date) - new Date(b.holiday_date));
+    return upcoming[0] || finalHolidays[0] || null;
+  }, [widgetsData, finalHolidays, today]);
+
+  const activeBirthday = useMemo(() => {
+    if (widgetsData?.upcomingBirthday) return activeBirthday;
+    const users = widgetsData?.allCelebrationUsers || [];
+    const curMonth = today.getMonth();
+    const curYear = today.getFullYear();
+    const thisMonthUsers = users.filter(u => {
+      if (!u.dob) return false;
+      const str = String(u.dob).slice(5, 7);
+      return parseInt(str, 10) - 1 === curMonth;
+    });
+    if (thisMonthUsers.length > 0) {
+      const u = thisMonthUsers[0];
+      const day = parseInt(String(u.dob).slice(8, 10), 10) || 1;
+      const bdayDate = new Date(curYear, curMonth, day);
+      return {
+        id: u.id,
+        employeeId: u.employeeId || u.id,
+        userId: u.userId || u.user_id,
+        name: u.name,
+        profilePic: u.profilePic || u.profile_pic,
+        date: bdayDate,
+        type: 'Birthday',
+        daysUntil: Math.ceil((bdayDate - today) / (1000 * 60 * 60 * 24))
+      };
+    }
+    return null;
+  }, [widgetsData, today]);
+
+  const activeAnniversary = useMemo(() => {
+    if (widgetsData?.upcomingAnniversary) return activeAnniversary;
+    const users = widgetsData?.allCelebrationUsers || [];
+    const curMonth = today.getMonth();
+    const curYear = today.getFullYear();
+    const thisMonthUsers = users.filter(u => {
+      if (!u.doj) return false;
+      const str = String(u.doj).slice(5, 7);
+      return parseInt(str, 10) - 1 === curMonth;
+    });
+    if (thisMonthUsers.length > 0) {
+      const u = thisMonthUsers[0];
+      const day = parseInt(String(u.doj).slice(8, 10), 10) || 1;
+      const joinYear = parseInt(String(u.doj).slice(0, 4), 10) || curYear;
+      const annivDate = new Date(curYear, curMonth, day);
+      const yrs = curYear - joinYear;
+      return {
+        id: u.id,
+        employeeId: u.employeeId || u.id,
+        userId: u.userId || u.user_id,
+        name: u.name,
+        profilePic: u.profilePic || u.profile_pic,
+        date: annivDate,
+        type: 'Anniversary',
+        years: yrs > 0 ? yrs : 1,
+        daysUntil: Math.ceil((annivDate - today) / (1000 * 60 * 60 * 24))
+      };
+    }
+    return null;
+  }, [widgetsData, today]);
 
 
   const chartOptions = {
@@ -1897,15 +1963,15 @@ export default function EmployeeTemplate({
         <div className="col-md-6">
             <div className="ed-celebration-card">
                 <div className="ed-celebration-avatar" style={{ overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                    {widgetsData.upcomingBirthday?.profilePic ? (
+                    {activeBirthday?.profilePic ? (
                         <img 
-                            src={/^(https?:\/\/|data:|blob:)/i.test(widgetsData.upcomingBirthday.profilePic) ? widgetsData.upcomingBirthday.profilePic : `${API_BASE}/${widgetsData.upcomingBirthday.profilePic.replace(/^\/+/, '')}`} 
-                            alt={widgetsData.upcomingBirthday.name} 
+                            src={/^(https?:\/\/|data:|blob:)/i.test(activeBirthday.profilePic) ? activeBirthday.profilePic : `${API_BASE}/${activeBirthday.profilePic.replace(/^\/+/, '')}`} 
+                            alt={activeBirthday.name} 
                             style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: "14px" }}
                         />
                     ) : (
                         <div style={{ width: "100%", height: "100%", borderRadius: "14px", background: "#fff1f7", color: "#e8679d", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: "bold", fontSize: "16px" }}>
-                            {widgetsData.upcomingBirthday ? (widgetsData.upcomingBirthday.name?.charAt(0) || "🎂") : <i className="bi bi-balloon-heart"></i>}
+                            {activeBirthday ? (activeBirthday.name?.charAt(0) || "🎂") : <i className="bi bi-balloon-heart"></i>}
                         </div>
                     )}
                 </div>
@@ -1914,40 +1980,40 @@ export default function EmployeeTemplate({
                         <i className="bi bi-balloon-heart"></i>
                         Birthday
                     </span>
-                    <strong>{widgetsData.upcomingBirthday ? widgetsData.upcomingBirthday.name : "No Birthdays"}</strong>
+                    <strong>{activeBirthday ? activeBirthday.name : "No Birthdays"}</strong>
                     <small>
-                        {widgetsData.upcomingBirthday ? (
-                            widgetsData.upcomingBirthday.daysUntil === 1 
-                                ? `Tomorrow · ${new Date(widgetsData.upcomingBirthday.date).toLocaleDateString('en-GB', {day: 'numeric', month: 'long'})}`
-                                : widgetsData.upcomingBirthday.daysUntil === 0 
-                                    ? `Today · ${new Date(widgetsData.upcomingBirthday.date).toLocaleDateString('en-GB', {day: 'numeric', month: 'long'})}`
-                                    : new Date(widgetsData.upcomingBirthday.date).toLocaleDateString('en-GB', {day: 'numeric', month: 'long'})
+                        {activeBirthday ? (
+                            activeBirthday.daysUntil === 1 
+                                ? `Tomorrow · ${new Date(activeBirthday.date).toLocaleDateString('en-GB', {day: 'numeric', month: 'long'})}`
+                                : activeBirthday.daysUntil === 0 
+                                    ? `Today · ${new Date(activeBirthday.date).toLocaleDateString('en-GB', {day: 'numeric', month: 'long'})}`
+                                    : new Date(activeBirthday.date).toLocaleDateString('en-GB', {day: 'numeric', month: 'long'})
                         ) : "--"}
                     </small>
-                    {widgetsData.upcomingBirthday && (
+                    {activeBirthday && (
                         <button 
                             type="button"
                             disabled={
-                                sentWishes[`birthday-${widgetsData.upcomingBirthday.id || widgetsData.upcomingBirthday.userId || widgetsData.upcomingBirthday.name}`] || 
-                                sendingWishId === `birthday-${widgetsData.upcomingBirthday.id || widgetsData.upcomingBirthday.userId || widgetsData.upcomingBirthday.name}` ||
-                                (currentUser?.id && widgetsData.upcomingBirthday.userId && Number(currentUser.id) === Number(widgetsData.upcomingBirthday.userId))
+                                sentWishes[`birthday-${activeBirthday.id || activeBirthday.userId || activeBirthday.name}`] || 
+                                sendingWishId === `birthday-${activeBirthday.id || activeBirthday.userId || activeBirthday.name}` ||
+                                (currentUser?.id && activeBirthday.userId && Number(currentUser.id) === Number(activeBirthday.userId))
                             }
-                            onClick={() => handleSendWish(widgetsData.upcomingBirthday, 'birthday')}
+                            onClick={() => handleSendWish(activeBirthday, 'birthday')}
                             style={{
-                                cursor: (sentWishes[`birthday-${widgetsData.upcomingBirthday.id || widgetsData.upcomingBirthday.userId || widgetsData.upcomingBirthday.name}`] || (currentUser?.id && widgetsData.upcomingBirthday.userId && Number(currentUser.id) === Number(widgetsData.upcomingBirthday.userId))) ? "default" : "pointer"
+                                cursor: (sentWishes[`birthday-${activeBirthday.id || activeBirthday.userId || activeBirthday.name}`] || (currentUser?.id && activeBirthday.userId && Number(currentUser.id) === Number(activeBirthday.userId))) ? "default" : "pointer"
                             }}
                         >
-                            {sendingWishId === `birthday-${widgetsData.upcomingBirthday.id || widgetsData.upcomingBirthday.userId || widgetsData.upcomingBirthday.name}` ? (
+                            {sendingWishId === `birthday-${activeBirthday.id || activeBirthday.userId || activeBirthday.name}` ? (
                                 <>
                                     <span className="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true" style={{ width: '12px', height: '12px' }}></span>
                                     Sending...
                                 </>
-                            ) : sentWishes[`birthday-${widgetsData.upcomingBirthday.id || widgetsData.upcomingBirthday.userId || widgetsData.upcomingBirthday.name}`] ? (
+                            ) : sentWishes[`birthday-${activeBirthday.id || activeBirthday.userId || activeBirthday.name}`] ? (
                                 <>
                                     <i className="bi bi-check2-circle text-success me-1"></i>
                                     Wish Sent ✨
                                 </>
-                            ) : (currentUser?.id && widgetsData.upcomingBirthday.userId && Number(currentUser.id) === Number(widgetsData.upcomingBirthday.userId)) ? (
+                            ) : (currentUser?.id && activeBirthday.userId && Number(currentUser.id) === Number(activeBirthday.userId)) ? (
                                 <>
                                     <i className="bi bi-stars me-1 text-warning"></i>
                                     Your Birthday 🎉
@@ -1966,15 +2032,15 @@ export default function EmployeeTemplate({
         <div className="col-md-6">
             <div className="ed-celebration-card">
                 <div className="ed-celebration-avatar ed-anniversary" style={{ overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                    {widgetsData.upcomingAnniversary?.profilePic ? (
+                    {activeAnniversary?.profilePic ? (
                         <img 
-                            src={/^(https?:\/\/|data:|blob:)/i.test(widgetsData.upcomingAnniversary.profilePic) ? widgetsData.upcomingAnniversary.profilePic : `${API_BASE}/${widgetsData.upcomingAnniversary.profilePic.replace(/^\/+/, '')}`} 
-                            alt={widgetsData.upcomingAnniversary.name} 
+                            src={/^(https?:\/\/|data:|blob:)/i.test(activeAnniversary.profilePic) ? activeAnniversary.profilePic : `${API_BASE}/${activeAnniversary.profilePic.replace(/^\/+/, '')}`} 
+                            alt={activeAnniversary.name} 
                             style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: "14px" }}
                         />
                     ) : (
                         <div style={{ width: "100%", height: "100%", borderRadius: "14px", background: "#eeecff", color: "#3c2fbc", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: "bold", fontSize: "16px" }}>
-                            {widgetsData.upcomingAnniversary ? (widgetsData.upcomingAnniversary.name?.charAt(0) || "🏆") : <i className="bi bi-award"></i>}
+                            {activeAnniversary ? (activeAnniversary.name?.charAt(0) || "🏆") : <i className="bi bi-award"></i>}
                         </div>
                     )}
                 </div>
@@ -1983,36 +2049,36 @@ export default function EmployeeTemplate({
                         <i className="bi bi-stars"></i>
                         Work Anniversary
                     </span>
-                    <strong>{widgetsData.upcomingAnniversary ? widgetsData.upcomingAnniversary.name : "No Anniversaries"}</strong>
+                    <strong>{activeAnniversary ? activeAnniversary.name : "No Anniversaries"}</strong>
                     <small>
-                        {widgetsData.upcomingAnniversary ? (
-                            `${new Date(widgetsData.upcomingAnniversary.date).toLocaleDateString('en-GB', {day: 'numeric', month: 'long'})} · ${widgetsData.upcomingAnniversary.years} Years`
+                        {activeAnniversary ? (
+                            `${new Date(activeAnniversary.date).toLocaleDateString('en-GB', {day: 'numeric', month: 'long'})} · ${activeAnniversary.years} Years`
                         ) : "--"}
                     </small>
-                    {widgetsData.upcomingAnniversary && (
+                    {activeAnniversary && (
                         <button 
                             type="button"
                             disabled={
-                                sentWishes[`anniversary-${widgetsData.upcomingAnniversary.id || widgetsData.upcomingAnniversary.userId || widgetsData.upcomingAnniversary.name}`] || 
-                                sendingWishId === `anniversary-${widgetsData.upcomingAnniversary.id || widgetsData.upcomingAnniversary.userId || widgetsData.upcomingAnniversary.name}` ||
-                                (currentUser?.id && widgetsData.upcomingAnniversary.userId && Number(currentUser.id) === Number(widgetsData.upcomingAnniversary.userId))
+                                sentWishes[`anniversary-${activeAnniversary.id || activeAnniversary.userId || activeAnniversary.name}`] || 
+                                sendingWishId === `anniversary-${activeAnniversary.id || activeAnniversary.userId || activeAnniversary.name}` ||
+                                (currentUser?.id && activeAnniversary.userId && Number(currentUser.id) === Number(activeAnniversary.userId))
                             }
-                            onClick={() => handleSendWish(widgetsData.upcomingAnniversary, 'anniversary')}
+                            onClick={() => handleSendWish(activeAnniversary, 'anniversary')}
                             style={{
-                                cursor: (sentWishes[`anniversary-${widgetsData.upcomingAnniversary.id || widgetsData.upcomingAnniversary.userId || widgetsData.upcomingAnniversary.name}`] || (currentUser?.id && widgetsData.upcomingAnniversary.userId && Number(currentUser.id) === Number(widgetsData.upcomingAnniversary.userId))) ? "default" : "pointer"
+                                cursor: (sentWishes[`anniversary-${activeAnniversary.id || activeAnniversary.userId || activeAnniversary.name}`] || (currentUser?.id && activeAnniversary.userId && Number(currentUser.id) === Number(activeAnniversary.userId))) ? "default" : "pointer"
                             }}
                         >
-                            {sendingWishId === `anniversary-${widgetsData.upcomingAnniversary.id || widgetsData.upcomingAnniversary.userId || widgetsData.upcomingAnniversary.name}` ? (
+                            {sendingWishId === `anniversary-${activeAnniversary.id || activeAnniversary.userId || activeAnniversary.name}` ? (
                                 <>
                                     <span className="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true" style={{ width: '12px', height: '12px' }}></span>
                                     Sending...
                                 </>
-                            ) : sentWishes[`anniversary-${widgetsData.upcomingAnniversary.id || widgetsData.upcomingAnniversary.userId || widgetsData.upcomingAnniversary.name}`] ? (
+                            ) : sentWishes[`anniversary-${activeAnniversary.id || activeAnniversary.userId || activeAnniversary.name}`] ? (
                                 <>
                                     <i className="bi bi-check2-circle text-success me-1"></i>
                                     Wish Sent ✨
                                 </>
-                            ) : (currentUser?.id && widgetsData.upcomingAnniversary.userId && Number(currentUser.id) === Number(widgetsData.upcomingAnniversary.userId)) ? (
+                            ) : (currentUser?.id && activeAnniversary.userId && Number(currentUser.id) === Number(activeAnniversary.userId)) ? (
                                 <>
                                     <i className="bi bi-stars me-1 text-warning"></i>
                                     Your Anniversary 🌟

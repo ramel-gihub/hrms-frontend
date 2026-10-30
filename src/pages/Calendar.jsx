@@ -141,10 +141,16 @@ export default function Calendar({ employeeProfile, currentUser, initialTab = "c
                     setHolidays(finalHolidays);
                     const today = new Date();
                     today.setHours(0,0,0,0);
-                    const upcoming = finalHolidays.filter(h => new Date(h.holiday_date) >= today).sort((a,b) => new Date(a.holiday_date) - new Date(b.holiday_date));
+                    const upcoming = finalHolidays.filter(h => {
+                      if (!h.holiday_date) return false;
+                      const p = parseDateParts(h.holiday_date);
+                      const d = p ? new Date(p.year, p.month, p.day) : new Date(h.holiday_date);
+                      d.setHours(0,0,0,0);
+                      return d >= today;
+                    }).sort((a,b) => new Date(a.holiday_date) - new Date(b.holiday_date));
                     setUpcomingHolidays(upcoming);
                 }
-                if (data.allCelebrationUsers && Array.isArray(data.allCelebrationUsers)) {
+                if (data.allCelebrationUsers && Array.isArray(data.allCelebrationUsers) && data.allCelebrationUsers.length > 0) {
                     setAllUsers(data.allCelebrationUsers);
                 }
             })
@@ -258,7 +264,11 @@ export default function Calendar({ employeeProfile, currentUser, initialTab = "c
     const events = [];
     
     // 1. Public Holiday event
-    const hol = holidays.find(h => isSameDay(new Date(h.holiday_date), date));
+    const hol = holidays.find(h => {
+      if (!h.holiday_date) return false;
+      const p = parseDateParts(h.holiday_date);
+      return p && p.year === date.getFullYear() && p.month === date.getMonth() && p.day === date.getDate();
+    });
     if (hol) {
         events.push(
             <div key={`hol-${hol.id || hol.holiday_name}`} className="calendar-event holiday" title={`Holiday: ${hol.holiday_name}`} onClick={() => { setModalData({ title: 'Public Holiday', type: 'holiday', holidayName: hol.holiday_name, holidayDate: hol.holiday_date, list: [hol.holiday_name] }); setShowModal(true); }} style={{cursor: 'pointer'}}>
@@ -458,12 +468,15 @@ export default function Calendar({ employeeProfile, currentUser, initialTab = "c
   // Public holidays: show only current year pending holidays
   const pendingCurrentYearHolidays = holidays.filter(h => {
     if (!h.holiday_date) return false;
-    const d = new Date(h.holiday_date);
+    const p = parseDateParts(h.holiday_date);
+    const d = p ? new Date(p.year, p.month, p.day) : new Date(h.holiday_date);
     d.setHours(0,0,0,0);
     return d.getFullYear() === currentCalendarYear && d >= today;
   }).sort((a,b) => new Date(a.holiday_date) - new Date(b.holiday_date));
 
-  const nextHoliday = pendingCurrentYearHolidays.length > 0 ? pendingCurrentYearHolidays[0] : null;
+  const nextHoliday = pendingCurrentYearHolidays.length > 0 
+    ? pendingCurrentYearHolidays[0] 
+    : (upcomingHolidays.length > 0 ? upcomingHolidays[0] : (holidays.length > 0 ? holidays[0] : null));
 
   return (
     <>
