@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { LayersIcon, CheckCircleIcon, SparklesIcon, CalendarIcon, PlusIcon, CloseIcon, SearchIcon } from '../components/Icons';
+import Pagination from '../components/Pagination';
 
 export default function LeaveBalanceMapping({
   currentTenantId = 1,
@@ -78,6 +79,16 @@ export default function LeaveBalanceMapping({
 
   // Feedback Notification
   const [feedbackMsg, setFeedbackMsg] = useState(null); // { type: 'success' | 'error', text: '' }
+
+  // Pagination states for all 3 sub-tabs
+  const [typesPage, setTypesPage] = useState(1);
+  const [typesPageSize, setTypesPageSize] = useState(10);
+
+  const [empPage, setEmpPage] = useState(1);
+  const [empPageSize, setEmpPageSize] = useState(10);
+
+  const [compOffPage, setCompOffPage] = useState(1);
+  const [compOffPageSize, setCompOffPageSize] = useState(10);
 
   const API_URL = import.meta.env.VITE_API_URL || 
     (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
@@ -503,6 +514,21 @@ export default function LeaveBalanceMapping({
     });
   }, [employeesOverview, searchQuery, mappingFilter]);
 
+  const paginatedLeaveTypes = useMemo(() => {
+    const start = (typesPage - 1) * typesPageSize;
+    return leaveTypes.slice(start, start + typesPageSize);
+  }, [leaveTypes, typesPage, typesPageSize]);
+
+  const paginatedEmployees = useMemo(() => {
+    const start = (empPage - 1) * empPageSize;
+    return filteredEmployees.slice(start, start + empPageSize);
+  }, [filteredEmployees, empPage, empPageSize]);
+
+  const paginatedCompOffHistory = useMemo(() => {
+    const start = (compOffPage - 1) * compOffPageSize;
+    return compOffHistory.slice(start, start + compOffPageSize);
+  }, [compOffHistory, compOffPage, compOffPageSize]);
+
   const totalLeaveTypes = leaveTypes.length;
   const fullyMappedCount = employeesOverview.filter(e => e.is_fully_mapped).length;
   const unmappedCount = employeesOverview.length - fullyMappedCount;
@@ -751,7 +777,7 @@ export default function LeaveBalanceMapping({
                       </td>
                     </tr>
                   ) : (
-                    leaveTypes.map((lt) => {
+                    paginatedLeaveTypes.map((lt) => {
                       const daysVal = parseFloat(lt.default_days) || 0;
                       const isCarryAllowed = lt.carry_forward_allowed !== false;
                       const maxCarry = parseFloat(lt.max_carry_forward) >= 0 ? parseFloat(lt.max_carry_forward) : 5;
@@ -833,6 +859,17 @@ export default function LeaveBalanceMapping({
                   )}
                 </tbody>
               </table>
+            </div>
+
+            <div className="px-5 pb-4">
+              <Pagination
+                currentPage={typesPage}
+                totalItems={leaveTypes.length}
+                pageSize={typesPageSize}
+                onPageChange={setTypesPage}
+                onPageSizeChange={setTypesPageSize}
+                itemLabel="leave categories"
+              />
             </div>
           </div>
         </div>
@@ -935,7 +972,7 @@ export default function LeaveBalanceMapping({
                       </td>
                     </tr>
                   ) : (
-                    filteredEmployees.map((emp) => {
+                    paginatedEmployees.map((emp) => {
                       const isUnmapped = !emp.is_fully_mapped;
                       const isChecked = selectedEmpIds.includes(emp.employee_id);
 
@@ -1077,6 +1114,17 @@ export default function LeaveBalanceMapping({
                 </tbody>
               </table>
             </div>
+
+            <div className="px-5 pb-4">
+              <Pagination
+                currentPage={empPage}
+                totalItems={filteredEmployees.length}
+                pageSize={empPageSize}
+                onPageChange={setEmpPage}
+                onPageSizeChange={setEmpPageSize}
+                itemLabel="employees"
+              />
+            </div>
           </div>
         </div>
       )}
@@ -1139,7 +1187,7 @@ export default function LeaveBalanceMapping({
                       </td>
                     </tr>
                   ) : (
-                    compOffHistory.map((rec) => (
+                    paginatedCompOffHistory.map((rec) => (
                       <tr key={rec.id} className="hover:bg-gray-50/50 dark:hover:bg-gray-800/40 transition-colors">
                         <td className="px-5 py-3.5">
                           <span className="font-bold text-gray-900 dark:text-white block">
@@ -1186,6 +1234,17 @@ export default function LeaveBalanceMapping({
                   )}
                 </tbody>
               </table>
+            </div>
+
+            <div className="px-5 pb-4">
+              <Pagination
+                currentPage={compOffPage}
+                totalItems={compOffHistory.length}
+                pageSize={compOffPageSize}
+                onPageChange={setCompOffPage}
+                onPageSizeChange={setCompOffPageSize}
+                itemLabel="comp-off records"
+              />
             </div>
           </div>
         </div>

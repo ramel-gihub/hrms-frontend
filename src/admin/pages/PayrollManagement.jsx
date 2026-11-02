@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import EmptyState from '../../components/EmptyState';
 import { SearchIcon, CloseIcon, CheckCircleIcon, FileTextIcon } from '../components/Icons';
+import Pagination from '../components/Pagination';
 
 export default function PayrollManagement({ currentTenant = {}, currentUser = {} }) {
   const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5002';
@@ -57,6 +58,8 @@ export default function PayrollManagement({ currentTenant = {}, currentUser = {}
   // Pagination state for Attendance & Salary Summary table
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
+  const [ctcCurrentPage, setCtcCurrentPage] = useState(1);
+  const [ctcPageSize, setCtcPageSize] = useState(10);
 
   // Modal states
   const [activePayslipModal, setActivePayslipModal] = useState(null);
@@ -70,6 +73,20 @@ export default function PayrollManagement({ currentTenant = {}, currentUser = {}
   const [adjustedLopDays, setAdjustedLopDays] = useState(0);
   const [adjustedRemarks, setAdjustedRemarks] = useState('');
   const [resettingAdjustment, setResettingAdjustment] = useState(false);
+
+  // Filtered & Paginated CTC Employees for Tab 2
+  const filteredCtcEmployees = useMemo(() => {
+    return employeesCtcList.filter(e => 
+      searchTerm.trim() === '' || 
+      (e.full_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (e.employee_code || '').toLowerCase().includes(searchTerm.toLowerCase())
+    );
+  }, [employeesCtcList, searchTerm]);
+
+  const paginatedCtcEmployees = useMemo(() => {
+    const start = (ctcCurrentPage - 1) * ctcPageSize;
+    return filteredCtcEmployees.slice(start, start + ctcPageSize);
+  }, [filteredCtcEmployees, ctcCurrentPage, ctcPageSize]);
 
   // Selective Processing states (Process 5 today, remaining later)
   const [selectedEmpIds, setSelectedEmpIds] = useState([]);
@@ -1351,11 +1368,7 @@ export default function PayrollManagement({ currentTenant = {}, currentUser = {}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-                  {employeesCtcList.filter(e => 
-                    searchTerm.trim() === '' || 
-                    (e.full_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-                    (e.employee_code || '').toLowerCase().includes(searchTerm.toLowerCase())
-                  ).map((emp) => (
+                  {paginatedCtcEmployees.map((emp) => (
                     <tr key={emp.employee_id} className="hover:bg-gray-50/50 dark:hover:bg-gray-800/40 transition-colors">
                       <td className="px-4 py-3.5 font-medium text-gray-900 dark:text-white">
                         <div className="flex items-center gap-3">
@@ -1426,6 +1439,15 @@ export default function PayrollManagement({ currentTenant = {}, currentUser = {}
                 </tbody>
               </table>
             </div>
+
+            <Pagination
+              currentPage={ctcCurrentPage}
+              totalItems={filteredCtcEmployees.length}
+              pageSize={ctcPageSize}
+              onPageChange={setCtcCurrentPage}
+              onPageSizeChange={setCtcPageSize}
+              itemLabel="staff CTC packages"
+            />
           </div>
         </div>
       )}

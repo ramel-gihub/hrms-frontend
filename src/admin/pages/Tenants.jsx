@@ -1,4 +1,5 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
+import Pagination from '../components/Pagination';
 import EmptyState from '../../components/EmptyState';
 import { PlusIcon, CheckCircleIcon, CloseIcon, SearchIcon } from '../components/Icons';
 
@@ -22,6 +23,12 @@ export default function Tenants({
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [planFilter, setPlanFilter] = useState('ALL');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, statusFilter, planFilter]);
 
   // Form states
   const [addForm, setAddForm] = useState({
@@ -67,6 +74,11 @@ export default function Tenants({
       return matchesSearch && matchesStatus && matchesPlan;
     });
   }, [tenants, searchTerm, statusFilter, planFilter]);
+
+  const paginatedTenants = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filteredTenants.slice(start, start + pageSize);
+  }, [filteredTenants, currentPage, pageSize]);
 
   // Handle Create Tenant
   const handleCreateSubmit = async (e) => {
@@ -292,7 +304,7 @@ export default function Tenants({
                   </td>
                 </tr>
               ) : (
-                filteredTenants.map(tenant => {
+                paginatedTenants.map(tenant => {
                   const isCurrent = tenant.id === currentTenantId;
                   const isRoot = tenant.id === 1;
                   const isSuspended = (tenant.status || '').toLowerCase() === 'suspended';
@@ -433,6 +445,17 @@ export default function Tenants({
               )}
             </tbody>
           </table>
+        </div>
+
+        <div className="px-5 pb-4">
+          <Pagination
+            currentPage={currentPage}
+            totalItems={filteredTenants.length}
+            pageSize={pageSize}
+            onPageChange={setCurrentPage}
+            onPageSizeChange={setPageSize}
+            itemLabel="organizations"
+          />
         </div>
       </div>
 

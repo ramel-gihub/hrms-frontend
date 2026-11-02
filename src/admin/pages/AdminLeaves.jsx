@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import EmptyState from '../../components/EmptyState';
 import { CalendarIcon, PlusIcon, CloseIcon, SearchIcon, CheckCircleIcon } from '../components/Icons';
+import Pagination from '../components/Pagination';
 
 export default function AdminLeaves({
   currentUser,
@@ -21,6 +22,14 @@ export default function AdminLeaves({
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
   const [typeFilter, setTypeFilter] = useState('All');
+
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [statusFilter, typeFilter, searchQuery]);
 
   // Modal State
   const [showModal, setShowModal] = useState(false);
@@ -126,6 +135,11 @@ export default function AdminLeaves({
       return true;
     });
   }, [leaveRequests, statusFilter, typeFilter, searchQuery]);
+
+  const paginatedLeaves = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filteredLeaves.slice(start, start + pageSize);
+  }, [filteredLeaves, currentPage, pageSize]);
 
   // Summary Metrics
   const metrics = useMemo(() => {
@@ -412,7 +426,8 @@ export default function AdminLeaves({
             />
           </div>
         ) : (
-          <div className="overflow-x-auto">
+          <>
+            <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse text-sm">
               <thead>
                 <tr className="border-b border-gray-200 bg-gray-50/75 text-xs font-bold uppercase tracking-wider text-gray-500 dark:border-gray-800 dark:bg-gray-800/50 dark:text-gray-400">
@@ -427,7 +442,7 @@ export default function AdminLeaves({
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-                {filteredLeaves.map((leave) => {
+                {paginatedLeaves.map((leave) => {
                   const isAutoApproved = (leave.admin_remarks || '').includes('Admin: auto Approved');
                   const sDate = leave.start_date ? new Date(leave.start_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '--';
                   const eDate = leave.end_date ? new Date(leave.end_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '--';
@@ -535,7 +550,19 @@ export default function AdminLeaves({
               </tbody>
             </table>
           </div>
-        )}
+
+          <div className="px-5 pb-4">
+            <Pagination
+              currentPage={currentPage}
+              totalItems={filteredLeaves.length}
+              pageSize={pageSize}
+              onPageChange={setCurrentPage}
+              onPageSizeChange={setPageSize}
+              itemLabel="leave records"
+            />
+          </div>
+        </>
+      )}
       </div>
 
       {/* Record Past Leaves Modal */}

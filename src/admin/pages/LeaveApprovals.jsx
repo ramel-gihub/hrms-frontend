@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import EmptyState from '../../components/EmptyState';
 import { CheckCircleIcon, CloseIcon, CalendarIcon, ClockIcon, FileTextIcon } from '../components/Icons';
+import Pagination from '../components/Pagination';
 
 export default function LeaveApprovals({
   leaveRequests = [],
@@ -9,6 +10,8 @@ export default function LeaveApprovals({
   currentUser
 }) {
   const [filter, setFilter] = useState('Pending');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(5);
   const [remarksModal, setRemarksModal] = useState({ open: false, leaveId: null, action: null, remarks: '' });
   const [actionLoading, setActionLoading] = useState(false);
 
@@ -16,6 +19,8 @@ export default function LeaveApprovals({
     if (filter === 'All') return true;
     return (req.status || 'Pending').toLowerCase() === filter.toLowerCase();
   });
+
+  const paginated = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
   const handleAction = async (leaveId, status, remarks = '') => {
     setActionLoading(true);
@@ -50,7 +55,7 @@ export default function LeaveApprovals({
             return (
               <button
                 key={tab}
-                onClick={() => setFilter(tab)}
+                onClick={() => { setFilter(tab); setCurrentPage(1); }}
                 className={`flex items-center gap-2 rounded-lg px-3.5 py-1.5 text-xs font-semibold transition-all ${
                   isActive
                     ? 'bg-white text-gray-900 shadow-sm dark:bg-gray-900 dark:text-white'
@@ -69,7 +74,7 @@ export default function LeaveApprovals({
 
       {/* Leave Requests Cards List */}
       <div className="space-y-4">
-        {filtered.map((leave) => {
+        {paginated.map((leave) => {
           const st = (leave.status || 'Pending').toLowerCase();
           const badgeColor =
             st === 'approved' ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-800' :
@@ -289,6 +294,16 @@ export default function LeaveApprovals({
             />
           </div>
         )}
+
+        <Pagination
+          currentPage={currentPage}
+          totalItems={filtered.length}
+          pageSize={pageSize}
+          pageSizeOptions={[5, 10, 20]}
+          onPageChange={setCurrentPage}
+          onPageSizeChange={setPageSize}
+          itemLabel="leave requests"
+        />
       </div>
 
       {/* Reject Remarks Modal */}

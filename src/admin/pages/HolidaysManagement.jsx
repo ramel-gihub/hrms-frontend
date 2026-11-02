@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import EmptyState from '../../components/EmptyState';
 import { CalendarIcon, PlusIcon, CloseIcon, CheckCircleIcon } from '../components/Icons';
 import DatePickerCalendar from '../components/DatePickerCalendar';
+import Pagination from '../components/Pagination';
 
 export default function HolidaysManagement({
   currentTenantId = 1,
@@ -17,6 +18,10 @@ export default function HolidaysManagement({
     holiday_date: ''
   });
   const [feedback, setFeedback] = useState(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+
+  const paginatedHolidays = holidays.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
   const API_URL = import.meta.env.VITE_API_URL || 'https://hrms-backend-5xo8.onrender.com';
 
@@ -195,7 +200,8 @@ export default function HolidaysManagement({
             message='Click "Add Public Holiday" above to schedule company holidays.'
           />
         ) : (
-          <div className="overflow-x-auto">
+          <>
+            <div className="overflow-x-auto">
             <table className="w-full text-left text-sm text-gray-600 dark:text-gray-300">
               <thead className="bg-gray-50 text-xs uppercase font-bold text-gray-500 border-b border-gray-200 dark:bg-gray-800 dark:border-gray-800 dark:text-gray-400">
                 <tr>
@@ -207,7 +213,7 @@ export default function HolidaysManagement({
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-                {holidays.map((h) => {
+                {paginatedHolidays.map((h) => {
                   const d = new Date(h.holiday_date);
                   const isUpcoming = (typeof h.holiday_date === 'string' ? h.holiday_date.split('T')[0] : '') >= todayStr;
                   const dayName = d.toLocaleDateString('en-US', { weekday: 'long' });
@@ -252,7 +258,19 @@ export default function HolidaysManagement({
               </tbody>
             </table>
           </div>
-        )}
+
+          <div className="px-6 pb-4">
+            <Pagination
+              currentPage={currentPage}
+              totalItems={holidays.length}
+              pageSize={pageSize}
+              onPageChange={setCurrentPage}
+              onPageSizeChange={setPageSize}
+              itemLabel="public holidays"
+            />
+          </div>
+        </>
+      )}
       </div>
 
       {/* Add Holiday Modal */}

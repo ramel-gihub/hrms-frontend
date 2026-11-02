@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import Pagination from '../components/Pagination';
 
 export default function ProjectTeams({
   currentTenantId = 1,
@@ -13,6 +14,12 @@ export default function ProjectTeams({
   const [feedback, setFeedback] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(6);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, statusFilter]);
 
   // Form state
   const [formName, setFormName] = useState('');
@@ -178,6 +185,8 @@ export default function ProjectTeams({
     return (nameMatch || codeMatch || leadMatch) && statusMatch;
   });
 
+  const paginatedTeams = filteredTeams.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+
   const filteredMembersList = visibleEmployees.filter(emp => {
     const q = memberSearch.toLowerCase();
     const name = getEmpName(emp).toLowerCase();
@@ -339,8 +348,9 @@ export default function ProjectTeams({
           )}
         </div>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {filteredTeams.map((team) => {
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {paginatedTeams.map((team) => {
             const leadName = team.team_lead_name || 'Not Assigned';
             return (
               <div
@@ -469,6 +479,17 @@ export default function ProjectTeams({
               </div>
             );
           })}
+          </div>
+
+          <Pagination
+            currentPage={currentPage}
+            totalItems={filteredTeams.length}
+            pageSize={pageSize}
+            onPageChange={setCurrentPage}
+            onPageSizeChange={setPageSize}
+            pageSizeOptions={[6, 12, 24]}
+            itemLabel="project teams"
+          />
         </div>
       )}
 
