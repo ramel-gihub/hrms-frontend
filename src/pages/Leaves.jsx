@@ -160,6 +160,27 @@ export default function Leaves({ currentUser, employeeProfile, embedded = false 
 
   useEffect(() => { fetchData(); }, [currentUser]);
 
+  // Filter approvers to only Tenant Admin users (excluding superadmin) as requested
+  const adminApprovers = useMemo(() => {
+    const list = data.approvers || [];
+    const filtered = list.filter((a) => {
+      const role = (a.role_name || a.role_key || a.role || '').toLowerCase();
+      const email = (a.email || '').toLowerCase();
+      const name = `${a.first_name || ''} ${a.last_name || ''}`.toLowerCase();
+      if (role.includes('super') || email.includes('superadmin') || name.includes('super')) return false;
+      return role.includes('admin') || email.includes('admin') || name.includes('admin');
+    });
+    if (filtered.length > 0) return filtered;
+    return list.length > 0 ? list : [{ id: 1, first_name: 'Admin', last_name: 'User', role_name: 'Organization Admin' }];
+  }, [data.approvers]);
+
+  // Auto-select admin approver when available
+  useEffect(() => {
+    if (adminApprovers.length > 0 && !formData.approverId) {
+      setFormData((prev) => ({ ...prev, approverId: adminApprovers[0].id }));
+    }
+  }, [adminApprovers, formData.approverId]);
+
   // Calculate min/max dates for leave application
   const todayObj = new Date();
   const pad2 = n => String(n).padStart(2, '0');
@@ -1155,11 +1176,7 @@ export default function Leaves({ currentUser, employeeProfile, embedded = false 
                                         <select className="form-select">
 
                                             <option>
-                                                Priya Sharma
-                                            </option>
-
-                                            <option>
-                                                Anita Rao
+                                                Admin User (Organization Admin)
                                             </option>
 
                                         </select>
@@ -1291,10 +1308,14 @@ export default function Leaves({ currentUser, employeeProfile, embedded = false 
                       </select>
                     </div>
                     <div className="col-md-6">
-                      <label className="form-label">Approver</label>
+                      <label className="form-label">Approver <span className="text-danger">*</span></label>
                       <select className="form-select" required value={formData.approverId} onChange={e => setFormData({...formData, approverId: e.target.value})}>
-                        <option value="">Select Approver</option>
-                        {(data.approvers || []).map(a => <option key={a.id} value={a.id}>{a.first_name} {a.last_name} ({a.role_name})</option>)}
+                        <option value="">Select Approver (Admin Only)</option>
+                        {adminApprovers.map(a => (
+                          <option key={a.id} value={a.id}>
+                            {`${a.first_name || ''} ${a.last_name || ''}`.trim() || 'Admin User'} ({a.role_name || 'Organization Admin'})
+                          </option>
+                        ))}
                       </select>
                     </div>
                     <div className="col-12">

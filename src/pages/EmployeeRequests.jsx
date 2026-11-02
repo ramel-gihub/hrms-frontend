@@ -211,6 +211,27 @@ export default function EmployeeRequests({ employeeProfile, currentUser }) {
   const [requests, setRequests] = useState([]);
   const [leaveTypes, setLeaveTypes] = useState([]);
   const [approvers, setApprovers] = useState([]);
+
+  // Filter approvers to only Tenant Admin users (excluding superadmin) as requested
+  const adminApprovers = useMemo(() => {
+    const list = approvers || [];
+    const filtered = list.filter((a) => {
+      const role = (a.role_name || a.role_key || '').toLowerCase();
+      const email = (a.email || '').toLowerCase();
+      const name = `${a.first_name || ''} ${a.last_name || ''}`.toLowerCase();
+      if (role.includes('super') || email.includes('superadmin') || name.includes('super')) return false;
+      return role.includes('admin') || email.includes('admin') || name.includes('admin');
+    });
+    if (filtered.length > 0) return filtered;
+    return list.length > 0 ? list : [{ id: 1, first_name: 'Admin', last_name: 'User', role_name: 'Organization Admin' }];
+  }, [approvers]);
+
+  useEffect(() => {
+    if (adminApprovers.length > 0 && !form.approverId && form.category === "Leave Request") {
+      setForm((prev) => ({ ...prev, approverId: adminApprovers[0].id }));
+    }
+  }, [adminApprovers, form.approverId, form.category]);
+
   const [requestStats, setRequestStats] = useState({
     average_resolution_days: null,
     completed_asset_requests: 0
@@ -1396,11 +1417,11 @@ export default function EmployeeRequests({ employeeProfile, currentUser }) {
                             clearFieldError("approverId");
                           }}
                         >
-                          <option value="">Select approver</option>
-                          {approvers.map((approver) => (
+                          <option value="">Select approver (Admin Only)</option>
+                          {adminApprovers.map((approver) => (
                             <option key={approver.id} value={approver.id}>
-                              {`${approver.first_name || ""} ${approver.last_name || ""}`.trim() || `Employee ${approver.id}`}
-                              {approver.role_name ? ` (${approver.role_name})` : ""}
+                              {`${approver.first_name || ""} ${approver.last_name || ""}`.trim() || `Admin User`}
+                              {approver.role_name ? ` (${approver.role_name})` : " (Organization Admin)"}
                             </option>
                           ))}
                         </select>

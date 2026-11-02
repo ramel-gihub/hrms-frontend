@@ -18,6 +18,8 @@ import AdminLeaves from './pages/AdminLeaves';
 import AdminWFH from './pages/AdminWFH';
 import DataReset from './pages/DataReset';
 import Announcements from '../pages/Announcements';
+import Analytics from './pages/Analytics';
+import PayrollManagement from './pages/PayrollManagement';
 
 export default function AdminTemplate({
   currentUser,
@@ -173,6 +175,55 @@ export default function AdminTemplate({
       throw new Error(err.error || 'Failed to create tenant organization');
     }
     const data = await res.json();
+    await fetchTenants();
+    return data;
+  };
+
+  // Update tenant details (Superadmin only)
+  const handleUpdateTenant = async (tenantId, tenantData) => {
+    const res = await fetch(`${API_URL}/api/admin/tenants/${tenantId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(tenantData)
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || 'Failed to update tenant organization');
+    }
+    const data = await res.json();
+    await fetchTenants();
+    return data;
+  };
+
+  // Toggle tenant status (Active <-> Suspended)
+  const handleToggleTenantStatus = async (tenantId, newStatus) => {
+    const res = await fetch(`${API_URL}/api/admin/tenants/${tenantId}/status`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: newStatus })
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || 'Failed to update tenant status');
+    }
+    const data = await res.json();
+    await fetchTenants();
+    return data;
+  };
+
+  // Delete tenant (Superadmin only)
+  const handleDeleteTenant = async (tenantId) => {
+    const res = await fetch(`${API_URL}/api/admin/tenants/${tenantId}`, {
+      method: 'DELETE'
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || 'Failed to delete tenant organization');
+    }
+    const data = await res.json();
+    if (currentTenantId === tenantId) {
+      setCurrentTenantId(1);
+    }
     await fetchTenants();
     return data;
   };
@@ -365,8 +416,29 @@ export default function AdminTemplate({
               tenants={tenants}
               loading={loadingTenants}
               onCreateTenant={handleCreateTenant}
+              onUpdateTenant={handleUpdateTenant}
+              onToggleTenantStatus={handleToggleTenantStatus}
+              onDeleteTenant={handleDeleteTenant}
               currentTenantId={currentTenantId}
               onSwitchTenant={setCurrentTenantId}
+            />
+          )}
+
+          {/* Analytics & Reports */}
+          {activeTab === 'analytics' && (
+            <Analytics
+              employees={employees}
+              leaveRequests={leaveRequests}
+              adminRequests={adminRequests}
+              currentTenant={currentTenant}
+            />
+          )}
+
+          {/* Payroll & CTC Management */}
+          {activeTab === 'payroll' && (
+            <PayrollManagement
+              currentTenant={currentTenant}
+              currentUser={currentUser}
             />
           )}
 

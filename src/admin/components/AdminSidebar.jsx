@@ -63,7 +63,7 @@ export default function AdminSidebar({
     },
     { 
       id: "leave-balance-mapping", 
-      label: "Leave Balance Mapping", 
+      label: "Leave Types & Quotas", 
       icon: <LayersIcon className="w-5 h-5" />,
       badge: unmappedCount > 0 ? `${unmappedCount} Unmapped` : null,
       badgeColor: "bg-rose-500 text-white font-bold"
@@ -74,10 +74,9 @@ export default function AdminSidebar({
       label: "Announcements", 
       icon: <i className="bi bi-megaphone-fill w-5 h-5 text-indigo-400 text-lg flex items-center justify-center" /> 
     },
-    /* { id: "calendar", label: "Calendar", icon: <CalendarIcon className="w-5 h-5" /> }, */
-    /* 
-    { id: "analytics", label: "Analytics & Reports", icon: <PieChartIcon className="w-5 h-5" /> }, 
-    */
+    { id: "calendar", label: "Calendar", icon: <CalendarIcon className="w-5 h-5 text-indigo-400" /> },
+    { id: "analytics", label: "Analytics & Reports", icon: <PieChartIcon className="w-5 h-5 text-emerald-400" /> },
+    { id: "payroll", label: "Payroll & CTC", icon: <i className="bi bi-cash-stack w-5 h-5 text-amber-400 text-lg flex items-center justify-center" /> },
   ];
 
   const adminItems = [

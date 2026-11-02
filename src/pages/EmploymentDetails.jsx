@@ -773,33 +773,33 @@ export default function EmploymentDetails({ employeeProfile, currentUser, onProf
                     <tbody>
                       <tr>
                         <td className="meta-label">EMP CODE</td>
-                        <td className="meta-value">: {profile.employee_code || '—'}</td>
+                        <td className="meta-value">: {activePayslipModal.employee_code || profile.employee_code || '—'}</td>
                         <td className="meta-label">BANK NAME</td>
-                        <td className="meta-value">: {activePayslipModal.bank_name || 'KOTAK MAHINDRA BANK'}</td>
+                        <td className="meta-value">: {activePayslipModal.bank_name || profile.bank_name || 'ABC BANK'}</td>
                       </tr>
                       <tr>
                         <td className="meta-label">EMP NAME</td>
-                        <td className="meta-value">: {([profile.first_name, profile.last_name].filter(Boolean).join(' ') || currentUser?.email || 'EMPLOYEE').toUpperCase()}</td>
+                        <td className="meta-value">: {(activePayslipModal.full_name || [profile.first_name, profile.last_name].filter(Boolean).join(' ') || currentUser?.email || 'EMPLOYEE').toUpperCase()}</td>
                         <td className="meta-label">BANK A/C NO.</td>
-                        <td className="meta-value">: {activePayslipModal.bank_account || '5212500492'}</td>
+                        <td className="meta-value">: {activePayslipModal.bank_account || profile.account_number || profile.bank_account || '1234567890'}</td>
                       </tr>
                       <tr>
                         <td className="meta-label">DESIGNATION</td>
-                        <td className="meta-value">: {(profile.designation || 'EMPLOYEE').toUpperCase()}</td>
+                        <td className="meta-value">: {(activePayslipModal.designation || profile.designation || 'EMPLOYEE').toUpperCase()}</td>
                         <td className="meta-label">PAN NUMBER</td>
-                        <td className="meta-value">: {activePayslipModal.pan_number || 'BIVPA5135J'}</td>
+                        <td className="meta-value">: {activePayslipModal.pan_number || profile.pan_number || 'ABCDE1234F'}</td>
                       </tr>
                       <tr>
                         <td className="meta-label">DOJ</td>
-                        <td className="meta-value">: {formatDate(profile.joining_date)}</td>
+                        <td className="meta-value">: {formatDate(activePayslipModal.joining_date || profile.joining_date)}</td>
                         <td className="meta-label">PAID DAYS</td>
-                        <td className="meta-value">: {activePayslipModal.paid_days || 31}</td>
+                        <td className="meta-value">: {activePayslipModal.paid_days !== undefined ? activePayslipModal.paid_days : (activePayslipModal.days_in_month || 30)}</td>
                       </tr>
                       <tr>
                         <td className="meta-label">LOCATION</td>
-                        <td className="meta-value">: {(profile.location || profile.city || 'NAGPUR').toUpperCase()}</td>
+                        <td className="meta-value">: {(activePayslipModal.location || profile.location || profile.city || 'PUNE, INDIA').toUpperCase()}</td>
                         <td className="meta-label">LOP DAYS</td>
-                        <td className="meta-value">: {activePayslipModal.lop_days || 0}</td>
+                        <td className="meta-value">: {activePayslipModal.lop_days !== undefined ? activePayslipModal.lop_days : 0}</td>
                       </tr>
                     </tbody>
                   </table>
@@ -818,56 +818,76 @@ export default function EmploymentDetails({ employeeProfile, currentUser, onProf
                     <tbody>
                       <tr>
                         <td>BASIC PAY</td>
-                        <td className="amt">{Number(activePayslipModal.basic_salary || 40000).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
-                        <td className="amt">{Number(activePayslipModal.basic_salary || 40000).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                        <td className="amt">{Number(activePayslipModal.basic_salary ?? 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                        <td className="amt">{Number(activePayslipModal.basic_salary ?? 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
                         <td>LOSS OF PAY</td>
-                        <td className="amt">{Number(activePayslipModal.loss_of_pay || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                        <td className="amt">{Number(activePayslipModal.loss_of_pay ?? 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
                       </tr>
                       <tr>
                         <td>HOUSE RENT ALLOWANCE (HRA)</td>
-                        <td className="amt">{Number(activePayslipModal.hra || 20000).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
-                        <td className="amt">{Number(activePayslipModal.hra || 20000).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                        <td className="amt">{Number(activePayslipModal.hra ?? 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                        <td className="amt">{Number(activePayslipModal.hra ?? 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
                         <td>PROFESSION TAX</td>
-                        <td className="amt">{Number(activePayslipModal.professional_tax || 250).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                        <td className="amt">{Number(activePayslipModal.professional_tax ?? 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
                       </tr>
                       <tr>
                         <td>TRAVEL ALLOWANCE</td>
-                        <td className="amt">{Number(activePayslipModal.travel_allowance || 14000).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
-                        <td className="amt">{Number(activePayslipModal.travel_allowance || 14000).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                        <td className="amt">{Number(activePayslipModal.travel_allowance ?? 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                        <td className="amt">{Number(activePayslipModal.travel_allowance ?? 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
                         <td>EPF DEDUCTIONS</td>
-                        <td className="amt">{Number(activePayslipModal.epf_deductions || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                        <td className="amt">{Number(activePayslipModal.epf_deductions ?? 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
                       </tr>
                       <tr>
                         <td>CONVEYANCE ALLOWANCE</td>
-                        <td className="amt">{Number(activePayslipModal.conveyance_allowance || 12000).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
-                        <td className="amt">{Number(activePayslipModal.conveyance_allowance || 12000).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                        <td className="amt">{Number(activePayslipModal.conveyance_allowance ?? 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                        <td className="amt">{Number(activePayslipModal.conveyance_allowance ?? 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
                         <td>TDS DEDUCTIONS</td>
-                        <td className="amt">{Number(activePayslipModal.tds_deductions || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                        <td className="amt">{Number(activePayslipModal.tds_deductions ?? 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
                       </tr>
-                      <tr>
-                        <td>OTHER ALLOWANCE</td>
-                        <td className="amt">{Number(activePayslipModal.other_allowance || 14000).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
-                        <td className="amt">{Number(activePayslipModal.other_allowance || 14000).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
-                        <td></td>
-                        <td className="amt"></td>
-                      </tr>
+                      {(Number(activePayslipModal.medical_allowance ?? 0) > 0 || (!activePayslipModal.other_allowance && !activePayslipModal.bonus)) && (
+                        <tr>
+                          <td>MEDICAL ALLOWANCE</td>
+                          <td className="amt">{Number(activePayslipModal.medical_allowance ?? 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                          <td className="amt">{Number(activePayslipModal.medical_allowance ?? 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                          <td></td>
+                          <td className="amt"></td>
+                        </tr>
+                      )}
+                      {Number(activePayslipModal.other_allowance ?? 0) > 0 && (
+                        <tr>
+                          <td>OTHER ALLOWANCE</td>
+                          <td className="amt">{Number(activePayslipModal.other_allowance ?? 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                          <td className="amt">{Number(activePayslipModal.other_allowance ?? 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                          <td></td>
+                          <td className="amt"></td>
+                        </tr>
+                      )}
+                      {Number(activePayslipModal.bonus ?? 0) > 0 && (
+                        <tr>
+                          <td>BONUS (PERFORMANCE/STATUTORY)</td>
+                          <td className="amt">{Number(activePayslipModal.bonus ?? 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                          <td className="amt">{Number(activePayslipModal.bonus ?? 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                          <td></td>
+                          <td className="amt"></td>
+                        </tr>
+                      )}
                       <tr className="total-row">
                         <td><strong>GROSS EARNINGS</strong></td>
-                        <td className="amt"><strong>{Number(activePayslipModal.gross_earnings || 100000).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong></td>
-                        <td className="amt"><strong>{Number(activePayslipModal.gross_earnings || 100000).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong></td>
+                        <td className="amt"><strong>{Number(activePayslipModal.gross_earnings ?? 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong></td>
+                        <td className="amt"><strong>{Number(activePayslipModal.gross_earnings ?? 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong></td>
                         <td><strong>GROSS DEDUCTIONS</strong></td>
-                        <td className="amt"><strong>{Number(activePayslipModal.total_deductions || 250).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong></td>
+                        <td className="amt"><strong>{Number(activePayslipModal.total_deductions ?? 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong></td>
                       </tr>
                       <tr className="netpay-row">
                         <td><strong>NET PAY</strong></td>
                         <td colSpan="4">
-                          <strong>: ₹ {Number(activePayslipModal.net_pay || 99750).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong>
+                          <strong>: ₹ {Number(activePayslipModal.net_pay ?? 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong>
                         </td>
                       </tr>
                       <tr className="words-row">
                         <td><strong>IN WORDS</strong></td>
                         <td colSpan="4">
-                          : Rupees {numberToWords(activePayslipModal.net_pay || 99750)} Only
+                          : Rupees {numberToWords(activePayslipModal.net_pay ?? 0)} Only
                         </td>
                       </tr>
                     </tbody>
