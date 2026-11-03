@@ -318,14 +318,26 @@ export default function EmploymentDetails({ employeeProfile, currentUser, onProf
                       </div>
                       <div className="esc-employee-info">
                         <div className="esc-name-row">
-                          <h3>{profile.first_name || 'Employee'} {profile.last_name || 'Name'}</h3>
+                          <h3>{profile.preferred_name || [profile.first_name, profile.last_name].filter(Boolean).join(' ') || (currentUser?.email ? currentUser.email.split('@')[0] : 'Employee')}</h3>
                           <span className="esc-status-badge"><span></span>Active</span>
                         </div>
-                        <p>{profile.designation || employeeProfile?.designation || 'Senior Software Engineer'}</p>
                         <div className="esc-employee-meta">
-                          <span><i className="bi bi-diagram-3"></i>{profile.department || employeeProfile?.department || 'Engineering'}</span>
-                          <span><i className="bi bi-code-slash"></i>{profile.team || employeeProfile?.team || 'Backend'}</span>
-                          <span><i className="bi bi-person-badge"></i>{profile.employee_code || employeeProfile?.employee_code || 'EMP-1360'}</span>
+                          <span>
+                            <i className="bi bi-person-badge"></i>
+                            {profile.employee_code || employeeProfile?.employee_code || 'EMP-1360'}
+                          </span>
+                          <span>
+                            <i className="bi bi-briefcase"></i>
+                            {profile.designation || employeeProfile?.designation || 'Senior Software Engineer'}
+                          </span>
+                          <span>
+                            <i className="bi bi-diagram-3"></i>
+                            {(profile.department || employeeProfile?.department) ? `${profile.department || employeeProfile.department}${(profile.team || employeeProfile?.team) ? ` · ${profile.team || employeeProfile.team}` : " · Backend"}` : "Engineering · Backend"}
+                          </span>
+                          <span>
+                            <i className="bi bi-geo-alt"></i>
+                            {profile.city || employeeProfile?.city || profile.location || employeeProfile?.location || 'Nagpur'}
+                          </span>
                         </div>
                       </div>
                     </div>

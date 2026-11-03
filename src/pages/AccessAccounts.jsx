@@ -61,22 +61,22 @@ export default function AccessAccounts() {
                                     </span>
                                 </div>
 
-                                <p>{employeeProfile?.designation || "Senior Software Engineer"}</p>
-
                                 <div className="esc-employee-meta">
-                                    <span>
-                                        <i className="bi bi-diagram-3"></i>
-                                        {employeeProfile?.department || "Engineering"}
-                                    </span>
-
-                                    <span>
-                                        <i className="bi bi-code-slash"></i>
-                                        {employeeProfile?.team || "Backend"}
-                                    </span>
-
                                     <span>
                                         <i className="bi bi-person-badge"></i>
                                         {employeeProfile?.employee_code || "EMP-1360"}
+                                    </span>
+                                    <span>
+                                        <i className="bi bi-briefcase"></i>
+                                        {employeeProfile?.designation || "Senior Software Engineer"}
+                                    </span>
+                                    <span>
+                                        <i className="bi bi-diagram-3"></i>
+                                        {employeeProfile?.department ? `${employeeProfile.department}${employeeProfile.team ? ` · ${employeeProfile.team}` : " · Backend"}` : "Engineering · Backend"}
+                                    </span>
+                                    <span>
+                                        <i className="bi bi-geo-alt"></i>
+                                        {employeeProfile?.city || employeeProfile?.location || "Nagpur"}
                                     </span>
                                 </div>
                             </div>

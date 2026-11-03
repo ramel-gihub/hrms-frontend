@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import EmploymentDetails from "./EmploymentDetails";
 import Documents from "./Documents";
 import SkillsCertifications from "./SkillsCertifications";
@@ -6,6 +6,65 @@ import Attendance from "./Attendance";
 import Leaves from "./Leaves";
 import Assets from "./Assets";
 import Expenses from "./Expenses";
+
+function formatActivityTime(dateStr) {
+    if (!dateStr) return "Recently";
+    const date = new Date(dateStr);
+    if (isNaN(date.getTime())) return String(dateStr);
+    const now = new Date();
+    const isToday = date.toDateString() === now.toDateString();
+    const yesterday = new Date();
+    yesterday.setDate(now.getDate() - 1);
+    const isYesterday = date.toDateString() === yesterday.toDateString();
+    
+    const timeStr = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    if (isToday) return `Today, ${timeStr}`;
+    if (isYesterday) return `Yesterday, ${timeStr}`;
+    return date.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+}
+
+// Helper to parse dates reliably without UTC timezone shifting
+const parseDateParts = (dateVal) => {
+    if (!dateVal) return null;
+    if (dateVal instanceof Date) {
+        return new Date(dateVal.getFullYear(), dateVal.getMonth(), dateVal.getDate());
+    }
+    if (typeof dateVal === "string") {
+        const match = dateVal.match(/^(\d{4})-(\d{2})-(\d{2})/);
+        if (match) {
+            return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+        }
+    }
+    const d = new Date(dateVal);
+    return isNaN(d.getTime()) ? null : new Date(d.getFullYear(), d.getMonth(), d.getDate());
+};
+
+// Calculates working days between start and end date inclusive, skipping Saturday and Sunday as per company weekend policy
+const calculateWorkingDays = (startRaw, endRaw, isHalfDay = false) => {
+    if (!startRaw) return 0;
+    if (isHalfDay) return 0.5;
+
+    const sDate = parseDateParts(startRaw);
+    const eDate = parseDateParts(endRaw || startRaw);
+
+    if (!sDate || !eDate) return 1;
+
+    let cur = new Date(sDate.getTime());
+    const finish = new Date(eDate.getTime());
+
+    if (cur > finish) return 0;
+
+    let count = 0;
+    while (cur <= finish) {
+        const day = cur.getDay(); // 0 is Sunday, 6 is Saturday
+        // Skip Saturday and Sunday as per company weekend policy
+        if (day !== 0 && day !== 6) {
+            count += 1;
+        }
+        cur.setDate(cur.getDate() + 1);
+    }
+    return count;
+};
 
 export default function EmployeeProfile({ currentUser, employeeProfile, onProfileUpdate, onNavigate }) {
     const API_BASE = import.meta.env.VITE_API_URL || "https://hrms-backend-5xo8.onrender.com";
@@ -19,10 +78,22 @@ export default function EmployeeProfile({ currentUser, employeeProfile, onProfil
     const [wfhRequests, setWfhRequests] = useState([]);
     const [wfhLoading, setWfhLoading] = useState(false);
     const [wfhPage, setWfhPage] = useState(1);
+
+    // Calculate dynamic total approved WFH days excluding Saturday and Sunday
+    const totalApprovedWfhDays = useMemo(() => {
+        return (wfhRequests || [])
+            .filter((r) => (r.status || "").toLowerCase() === "approved")
+            .reduce((sum, r) => {
+                const start = r.wfh_start_date || r.start_date || r.startDate;
+                const end = r.wfh_end_date || r.end_date || r.endDate || start;
+                return sum + calculateWorkingDays(start, end, r.is_half_day);
+            }, 0);
+    }, [wfhRequests]);
     const [commuteRecords, setCommuteRecords] = useState([]);
     const [commuteLoading, setCommuteLoading] = useState(false);
     const [commutePage, setCommutePage] = useState(1);
     const [commutePageSize, setCommutePageSize] = useState(5); // 5, 10, 25, 50, 100, or 'all'
+    const [recentActivities, setRecentActivities] = useState([]);
 
     const handlePrintCommute = () => {
         try {
@@ -272,13 +343,135 @@ export default function EmployeeProfile({ currentUser, employeeProfile, onProfil
                 if (!isCancelled) setCommuteLoading(false);
             });
 
+        // Fetch dynamic Recent Activities from notifications & employee requests
+        Promise.all([
+            fetch(`${API_BASE}/api/notifications/${encodeURIComponent(effectiveUserId)}`)
+                .then(r => r.ok ? r.json() : { notifications: [] })
+                .catch(() => ({ notifications: [] })),
+            fetch(`${API_BASE}/api/employee-requests/${effectiveUserId}`)
+                .then(r => r.ok ? r.json() : { requests: [] })
+                .catch(() => ({ requests: [] }))
+        ]).then(([notifData, reqData]) => {
+            if (isCancelled) return;
+            const notifs = Array.isArray(notifData?.notifications) ? notifData.notifications : [];
+            const reqs = Array.isArray(reqData?.requests) ? reqData.requests : [];
+            const activities = [];
+
+            // 1. Process notifications related to profile or employee requests
+            notifs.forEach(n => {
+                const cat = (n.category || "").toLowerCase();
+                const title = (n.title || "").toLowerCase();
+                const msg = (n.message || "").toLowerCase();
+                const isRelevant = 
+                    cat.includes("request") || cat.includes("leave") || cat.includes("asset") || 
+                    cat.includes("profile") || cat.includes("wfh") || cat.includes("work from home") || 
+                    cat.includes("document") || cat.includes("access") || cat.includes("attendance") || 
+                    title.includes("profile") || title.includes("request") || title.includes("leave") || 
+                    title.includes("asset") || title.includes("wfh") || title.includes("laptop") || 
+                    title.includes("verified") || title.includes("designation") ||
+                    msg.includes("profile") || msg.includes("request");
+
+                if (!isRelevant) return;
+
+                let icon = "bi-bell";
+                let colorClass = "ep-activity-purple";
+                if (title.includes("asset") || title.includes("laptop") || cat.includes("asset")) {
+                    icon = "bi-laptop";
+                    colorClass = "ep-activity-blue";
+                } else if (title.includes("leave") || cat.includes("leave")) {
+                    icon = "bi-calendar2-check";
+                    colorClass = "ep-activity-orange";
+                } else if (title.includes("wfh") || title.includes("work from home") || cat.includes("wfh")) {
+                    icon = "bi-house-door";
+                    colorClass = "ep-activity-blue";
+                } else if (title.includes("verified") || title.includes("approved") || title.includes("completed")) {
+                    icon = "bi-check2-circle";
+                    colorClass = "ep-activity-green";
+                } else if (title.includes("designation") || title.includes("role")) {
+                    icon = "bi-arrow-up-right";
+                    colorClass = "ep-activity-orange";
+                } else if (title.includes("document") || cat.includes("document")) {
+                    icon = "bi-file-earmark-text";
+                    colorClass = "ep-activity-blue";
+                } else if (title.includes("profile") || cat.includes("profile")) {
+                    icon = "bi-pencil";
+                    colorClass = "ep-activity-purple";
+                }
+
+                let cleanTitle = n.title || n.category || "Notification";
+                if (cleanTitle.toLowerCase().startsWith("new ")) {
+                    cleanTitle = cleanTitle.replace(/^new\s+/i, "").replace(/\s+from\s+.*$/i, "").trim();
+                }
+                if (cleanTitle.length > 38) {
+                    cleanTitle = n.category || (cleanTitle.slice(0, 35) + "...");
+                }
+
+                activities.push({
+                    id: `notif-${n.id}`,
+                    title: cleanTitle,
+                    timeDisplay: formatActivityTime(n.created_at),
+                    timestamp: new Date(n.created_at).getTime() || 0,
+                    icon,
+                    colorClass
+                });
+            });
+
+            // 2. Process employee requests
+            reqs.forEach(r => {
+                const cat = r.category || "Request";
+                const status = r.status || "Pending";
+                let icon = "bi-inbox";
+                let colorClass = "ep-activity-purple";
+
+                if (status === "Approved" || status === "Completed") {
+                    icon = "bi-check2-circle";
+                    colorClass = "ep-activity-green";
+                } else if (status === "Rejected") {
+                    icon = "bi-x-circle";
+                    colorClass = "ep-activity-orange";
+                } else if (cat.toLowerCase().includes("asset")) {
+                    icon = "bi-laptop";
+                    colorClass = "ep-activity-blue";
+                } else if (cat.toLowerCase().includes("leave")) {
+                    icon = "bi-calendar2-check";
+                    colorClass = "ep-activity-orange";
+                } else if (cat.toLowerCase().includes("wfh") || cat.toLowerCase().includes("work from home")) {
+                    icon = "bi-house-door";
+                    colorClass = "ep-activity-blue";
+                }
+
+                const dateVal = r.created_at || r.date;
+                activities.push({
+                    id: `req-${r.id}`,
+                    title: `${cat} (${status})`,
+                    timeDisplay: formatActivityTime(dateVal),
+                    timestamp: new Date(dateVal).getTime() || 0,
+                    icon,
+                    colorClass
+                });
+            });
+
+            activities.sort((a, b) => b.timestamp - a.timestamp);
+            const seen = new Set();
+            const unique = [];
+            for (const act of activities) {
+                const key = `${act.title}__${act.timeDisplay}`;
+                if (!seen.has(key)) {
+                    seen.add(key);
+                    unique.push(act);
+                }
+                if (unique.length >= 4) break;
+            }
+            setRecentActivities(unique);
+        });
+
         return () => {
             isCancelled = true;
         };
     }, [effectiveUserId, API_BASE, activeProfileTab]);
     const firstName = employeeProfile?.first_name || "";
     const lastName = employeeProfile?.last_name || "";
-    const employeeName = `${firstName} ${lastName}`.trim() || currentUser?.email || "Employee";
+    const employeeName = employeeProfile?.preferred_name || `${firstName} ${lastName}`.trim() || (currentUser?.email ? currentUser.email.split('@')[0] : "Employee");
     const employeeInitials = `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase()
         || currentUser?.email?.slice(0, 2).toUpperCase()
         || "EM";
@@ -428,22 +621,22 @@ export default function EmployeeProfile({ currentUser, employeeProfile, onProfil
                                     </span>
                                 </div>
 
-                                <p>{employeeProfile?.designation || "Employee"}</p>
-
                                 <div className="esc-employee-meta">
                                     <span>
-                                        <i className="bi bi-diagram-3"></i>
-                                        {employeeProfile?.department || "Department"}
-                                    </span>
-
-                                    <span>
-                                        <i className="bi bi-code-slash"></i>
-                                        {employeeProfile?.team || "Team"}
-                                    </span>
-
-                                    <span>
                                         <i className="bi bi-person-badge"></i>
-                                        {employeeProfile?.employee_code || "EMP-0000"}
+                                        {employeeProfile?.employee_code || "EMP-1360"}
+                                    </span>
+                                    <span>
+                                        <i className="bi bi-briefcase"></i>
+                                        {employeeProfile?.designation || "Senior Software Engineer"}
+                                    </span>
+                                    <span>
+                                        <i className="bi bi-diagram-3"></i>
+                                        {employeeProfile?.department ? `${employeeProfile.department}${employeeProfile.team ? ` · ${employeeProfile.team}` : " · Backend"}` : "Engineering · Backend"}
+                                    </span>
+                                    <span>
+                                        <i className="bi bi-geo-alt"></i>
+                                        {employeeProfile?.city || employeeProfile?.location || "Nagpur"}
                                     </span>
                                 </div>
                             </div>
@@ -647,7 +840,17 @@ export default function EmployeeProfile({ currentUser, employeeProfile, onProfil
                                             <strong>{employeeProfile?.reporting_manager_name || "Maruthi Vara Prasad"}</strong>
                                             <small>Engineering Manager</small>
                                         </div>
-                                        <button type="button">
+                                        <button 
+                                            type="button"
+                                            title="View reporting structure details"
+                                            onClick={() => {
+                                                if (typeof onNavigate === "function") {
+                                                    onNavigate("employement-details");
+                                                } else {
+                                                    setActiveProfileTab("employment");
+                                                }
+                                            }}
+                                        >
                                             <i className="bi bi-chevron-right"></i>
                                         </button>
                                     </div>
@@ -661,7 +864,15 @@ export default function EmployeeProfile({ currentUser, employeeProfile, onProfil
                                             <strong>{hrManagerName || "—"}</strong>
                                             {hrManagerName ? <small>HR Department</small> : null}
                                         </div>
-                                        <button type="button">
+                                        <button 
+                                            type="button"
+                                            title="Contact HR / View Requests"
+                                            onClick={() => {
+                                                if (typeof onNavigate === "function") {
+                                                    onNavigate("employee-requests");
+                                                }
+                                            }}
+                                        >
                                             <i className="bi bi-chevron-right"></i>
                                         </button>
                                     </div>
@@ -789,49 +1000,34 @@ export default function EmployeeProfile({ currentUser, employeeProfile, onProfil
                                         </div>
 
                                         <div className="ep-activity-list">
-                                            <div className="ep-activity-item">
-                                                <div className="ep-activity-icon ep-activity-purple">
-                                                    <i className="bi bi-pencil"></i>
+                                            {(recentActivities.length > 0 ? recentActivities : [
+                                                { id: "def-1", title: "Profile updated", timeDisplay: "Recently", icon: "bi-pencil", colorClass: "ep-activity-purple" },
+                                                { id: "def-2", title: "Laptop assigned", timeDisplay: "Recently", icon: "bi-laptop", colorClass: "ep-activity-blue" },
+                                                { id: "def-3", title: "Profile verified", timeDisplay: "Verified", icon: "bi-check2-circle", colorClass: "ep-activity-green" },
+                                                { id: "def-4", title: "Designation updated", timeDisplay: "Active", icon: "bi-arrow-up-right", colorClass: "ep-activity-orange" }
+                                            ]).slice(0, 4).map((activity, idx) => (
+                                                <div className="ep-activity-item" key={activity.id || idx}>
+                                                    <div className={`ep-activity-icon ${activity.colorClass || "ep-activity-purple"}`}>
+                                                        <i className={`bi ${activity.icon || "bi-bell"}`}></i>
+                                                    </div>
+                                                    <div>
+                                                        <strong>{activity.title}</strong>
+                                                        <span>{activity.timeDisplay}</span>
+                                                    </div>
                                                 </div>
-                                                <div>
-                                                    <strong>Profile updated</strong>
-                                                    <span>Today, 10:42 AM</span>
-                                                </div>
-                                            </div>
-
-                                            <div className="ep-activity-item">
-                                                <div className="ep-activity-icon ep-activity-blue">
-                                                    <i className="bi bi-laptop"></i>
-                                                </div>
-                                                <div>
-                                                    <strong>Laptop assigned</strong>
-                                                    <span>Yesterday, 04:15 PM</span>
-                                                </div>
-                                            </div>
-
-                                            <div className="ep-activity-item">
-                                                <div className="ep-activity-icon ep-activity-green">
-                                                    <i className="bi bi-check2-circle"></i>
-                                                </div>
-                                                <div>
-                                                    <strong>Profile verified</strong>
-                                                    <span>12 Sep 2026</span>
-                                                </div>
-                                            </div>
-
-                                            <div className="ep-activity-item">
-                                                <div className="ep-activity-icon ep-activity-orange">
-                                                    <i className="bi bi-arrow-up-right"></i>
-                                                </div>
-                                                <div>
-                                                    <strong>Designation updated</strong>
-                                                    <span>05 Sep 2026</span>
-                                                </div>
-                                            </div>
+                                            ))}
                                         </div>
                                     </div>
 
-                                    <button type="button" className="ep-view-activity">
+                                    <button 
+                                        type="button" 
+                                        className="ep-view-activity"
+                                        onClick={() => {
+                                            if (typeof onNavigate === "function") {
+                                                onNavigate("notifications");
+                                            }
+                                        }}
+                                    >
                                         View all activity
                                         <i className="bi bi-arrow-right"></i>
                                     </button>
@@ -877,10 +1073,10 @@ export default function EmployeeProfile({ currentUser, employeeProfile, onProfil
 
                     {activeProfileTab === "wfh" && (
                         <div className="ep-wfh-container mt-3">
-                            {/* TOP STAT CARDS: Total, Approved, Pending */}
+                            {/* TOP STAT CARDS: Total Requests, Approved Requests, Approved WFH Days, Pending Requests */}
                             <div className="row g-3 mb-4">
                                 {/* Total Requests */}
-                                <div className="col-12 col-md-4">
+                                <div className="col-12 col-sm-6 col-xl-3">
                                     <div style={{
                                         backgroundColor: "#ffffff",
                                         borderRadius: "16px",
@@ -921,7 +1117,7 @@ export default function EmployeeProfile({ currentUser, employeeProfile, onProfil
                                 </div>
 
                                 {/* Approved Requests */}
-                                <div className="col-12 col-md-4">
+                                <div className="col-12 col-sm-6 col-xl-3">
                                     <div style={{
                                         backgroundColor: "#ffffff",
                                         borderRadius: "16px",
@@ -955,14 +1151,55 @@ export default function EmployeeProfile({ currentUser, employeeProfile, onProfil
                                                 {wfhRequests.filter((r) => (r.status || "").toLowerCase() === "approved").length}
                                             </div>
                                             <div style={{ fontSize: "12px", color: "#94a3b8", marginTop: "2px" }}>
-                                                Granted remote work days
+                                                Approved applications
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Approved WFH Days (Excluding Weekends - Sat & Sun) */}
+                                <div className="col-12 col-sm-6 col-xl-3">
+                                    <div style={{
+                                        backgroundColor: "#ffffff",
+                                        borderRadius: "16px",
+                                        padding: "20px 22px",
+                                        border: "1px solid #e2e8f0",
+                                        boxShadow: "0 2px 10px rgba(0,0,0,0.03)",
+                                        display: "flex",
+                                        alignItems: "center",
+                                        gap: "16px",
+                                        height: "100%"
+                                    }}>
+                                        <div style={{
+                                            width: "52px",
+                                            height: "52px",
+                                            borderRadius: "14px",
+                                            backgroundColor: "#ccfbf1",
+                                            color: "#0d9488",
+                                            display: "flex",
+                                            alignItems: "center",
+                                            justifyContent: "center",
+                                            fontSize: "24px",
+                                            flexShrink: 0
+                                        }}>
+                                            <i className="bi bi-house-check-fill"></i>
+                                        </div>
+                                        <div>
+                                            <div style={{ fontSize: "12px", fontWeight: 600, color: "#0d9488", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                                                Approved WFH Days
+                                            </div>
+                                            <div style={{ fontSize: "28px", fontWeight: 800, color: "#0f766e", lineHeight: 1.2, marginTop: "2px" }}>
+                                                {totalApprovedWfhDays} <span style={{ fontSize: "14px", fontWeight: 600, color: "#0d9488" }}>{totalApprovedWfhDays === 1 ? "Day" : "Days"}</span>
+                                            </div>
+                                            <div style={{ fontSize: "12px", color: "#94a3b8", marginTop: "2px" }}>
+                                                Excl. weekends (Sat &amp; Sun)
                                             </div>
                                         </div>
                                     </div>
                                 </div>
 
                                 {/* Pending Requests */}
-                                <div className="col-12 col-md-4">
+                                <div className="col-12 col-sm-6 col-xl-3">
                                     <div style={{
                                         backgroundColor: "#ffffff",
                                         borderRadius: "16px",
@@ -1107,7 +1344,10 @@ export default function EmployeeProfile({ currentUser, employeeProfile, onProfil
                                                                     </div>
                                                                     {sDate !== "-" && (
                                                                         <span style={{ fontSize: "11px", color: "#64748b" }}>
-                                                                            {sDate === eDate ? "1 Day" : "Multiple Days"}
+                                                                            {(() => {
+                                                                                const dCount = calculateWorkingDays(req.wfh_start_date || req.start_date, req.wfh_end_date || req.end_date, req.is_half_day);
+                                                                                return `${dCount} ${dCount === 1 ? "working day" : "working days"} (excl. weekends)`;
+                                                                            })()}
                                                                         </span>
                                                                     )}
                                                                 </td>
@@ -1736,7 +1976,7 @@ export default function EmployeeProfile({ currentUser, employeeProfile, onProfil
                                                                 </span>
                                                             </td>
                                                             <td style={{ padding: "12px 16px", color: "#475569" }}>
-                                                                {skill.years_of_experience ? `${skill.years_of_experience} ${skill.years_of_experience === 1 || skill.years_of_experience === "1" ? "Year" : "Years"}` : "—"}
+                                                                {skill.years_of_experience !== null && skill.years_of_experience !== undefined && skill.years_of_experience !== "" ? `${Number(skill.years_of_experience) % 1 === 0 ? Number(skill.years_of_experience).toFixed(0) : skill.years_of_experience} ${Number(skill.years_of_experience) === 1 ? "Year" : "Years"}` : "—"}
                                                             </td>
                                                             <td style={{ padding: "12px 16px", color: "#64748b" }}>
                                                                 {skill.last_used || "—"}

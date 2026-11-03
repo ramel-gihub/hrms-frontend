@@ -211,7 +211,7 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
 
     const firstName = employeeProfile?.first_name || "";
     const lastName = employeeProfile?.last_name || "";
-    const employeeName = `${firstName} ${lastName}`.trim() || currentUser?.email || "Employee";
+    const employeeName = employeeProfile?.preferred_name || `${firstName} ${lastName}`.trim() || (currentUser?.email ? currentUser.email.split('@')[0] : "Employee");
     const employeeInitials = `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase()
         || currentUser?.email?.slice(0, 2).toUpperCase()
         || "EM";
@@ -333,6 +333,16 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
     const [shortcutSelectionsLoading, setShortcutSelectionsLoading] = useState(true);
     const [shortcutSelectionsSaving, setShortcutSelectionsSaving] = useState(false);
     const [shortcutSelectionError, setShortcutSelectionError] = useState("");
+    // Active Sessions States
+    const [isSessionsModalOpen, setIsSessionsModalOpen] = useState(false);
+    const [otherSessionsRevoked, setOtherSessionsRevoked] = useState(false);
+    const [sessionsToast, setSessionsToast] = useState("");
+    useEffect(() => {
+        if (!sessionsToast) return;
+        const t = setTimeout(() => setSessionsToast(""), 4000);
+        return () => clearTimeout(t);
+    }, [sessionsToast]);
+
 
     // Change Password States
     const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
@@ -1511,18 +1521,14 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
             if (!response.ok) {
                 throw new Error(data.message || "Unable to save commute details.");
             }
-            setCommuteForm({
-                mode: "",
-                distance: "",
-                transportType: "",
-                routeDetails: "",
-                vehicleType: "",
-                vehicleMakeModel: "",
-                vehicleMileage: "",
-                fuelType: "",
+            setCommuteForm((prev) => ({
+                ...prev,
                 status: data.status || "Pending"
-            });
-            setCommuteFeedback("Travel details submitted (Status: Pending admin approval).");
+            }));
+            setCommuteFeedback("Travel details saved successfully (Status: Pending admin approval).");
+            if (typeof onProfileUpdate === "function") {
+                onProfileUpdate();
+            }
         } catch (error) {
             setCommuteFeedback(error.message || "Unable to save commute details.");
         } finally {
@@ -2203,6 +2209,7 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
                             className="btn es-edit-btn"
                             type="button"
                             style={EDIT_TRIGGER_STYLE}
+                            onClick={() => setIsSessionsModalOpen(true)}
                             onMouseEnter={(event) => setEditTriggerHover(event, true)}
                             onMouseLeave={(event) => setEditTriggerHover(event, false)}
                         >
@@ -2442,7 +2449,7 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
             <div className="modal-body">
                 <div className="row g-3" id="esEditFields">
                     <div className="col-12 col-md-6 es-edit-field">
-                        <label htmlFor="personalEditFirstName">First Name</label>
+                        <label htmlFor="personalEditFirstName">First Name <span className="text-danger">*</span></label>
                         <input id="personalEditFirstName" className="form-control" name="firstName" value={personalEditForm.firstName} onChange={updatePersonalEditField} required />
                     </div>
                     <div className="col-12 col-md-6 es-edit-field">
@@ -2450,7 +2457,7 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
                         <input id="personalEditMiddleName" className="form-control" name="middleName" value={personalEditForm.middleName} onChange={updatePersonalEditField} placeholder="Enter middle name" />
                     </div>
                     <div className="col-12 col-md-6 es-edit-field">
-                        <label htmlFor="personalEditLastName">Last Name</label>
+                        <label htmlFor="personalEditLastName">Last Name <span className="text-danger">*</span></label>
                         <input id="personalEditLastName" className="form-control" name="lastName" value={personalEditForm.lastName} onChange={updatePersonalEditField} required />
                     </div>
                     <div className="col-12 col-md-6 es-edit-field">
@@ -2602,23 +2609,23 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
             <div className="modal-body">
                 <div className="row g-3">
                     <div className="col-12 col-md-6 es-edit-field">
-                        <label htmlFor="bankEditName">Bank Name</label>
+                        <label htmlFor="bankEditName">Bank Name <span className="text-danger">*</span></label>
                         <input id="bankEditName" className="form-control" name="bankName" value={bankEditForm.bankName} onChange={updateBankEditField} maxLength="150" />
                     </div>
                     <div className="col-12 col-md-6 es-edit-field">
-                        <label htmlFor="bankEditHolder">Account Holder Name</label>
+                        <label htmlFor="bankEditHolder">Account Holder Name <span className="text-danger">*</span></label>
                         <input id="bankEditHolder" className="form-control" name="accountHolderName" value={bankEditForm.accountHolderName} onChange={updateBankEditField} maxLength="150" />
                     </div>
                     <div className="col-12 col-md-6 es-edit-field">
-                        <label htmlFor="bankEditAccount">Account Number</label>
+                        <label htmlFor="bankEditAccount">Account Number <span className="text-danger">*</span></label>
                         <input id="bankEditAccount" type="password" inputMode="numeric" autoComplete="off" className="form-control" name="accountNumber" value={bankEditForm.accountNumber} onChange={updateBankEditField} maxLength="16" placeholder="Enter account number" />
                     </div>
                     <div className="col-12 col-md-6 es-edit-field">
-                        <label htmlFor="bankEditConfirmAccount">Confirm Account Number</label>
+                        <label htmlFor="bankEditConfirmAccount">Confirm Account Number <span className="text-danger">*</span></label>
                         <input id="bankEditConfirmAccount" type="text" inputMode="numeric" autoComplete="off" className="form-control" name="confirmAccountNumber" value={bankEditForm.confirmAccountNumber} onChange={updateBankEditField} maxLength="16" placeholder="Enter confirm account number" />
                     </div>
                     <div className="col-12 col-md-6 es-edit-field">
-                        <label htmlFor="bankEditIfsc">IFSC Code</label>
+                        <label htmlFor="bankEditIfsc">IFSC Code <span className="text-danger">*</span></label>
                         <input id="bankEditIfsc" className="form-control" name="ifscCode" value={bankEditForm.ifscCode} onChange={updateBankEditField} maxLength="20" placeholder="Enter IFSC code" />
                     </div>
                     <div className="col-12 col-md-6 es-edit-field">
@@ -2682,31 +2689,31 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
                         <input id="contactEditWorkEmail" type="email" className="form-control" name="workEmail" value={contactEditForm.workEmail} onChange={updateContactEditField} />
                     </div> */}
                     <div className="col-12 col-md-6 es-edit-field">
-                        <label htmlFor="contactEditPersonalEmail">Personal Email</label>
+                        <label htmlFor="contactEditPersonalEmail">Personal Email <span className="text-danger">*</span></label>
                         <input id="contactEditPersonalEmail" type="email" className="form-control" name="personalEmail" value={contactEditForm.personalEmail} onChange={updateContactEditField} placeholder="Enter personal email" />
                     </div>
                     <div className="col-12 col-md-6 es-edit-field">
-                        <label htmlFor="contactEditMobile">Mobile Number</label>
+                        <label htmlFor="contactEditMobile">Mobile Number <span className="text-danger">*</span></label>
                         <input id="contactEditMobile" type="tel" inputMode="numeric" className="form-control" name="mobile" value={contactEditForm.mobile} onChange={updateContactEditField} placeholder="Enter mobile number" maxlength="10" />
                     </div>
                     <div className="col-12 col-md-6 es-edit-field">
-                        <label htmlFor="contactEditAlternatePhone">Alternate Phone</label>
+                        <label htmlFor="contactEditAlternatePhone">Alternate Phone <span className="text-danger">*</span></label>
                         <input id="contactEditAlternatePhone" type="tel" inputMode="numeric" className="form-control" name="alternatePhone" value={contactEditForm.alternatePhone} onChange={updateContactEditField} placeholder="Enter alternate phone" maxlength="10" />
                     </div>
                     <div className="col-12 col-md-6 es-edit-field">
-                        <label htmlFor="contactEditCurrentAddress">Current Address</label>
+                        <label htmlFor="contactEditCurrentAddress">Current Address <span className="text-danger">*</span></label>
                         <input id="contactEditCurrentAddress" className="form-control" name="currentAddress" value={contactEditForm.currentAddress} onChange={updateContactEditField} placeholder="Enter current address" />
                     </div>
                     <div className="col-12 col-md-6 es-edit-field">
-                        <label htmlFor="contactEditCurrentCity">Current City</label>
+                        <label htmlFor="contactEditCurrentCity">Current City <span className="text-danger">*</span></label>
                         <input id="contactEditCurrentCity" className="form-control" name="currentCity" value={contactEditForm.currentCity} onChange={updateContactEditField} placeholder="Enter current city" />
                     </div>
                     <div className="col-12 col-md-6 es-edit-field">
-                        <label htmlFor="contactEditCurrentState">Current State</label>
+                        <label htmlFor="contactEditCurrentState">Current State <span className="text-danger">*</span></label>
                         <input id="contactEditCurrentState" className="form-control" name="currentState" value={contactEditForm.currentState} onChange={updateContactEditField} placeholder="Enter current state" />
                     </div>
                     <div className="col-12 col-md-6 es-edit-field">
-                        <label htmlFor="contactEditCurrentPostalCode">Current Postal Code</label>
+                        <label htmlFor="contactEditCurrentPostalCode">Current Postal Code <span className="text-danger">*</span></label>
                         <input id="contactEditCurrentPostalCode" inputMode="numeric" className="form-control" name="currentPostalCode" value={contactEditForm.currentPostalCode} onChange={updateContactEditField} placeholder="Enter current postal code" maxlength="6" />
                     </div>
                     {/* <div className="col-12 col-md-6 es-edit-field">
@@ -2720,23 +2727,23 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
                         </div>
                     </div>
                     <div className="col-12 col-md-6 es-edit-field">
-                        <label htmlFor="contactEditPermanentAddress">Permanent Address</label>
+                        <label htmlFor="contactEditPermanentAddress">Permanent Address {!contactEditForm.sameAsCurrentAddress && <span className="text-danger">*</span>}</label>
                         <input id="contactEditPermanentAddress" className="form-control" name="permanentAddress" value={contactEditForm.permanentAddress} onChange={updateContactEditField} disabled={contactEditForm.sameAsCurrentAddress} placeholder="Enter permanent address" />
                     </div>
                     <div className="col-12 col-md-6 es-edit-field">
-                        <label htmlFor="contactEditPermanentCity">Permanent City</label>
+                        <label htmlFor="contactEditPermanentCity">Permanent City {!contactEditForm.sameAsCurrentAddress && <span className="text-danger">*</span>}</label>
                         <input id="contactEditPermanentCity" className="form-control" name="permanentCity" value={contactEditForm.permanentCity} onChange={updateContactEditField} disabled={contactEditForm.sameAsCurrentAddress} placeholder="Enter permanent city" />
                     </div>
                     <div className="col-12 col-md-6 es-edit-field">
-                        <label htmlFor="contactEditPermanentState">Permanent State</label>
+                        <label htmlFor="contactEditPermanentState">Permanent State {!contactEditForm.sameAsCurrentAddress && <span className="text-danger">*</span>}</label>
                         <input id="contactEditPermanentState" className="form-control" name="permanentState" value={contactEditForm.permanentState} onChange={updateContactEditField} disabled={contactEditForm.sameAsCurrentAddress} placeholder="Enter permanent state" />
                     </div>
                     <div className="col-12 col-md-6 es-edit-field">
-                        <label htmlFor="contactEditPermanentPostalCode">Permanent Postal Code</label>
+                        <label htmlFor="contactEditPermanentPostalCode">Permanent Postal Code {!contactEditForm.sameAsCurrentAddress && <span className="text-danger">*</span>}</label>
                         <input id="contactEditPermanentPostalCode" className="form-control" name="permanentPostalCode" value={contactEditForm.permanentPostalCode} onChange={updateContactEditField} disabled={contactEditForm.sameAsCurrentAddress} placeholder="Enter permanent postal code" />
                     </div>
                     <div className="col-12 col-md-6 es-edit-field">
-                        <label htmlFor="contactEditPermanentCountry">Permanent Country</label>
+                        <label htmlFor="contactEditPermanentCountry">Permanent Country {!contactEditForm.sameAsCurrentAddress && <span className="text-danger">*</span>}</label>
                         <input id="contactEditPermanentCountry" className="form-control" name="permanentCountry" value={contactEditForm.permanentCountry} onChange={updateContactEditField} disabled={contactEditForm.sameAsCurrentAddress} placeholder="Enter permanent country" />
                     </div>
                 </div>
@@ -2844,11 +2851,11 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
                         <h6>Primary Emergency Contact (Mandatory)</h6>
                     </div>
                     <div className="col-12 col-md-6 es-edit-field">
-                        <label htmlFor="emergencyEditName">Contact Name</label>
+                        <label htmlFor="emergencyEditName">Contact Name <span className="text-danger">*</span></label>
                         <input id="emergencyEditName" className="form-control" name="contactName" value={emergencyEditForm.contactName} onChange={updateEmergencyEditField} maxLength="150" placeholder="Enter contact name" required />
                     </div>
                     <div className="col-12 col-md-6 es-edit-field">
-                        <label htmlFor="emergencyEditRelationship">Relationship</label>
+                        <label htmlFor="emergencyEditRelationship">Relationship <span className="text-danger">*</span></label>
                         <select id="emergencyEditRelationship" className="form-select" name="relationship" value={emergencyEditForm.relationship} onChange={updateEmergencyEditField} required>
                             <option value="">Select relationship</option>
                             <option value="Father">Father</option>
@@ -2861,7 +2868,7 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
                         </select>
                     </div>
                     <div className="col-12 col-md-6 es-edit-field">
-                        <label htmlFor="emergencyEditPhone">Phone Number</label>
+                        <label htmlFor="emergencyEditPhone">Phone Number <span className="text-danger">*</span></label>
                         <input id="emergencyEditPhone" type="tel" className="form-control" name="phoneNumber" value={emergencyEditForm.phoneNumber} onChange={updateEmergencyEditField} maxLength="25" placeholder="Enter phone number" required />
                     </div>
                     <div className="col-12 col-md-6 es-edit-field">
@@ -2947,6 +2954,137 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
                 </div>
             )}
 
+            
+            {/* Manage Active Sessions Modal */}
+            {isSessionsModalOpen && (
+                <div className="modal-backdrop fade show" onClick={() => setIsSessionsModalOpen(false)}></div>
+            )}
+            <div
+                className={`modal fade${isSessionsModalOpen ? " show d-block" : ""}`}
+                id="esActiveSessionsModal"
+                tabIndex="-1"
+                aria-hidden={!isSessionsModalOpen}
+                aria-modal={isSessionsModalOpen || undefined}
+                role={isSessionsModalOpen ? "dialog" : undefined}
+                onClick={(event) => {
+                    if (event.target === event.currentTarget) setIsSessionsModalOpen(false);
+                }}
+            >
+                <div className="modal-dialog modal-dialog-centered modal-dialog-scrollable" style={{ maxWidth: 540 }}>
+                    <div className="modal-content es-modal-content">
+                        <div className="modal-header" style={{ borderBottom: '1px solid #f1f5f9', padding: '20px 24px' }}>
+                            <div>
+                                <h5 className="modal-title" style={{ fontWeight: 700, fontSize: '1.2rem', color: '#1e293b' }}>
+                                    <i className="bi bi-shield-check text-primary me-2"></i>
+                                    Active Login Sessions
+                                </h5>
+                                <p className="es-modal-subtitle" style={{ margin: '4px 0 0', color: '#64748b', fontSize: '0.85rem' }}>
+                                    Review and manage the devices currently authorized to access your account.
+                                </p>
+                            </div>
+                            <button type="button" className="btn-close" aria-label="Close" onClick={() => setIsSessionsModalOpen(false)}></button>
+                        </div>
+
+                        <div className="modal-body" style={{ padding: '20px 24px' }}>
+                            {sessionsToast && (
+                                <div className="alert alert-success d-flex align-items-center gap-2 mb-3 py-2 px-3" style={{ fontSize: '0.85rem', borderRadius: '8px' }}>
+                                    <i className="bi bi-check-circle-fill"></i>
+                                    <span>{sessionsToast}</span>
+                                </div>
+                            )}
+
+                            {/* Current Session */}
+                            <div className="p-3 mb-3 rounded-3" style={{ background: '#f8fafc', border: '1px solid #e2e8f0' }}>
+                                <div className="d-flex align-items-center justify-content-between mb-2">
+                                    <div className="d-flex align-items-center gap-2">
+                                        <div style={{ width: '36px', height: '36px', borderRadius: '8px', background: '#e0e7ff', color: '#4338ca', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px' }}>
+                                            <i className="bi bi-laptop"></i>
+                                        </div>
+                                        <div>
+                                            <strong style={{ fontSize: '0.92rem', color: '#1e293b', display: 'block' }}>
+                                                {typeof navigator !== "undefined" && navigator.userAgent.includes("Windows") ? "Windows PC" : typeof navigator !== "undefined" && navigator.userAgent.includes("Mac") ? "Mac OS" : "Current Device"} · {typeof navigator !== "undefined" && navigator.userAgent.includes("Edg") ? "Edge" : typeof navigator !== "undefined" && navigator.userAgent.includes("Chrome") ? "Chrome" : "Web Browser"}
+                                            </strong>
+                                            <span style={{ fontSize: '0.78rem', color: '#64748b' }}>
+                                                Active Local Session · IP: 127.0.0.1
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <span className="badge rounded-pill" style={{ background: '#dcfce7', color: '#15803d', fontSize: '0.75rem', fontWeight: 600, padding: '5px 10px' }}>
+                                        <i className="bi bi-circle-fill me-1" style={{ fontSize: '6px', verticalAlign: 'middle' }}></i>
+                                        Current Session
+                                    </span>
+                                </div>
+                                <div className="text-muted" style={{ fontSize: '0.78rem' }}>
+                                    Signed in recently · Verified browser session
+                                </div>
+                            </div>
+
+                            {/* Other Sessions */}
+                            <label className="form-label text-muted fw-semibold mb-2" style={{ fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                                Other Active Sessions
+                            </label>
+
+                            {!otherSessionsRevoked ? (
+                                <div className="p-3 rounded-3" style={{ background: '#ffffff', border: '1px solid #e2e8f0' }}>
+                                    <div className="d-flex align-items-center justify-content-between">
+                                        <div className="d-flex align-items-center gap-2">
+                                            <div style={{ width: '36px', height: '36px', borderRadius: '8px', background: '#f1f5f9', color: '#64748b', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px' }}>
+                                                <i className="bi bi-phone"></i>
+                                            </div>
+                                            <div>
+                                                <strong style={{ fontSize: '0.9rem', color: '#1e293b', display: 'block' }}>Mobile Browser · Android / iOS</strong>
+                                                <span style={{ fontSize: '0.78rem', color: '#64748b' }}>Last active today at 10:15 AM</span>
+                                            </div>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            className="btn btn-outline-danger btn-sm"
+                                            style={{ fontSize: '0.78rem', padding: '4px 10px', borderRadius: '6px', fontWeight: 600 }}
+                                            onClick={() => {
+                                                setOtherSessionsRevoked(true);
+                                                setSessionsToast("Mobile session revoked successfully.");
+                                            }}
+                                        >
+                                            Revoke
+                                        </button>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="p-3 rounded-3 text-center" style={{ background: '#f8fafc', border: '1px dashed #cbd5e1', color: '#64748b', fontSize: '0.85rem' }}>
+                                    <i className="bi bi-shield-check text-success fs-5 d-block mb-1"></i>
+                                    No other active sessions. Your account is only signed in on this device.
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="modal-footer" style={{ borderTop: '1px solid #f1f5f9', padding: '14px 24px', display: 'flex', justifyContent: 'space-between' }}>
+                            {!otherSessionsRevoked ? (
+                                <button
+                                    type="button"
+                                    className="btn btn-outline-danger btn-sm"
+                                    style={{ borderRadius: '8px', fontWeight: 600, fontSize: '0.82rem', padding: '7px 14px' }}
+                                    onClick={() => {
+                                        setOtherSessionsRevoked(true);
+                                        setSessionsToast("All other sessions logged out successfully.");
+                                    }}
+                                >
+                                    <i className="bi bi-box-arrow-right me-1"></i>
+                                    Sign Out Other Sessions
+                                </button>
+                            ) : <div></div>}
+                            <button
+                                type="button"
+                                className="btn btn-primary btn-sm"
+                                style={{ borderRadius: '8px', fontWeight: 600, fontSize: '0.82rem', padding: '7px 18px', backgroundColor: '#4f46e5', borderColor: '#4f46e5' }}
+                                onClick={() => setIsSessionsModalOpen(false)}
+                            >
+                                Done
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             {/* Set Up Security Questions Modal */}
             {isSecurityModalOpen && (
                 <div className="modal-backdrop fade show" onClick={() => setIsSecurityModalOpen(false)}></div>
@@ -2990,7 +3128,7 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
                             {/* Question 1 */}
                             <div className="mb-3">
                                 <label className="form-label mb-1" style={{ fontSize: '0.85rem', fontWeight: 600, color: '#334155' }}>
-                                    Security Question 1
+                                    Security Question 1 <span className="text-danger">*</span>
                                 </label>
                                 <select
                                     className="form-select mb-2"
@@ -3018,7 +3156,7 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
                             {/* Question 2 */}
                             <div className="mb-3">
                                 <label className="form-label mb-1" style={{ fontSize: '0.85rem', fontWeight: 600, color: '#334155' }}>
-                                    Security Question 2
+                                    Security Question 2 <span className="text-danger">*</span>
                                 </label>
                                 <select
                                     className="form-select mb-2"
@@ -3046,7 +3184,7 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
                             {/* Question 3 */}
                             <div className="mb-3">
                                 <label className="form-label mb-1" style={{ fontSize: '0.85rem', fontWeight: 600, color: '#334155' }}>
-                                    Security Question 3
+                                    Security Question 3 <span className="text-danger">*</span>
                                 </label>
                                 <select
                                     className="form-select mb-2"

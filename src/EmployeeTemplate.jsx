@@ -119,6 +119,136 @@ export default function EmployeeTemplate({
   const [headerSearchQuery, setHeaderSearchQuery] = useState("");
   const [showCheckOutConfirm, setShowCheckOutConfirm] = useState(false);
   const [toastNotification, setToastNotification] = useState(null);
+  const [dynamicBreakMinutes, setDynamicBreakMinutes] = useState(() => {
+    try {
+      const saved = localStorage.getItem('hrms_break_minutes');
+      if (saved) return parseInt(saved, 10);
+    } catch (_) {}
+    return 60; // default 1 hour
+  });
+  const [showBreakModal, setShowBreakModal] = useState(false);
+  const [tempBreakMinutes, setTempBreakMinutes] = useState(60);
+  const [liveCurrentTime, setLiveCurrentTime] = useState(() => {
+    const now = new Date();
+    const str = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
+    const parts = str.split(' ');
+    return {
+      time: parts[0] || str,
+      period: parts[1] || (now.getHours() >= 12 ? 'PM' : 'AM')
+    };
+  });
+
+  useEffect(() => {
+    const updateTime = () => {
+      const now = new Date();
+      const str = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
+      const parts = str.split(' ');
+      setLiveCurrentTime({
+        time: parts[0] || str,
+        period: parts[1] || (now.getHours() >= 12 ? 'PM' : 'AM')
+      });
+    };
+    updateTime();
+    const interval = setInterval(updateTime, 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    if (todayAttendance?.metadata?.break_minutes) {
+      const m = parseInt(todayAttendance.metadata.break_minutes, 10);
+      if (m && !isNaN(m)) {
+        setDynamicBreakMinutes(m);
+      }
+    }
+  }, [todayAttendance]);
+
+  const formatBreakDisplay = (mins) => {
+    const m = parseInt(mins, 10) || 60;
+    if (m === 60) return "1 hour";
+    if (m < 60) return `${m} mins`;
+    const h = Math.floor(m / 60);
+    const rem = m % 60;
+    return rem > 0 ? `${h}h ${rem}m` : `${h} ${h === 1 ? 'hour' : 'hours'}`;
+  };
+
+  // Live dynamic attendance working time & moving progress bar calculation (with dynamic break cut)
+  const liveAttendanceCalc = useMemo(() => {
+    if (attendanceStatus === "Not Checked In" || !checkInTime || checkInTime === "--:--") {
+      return {
+        formattedTime: "0h 00m",
+        totalElapsedMinutes: 0,
+        netMinutes: 0,
+        breakCutMinutes: 0,
+        progressPercent: 0
+      };
+    }
+
+    let inDate = null;
+    if (todayAttendance?.check_in_time) {
+      inDate = new Date(todayAttendance.check_in_time);
+    } else if (checkInTime && checkInTime !== "--:--") {
+      try {
+        const [timePart, modifier] = checkInTime.split(' ');
+        let [hours, minutes] = timePart.split(':').map(Number);
+        if (modifier === 'PM' && hours < 12) hours += 12;
+        if (modifier === 'AM' && hours === 12) hours = 0;
+        inDate = new Date();
+        inDate.setHours(hours, minutes, 0, 0);
+      } catch (_) {}
+    }
+
+    if (!inDate || isNaN(inDate.getTime())) {
+      const fallback = (workingTime && workingTime !== "--" && workingTime !== "In Progress") ? workingTime : "0h 00m";
+      return {
+        formattedTime: fallback,
+        totalElapsedMinutes: 0,
+        netMinutes: 0,
+        breakCutMinutes: 0,
+        progressPercent: 0
+      };
+    }
+
+    const outDate = (attendanceStatus === "Checked Out" && todayAttendance?.check_out_time)
+      ? new Date(todayAttendance.check_out_time)
+      : new Date();
+
+    const elapsedMs = Math.max(0, outDate.getTime() - inDate.getTime());
+    const totalElapsedMinutes = Math.floor(elapsedMs / (1000 * 60));
+
+    // Dynamic break cut: default is dynamicBreakMinutes (e.g. 60 mins / 1 hour)
+    // If shift is checked out or worked >= 4 hours (240 mins) or it is afternoon (>= 13:00), cut break time
+    let breakCutMinutes = 0;
+    const nowHour = new Date().getHours();
+    if (attendanceStatus === "Checked Out") {
+      breakCutMinutes = totalElapsedMinutes >= 240 ? dynamicBreakMinutes : Math.min(totalElapsedMinutes, dynamicBreakMinutes);
+    } else {
+      if (totalElapsedMinutes >= 240 || nowHour >= 13) {
+        breakCutMinutes = Math.min(totalElapsedMinutes, dynamicBreakMinutes);
+      } else if (totalElapsedMinutes > 120 && nowHour >= 12) {
+        breakCutMinutes = Math.min(30, dynamicBreakMinutes);
+      } else {
+        breakCutMinutes = 0;
+      }
+    }
+
+    const netMinutes = Math.max(0, totalElapsedMinutes - breakCutMinutes);
+    const hours = Math.floor(netMinutes / 60);
+    const mins = netMinutes % 60;
+    const formattedTime = `${hours}h ${String(mins).padStart(2, '0')}m`;
+
+    // Shift is 09:00 AM - 06:00 PM (8 net working hours = 480 mins)
+    const progressPercent = Math.min(100, Math.max(0, Math.round((netMinutes / 480) * 100)));
+
+    return {
+      formattedTime,
+      totalElapsedMinutes,
+      netMinutes,
+      breakCutMinutes,
+      progressPercent
+    };
+  }, [attendanceStatus, checkInTime, todayAttendance, dynamicBreakMinutes, liveCurrentTime, workingTime]);
+
+  const calculateWorkProgressPercent = () => liveAttendanceCalc.progressPercent;
 
   useEffect(() => {
     if (!toastNotification) return;
@@ -355,16 +485,26 @@ export default function EmployeeTemplate({
         setSentWishes(prev => ({ ...prev, [wishKey]: true }));
         setPushToast({
           id: Date.now(),
-          title: type === 'birthday' ? "🎂 Birthday Wishes Sent!" : "🌟 Work Anniversary Wishes Sent!",
+          title: type === 'birthday' ? "🎂 Birthday Wishes Sent!" : type === 'welcome' ? "👋 Welcome Onboard Wishes Sent!" : "🌟 Work Anniversary Wishes Sent!",
           message: data.message || `Your wishes have been sent to ${celebration.name}!`,
           created_at: new Date().toISOString()
         });
       } else {
-        alert(data.message || data.error || "Failed to send wishes");
+        setPushToast({
+          id: Date.now(),
+          title: "Unable to Send Wishes",
+          message: data.error || data.message || "Wishes can only be sent on the celebration date.",
+          created_at: new Date().toISOString()
+        });
       }
     } catch (err) {
       console.error("Error sending wish:", err);
-      alert("Failed to send wishes. Please try again.");
+      setPushToast({
+        id: Date.now(),
+        title: "Error",
+        message: "Failed to send wishes. Please try again.",
+        created_at: new Date().toISOString()
+      });
     } finally {
       setSendingWishId(null);
     }
@@ -489,6 +629,15 @@ export default function EmployeeTemplate({
     window.addEventListener("popstate", handlePopState);
     return () => window.removeEventListener("popstate", handlePopState);
   }, []);
+
+  // Ensure fresh login always displays the Dashboard
+  useEffect(() => {
+    if (currentUser?.id) {
+      if (window.location.pathname === "/" || window.location.pathname === "") {
+        setActivePage("index");
+      }
+    }
+  }, [currentUser?.id]);
 
 
 
@@ -822,62 +971,111 @@ export default function EmployeeTemplate({
   }, [widgetsData, finalHolidays, today]);
 
   const activeBirthday = useMemo(() => {
-    if (widgetsData?.upcomingBirthday) return widgetsData.upcomingBirthday;
+    if (widgetsData?.upcomingBirthday) {
+      const bDate = new Date(widgetsData.upcomingBirthday.date);
+      bDate.setHours(0, 0, 0, 0);
+      if (bDate >= today) return widgetsData.upcomingBirthday;
+    }
     const users = widgetsData?.allCelebrationUsers || [];
     const curMonth = today.getMonth();
     const curYear = today.getFullYear();
-    const thisMonthUsers = users.filter(u => {
-      if (!u.dob) return false;
-      const str = String(u.dob).slice(5, 7);
-      return parseInt(str, 10) - 1 === curMonth;
-    });
-    if (thisMonthUsers.length > 0) {
-      const u = thisMonthUsers[0];
-      const day = parseInt(String(u.dob).slice(8, 10), 10) || 1;
-      const bdayDate = new Date(curYear, curMonth, day);
-      return {
-        id: u.id,
-        employeeId: u.employeeId || u.id,
-        userId: u.userId || u.user_id,
-        name: u.name,
-        profilePic: u.profilePic || u.profile_pic,
-        date: bdayDate,
-        type: 'Birthday',
-        daysUntil: Math.ceil((bdayDate - today) / (1000 * 60 * 60 * 24))
-      };
-    }
-    return null;
+    const upcomingUsers = users
+      .filter(u => {
+        if (!u.dob) return false;
+        const str = String(u.dob).slice(5, 7);
+        return parseInt(str, 10) - 1 === curMonth;
+      })
+      .map(u => {
+        const day = parseInt(String(u.dob).slice(8, 10), 10) || 1;
+        const bdayDate = new Date(curYear, curMonth, day);
+        bdayDate.setHours(0, 0, 0, 0);
+        const daysUntil = Math.ceil((bdayDate - today) / (1000 * 60 * 60 * 24));
+        return {
+          id: u.id,
+          employeeId: u.employeeId || u.id,
+          userId: u.userId || u.user_id,
+          name: u.name,
+          profilePic: u.profilePic || u.profile_pic,
+          date: bdayDate,
+          type: 'Birthday',
+          daysUntil
+        };
+      })
+      .filter(u => u.daysUntil >= 0) // Never show outdated birthdays
+      .sort((a, b) => a.date - b.date);
+
+    return upcomingUsers[0] || null;
   }, [widgetsData, today]);
 
   const activeAnniversary = useMemo(() => {
-    if (widgetsData?.upcomingAnniversary) return widgetsData.upcomingAnniversary;
+    if (widgetsData?.upcomingAnniversary && widgetsData.upcomingAnniversary.years > 0) {
+      const aDate = new Date(widgetsData.upcomingAnniversary.date);
+      aDate.setHours(0, 0, 0, 0);
+      if (aDate >= today) return widgetsData.upcomingAnniversary;
+    }
     const users = widgetsData?.allCelebrationUsers || [];
     const curMonth = today.getMonth();
     const curYear = today.getFullYear();
-    const thisMonthUsers = users.filter(u => {
-      if (!u.doj) return false;
-      const str = String(u.doj).slice(5, 7);
-      return parseInt(str, 10) - 1 === curMonth;
-    });
-    if (thisMonthUsers.length > 0) {
-      const u = thisMonthUsers[0];
-      const day = parseInt(String(u.doj).slice(8, 10), 10) || 1;
-      const joinYear = parseInt(String(u.doj).slice(0, 4), 10) || curYear;
-      const annivDate = new Date(curYear, curMonth, day);
-      const yrs = curYear - joinYear;
-      return {
-        id: u.id,
-        employeeId: u.employeeId || u.id,
-        userId: u.userId || u.user_id,
-        name: u.name,
-        profilePic: u.profilePic || u.profile_pic,
-        date: annivDate,
-        type: 'Anniversary',
-        years: yrs > 0 ? yrs : 1,
-        daysUntil: Math.ceil((annivDate - today) / (1000 * 60 * 60 * 24))
-      };
-    }
-    return null;
+    const upcomingUsers = users
+      .filter(u => {
+        if (!u.doj) return false;
+        const str = String(u.doj).slice(5, 7);
+        const joinYear = parseInt(String(u.doj).slice(0, 4), 10) || curYear;
+        // Current year joiners do NOT have a work anniversary yet!
+        return (parseInt(str, 10) - 1 === curMonth) && (curYear - joinYear > 0);
+      })
+      .map(u => {
+        const day = parseInt(String(u.doj).slice(8, 10), 10) || 1;
+        const joinYear = parseInt(String(u.doj).slice(0, 4), 10) || curYear;
+        const annivDate = new Date(curYear, curMonth, day);
+        annivDate.setHours(0, 0, 0, 0);
+        const yrs = curYear - joinYear;
+        const daysUntil = Math.ceil((annivDate - today) / (1000 * 60 * 60 * 24));
+        return {
+          id: u.id,
+          employeeId: u.employeeId || u.id,
+          userId: u.userId || u.user_id,
+          name: u.name,
+          profilePic: u.profilePic || u.profile_pic,
+          date: annivDate,
+          type: 'Anniversary',
+          years: yrs,
+          daysUntil
+        };
+      })
+      .filter(u => u.daysUntil >= 0 && u.years > 0) // Strictly established anniversaries
+      .sort((a, b) => a.date - b.date);
+
+    return upcomingUsers[0] || null;
+  }, [widgetsData, today]);
+
+  // Active new joiner in current month (Welcome Onboard)
+  const activeNewJoiner = useMemo(() => {
+    const users = widgetsData?.allCelebrationUsers || [];
+    const curMonth = today.getMonth();
+    const curYear = today.getFullYear();
+    const joiners = users
+      .filter(u => {
+        if (!u.doj) return false;
+        const str = String(u.doj).slice(5, 7);
+        const joinYear = parseInt(String(u.doj).slice(0, 4), 10) || curYear;
+        return (parseInt(str, 10) - 1 === curMonth) && (curYear - joinYear <= 0);
+      })
+      .map(u => {
+        const day = parseInt(String(u.doj).slice(8, 10), 10) || 1;
+        const joinDate = new Date(curYear, curMonth, day);
+        return {
+          id: u.id,
+          employeeId: u.employeeId || u.id,
+          userId: u.userId || u.user_id,
+          name: u.name,
+          profilePic: u.profilePic || u.profile_pic,
+          date: joinDate,
+          type: 'welcome',
+          daysUntil: 0
+        };
+      });
+    return joiners[0] || null;
   }, [widgetsData, today]);
 
 
@@ -1213,8 +1411,6 @@ export default function EmployeeTemplate({
                                                         style={{ cursor: "pointer", background: "rgba(59, 130, 246, 0.04)" }}
                                                         onClick={(e) => {
                                                             handleMarkAsRead(n.id, e);
-                                                            setHeaderNotifOpen(false);
-                                                            navigateTo("notifications");
                                                         }}
                                                     >
                                                         <div 
@@ -1485,7 +1681,7 @@ export default function EmployeeTemplate({
 
                                     <div className="ed-time-display">
                                         <div className="ed-clock">
-                                            <span id="edCurrentTime">{checkInTime !== "--:--" ? checkInTime.split(" ")[0] : "--:--"}</span><small>{checkInTime !== "--:--" ? checkInTime.split(" ")[1] : ""}</small>
+                                            <span id="edCurrentTime">{liveCurrentTime.time}</span><small>{liveCurrentTime.period}</small>
                                         </div>
                                         <div className="ed-work-location-badge" id="edWorkLocationBadge"
                                             data-work-location={effectiveWorkMode.toLowerCase()} aria-label={`${effectiveLocationLabel}, ${effectiveWorkMode}`}
@@ -1502,16 +1698,24 @@ export default function EmployeeTemplate({
 
                                     <div className="ed-attendance-progress">
                                         <div className="ed-progress-top">
-                                            <span>Working time</span>
-                                            <strong id="edWorkingTime">{workingTime}</strong>
+                                            <span className="d-flex align-items-center gap-1.5">
+                                                Working time
+                                                {attendanceStatus === 'Checked In' && (
+                                                    <span className="spinner-grow spinner-grow-sm text-success" style={{ width: '6px', height: '6px' }} role="status" title="Live counting"></span>
+                                                )}
+                                            </span>
+                                            <strong id="edWorkingTime">{liveAttendanceCalc.formattedTime}</strong>
                                         </div>
 
                                         <div className="ed-progress-track">
-                                            <span id="edWorkProgress" style={{width: attendanceStatus === "Checked Out" ? "100%" : attendanceStatus === "Checked In" ? "50%" : "0%"}}></span>
+                                            <span id="edWorkProgress" style={{ width: `${liveAttendanceCalc.progressPercent}%`, transition: 'width 0.5s ease' }}></span>
                                         </div>
 
                                         <div className="ed-progress-bottom">
                                             <span>09:00 AM</span>
+                                            <span className="text-white-50" style={{ fontSize: '0.72rem' }}>
+                                                {liveAttendanceCalc.breakCutMinutes > 0 ? `(-${formatBreakDisplay(liveAttendanceCalc.breakCutMinutes)} break cut)` : `(${formatBreakDisplay(dynamicBreakMinutes)} break)`}
+                                            </span>
                                             <span>06:00 PM</span>
                                         </div>
                                     </div>
@@ -1562,9 +1766,15 @@ export default function EmployeeTemplate({
                                             )}
                                         </div>
 
-                                        <div>
-                                            <span>Break</span>
-                                            <strong>1 hour</strong>
+                                        <div 
+                                            style={{ cursor: 'pointer', transition: 'all 0.2s ease' }} 
+                                            onClick={() => { setTempBreakMinutes(dynamicBreakMinutes); setShowBreakModal(true); }}
+                                            title="Click to adjust break time duration"
+                                        >
+                                            <span className="d-flex align-items-center gap-1">
+                                                Break <i className="bi bi-pencil-square" style={{ fontSize: '0.68rem', opacity: 0.85 }}></i>
+                                            </span>
+                                            <strong id="edBreakTime">{formatBreakDisplay(dynamicBreakMinutes)}</strong>
                                         </div>
 
                                     </div>
@@ -1996,11 +2206,14 @@ export default function EmployeeTemplate({
                             disabled={
                                 sentWishes[`birthday-${activeBirthday.id || activeBirthday.userId || activeBirthday.name}`] || 
                                 sendingWishId === `birthday-${activeBirthday.id || activeBirthday.userId || activeBirthday.name}` ||
-                                (currentUser?.id && activeBirthday.userId && Number(currentUser.id) === Number(activeBirthday.userId))
+                                (currentUser?.id && activeBirthday.userId && Number(currentUser.id) === Number(activeBirthday.userId)) ||
+                                activeBirthday.daysUntil !== 0
                             }
                             onClick={() => handleSendWish(activeBirthday, 'birthday')}
+                            title={activeBirthday.daysUntil !== 0 ? "Wishes can only be sent on the celebration date" : undefined}
                             style={{
-                                cursor: (sentWishes[`birthday-${activeBirthday.id || activeBirthday.userId || activeBirthday.name}`] || (currentUser?.id && activeBirthday.userId && Number(currentUser.id) === Number(activeBirthday.userId))) ? "default" : "pointer"
+                                cursor: (activeBirthday.daysUntil !== 0 || sentWishes[`birthday-${activeBirthday.id || activeBirthday.userId || activeBirthday.name}`] || (currentUser?.id && activeBirthday.userId && Number(currentUser.id) === Number(activeBirthday.userId))) ? "default" : "pointer",
+                                opacity: activeBirthday.daysUntil !== 0 ? 0.75 : 1
                             }}
                         >
                             {sendingWishId === `birthday-${activeBirthday.id || activeBirthday.userId || activeBirthday.name}` ? (
@@ -2017,6 +2230,11 @@ export default function EmployeeTemplate({
                                 <>
                                     <i className="bi bi-stars me-1 text-warning"></i>
                                     Your Birthday 🎉
+                                </>
+                            ) : activeBirthday.daysUntil !== 0 ? (
+                                <>
+                                    <i className="bi bi-clock me-1"></i>
+                                    Send on {new Date(activeBirthday.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
                                 </>
                             ) : (
                                 <>
@@ -2045,27 +2263,32 @@ export default function EmployeeTemplate({
                     )}
                 </div>
                 <div className="ed-celebration-content">
-                    <span className="ed-celebration-type">
-                        <i className="bi bi-stars"></i>
-                        Work Anniversary
+                    <span className="ed-celebration-type" style={{ color: activeAnniversary ? "#3c2fbc" : activeNewJoiner ? "#059669" : "#6c757d" }}>
+                        <i className={`bi ${activeAnniversary ? "bi-stars" : activeNewJoiner ? "bi-person-plus-fill" : "bi-stars"}`}></i>
+                        {activeAnniversary ? "Work Anniversary" : activeNewJoiner ? "Welcome Onboard" : "Work Anniversary"}
                     </span>
-                    <strong>{activeAnniversary ? activeAnniversary.name : "No Anniversaries"}</strong>
+                    <strong>{activeAnniversary ? activeAnniversary.name : activeNewJoiner ? activeNewJoiner.name : "No Anniversaries"}</strong>
                     <small>
                         {activeAnniversary ? (
                             `${new Date(activeAnniversary.date).toLocaleDateString('en-GB', {day: 'numeric', month: 'long'})} · ${activeAnniversary.years} Years`
+                        ) : activeNewJoiner ? (
+                            `Joined ${new Date(activeNewJoiner.date).toLocaleDateString('en-GB', {day: 'numeric', month: 'long'})} · Welcome to the team!`
                         ) : "--"}
                     </small>
-                    {activeAnniversary && (
+                    {activeAnniversary ? (
                         <button 
                             type="button"
                             disabled={
                                 sentWishes[`anniversary-${activeAnniversary.id || activeAnniversary.userId || activeAnniversary.name}`] || 
                                 sendingWishId === `anniversary-${activeAnniversary.id || activeAnniversary.userId || activeAnniversary.name}` ||
-                                (currentUser?.id && activeAnniversary.userId && Number(currentUser.id) === Number(activeAnniversary.userId))
+                                (currentUser?.id && activeAnniversary.userId && Number(currentUser.id) === Number(activeAnniversary.userId)) ||
+                                activeAnniversary.daysUntil !== 0
                             }
                             onClick={() => handleSendWish(activeAnniversary, 'anniversary')}
+                            title={activeAnniversary.daysUntil !== 0 ? "Wishes can only be sent on the celebration date" : undefined}
                             style={{
-                                cursor: (sentWishes[`anniversary-${activeAnniversary.id || activeAnniversary.userId || activeAnniversary.name}`] || (currentUser?.id && activeAnniversary.userId && Number(currentUser.id) === Number(activeAnniversary.userId))) ? "default" : "pointer"
+                                cursor: (activeAnniversary.daysUntil !== 0 || sentWishes[`anniversary-${activeAnniversary.id || activeAnniversary.userId || activeAnniversary.name}`] || (currentUser?.id && activeAnniversary.userId && Number(currentUser.id) === Number(activeAnniversary.userId))) ? "default" : "pointer",
+                                opacity: activeAnniversary.daysUntil !== 0 ? 0.75 : 1
                             }}
                         >
                             {sendingWishId === `anniversary-${activeAnniversary.id || activeAnniversary.userId || activeAnniversary.name}` ? (
@@ -2083,6 +2306,11 @@ export default function EmployeeTemplate({
                                     <i className="bi bi-stars me-1 text-warning"></i>
                                     Your Anniversary 🌟
                                 </>
+                            ) : activeAnniversary.daysUntil !== 0 ? (
+                                <>
+                                    <i className="bi bi-clock me-1"></i>
+                                    Send on {new Date(activeAnniversary.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
+                                </>
                             ) : (
                                 <>
                                     <i className="bi bi-send me-1"></i>
@@ -2090,7 +2318,45 @@ export default function EmployeeTemplate({
                                 </>
                             )}
                         </button>
-                    )}
+                    ) : activeNewJoiner ? (
+                        <button 
+                            type="button"
+                            disabled={
+                                sentWishes[`welcome-${activeNewJoiner.id || activeNewJoiner.userId || activeNewJoiner.name}`] || 
+                                sendingWishId === `welcome-${activeNewJoiner.id || activeNewJoiner.userId || activeNewJoiner.name}` ||
+                                (currentUser?.id && activeNewJoiner.userId && Number(currentUser.id) === Number(activeNewJoiner.userId))
+                            }
+                            onClick={() => handleSendWish(activeNewJoiner, 'welcome')}
+                            style={{
+                                cursor: (sentWishes[`welcome-${activeNewJoiner.id || activeNewJoiner.userId || activeNewJoiner.name}`] || (currentUser?.id && activeNewJoiner.userId && Number(currentUser.id) === Number(activeNewJoiner.userId))) ? "default" : "pointer",
+                                backgroundColor: sentWishes[`welcome-${activeNewJoiner.id || activeNewJoiner.userId || activeNewJoiner.name}`] ? "#e2e8f0" : "#059669",
+                                color: sentWishes[`welcome-${activeNewJoiner.id || activeNewJoiner.userId || activeNewJoiner.name}`] ? "#64748b" : "#ffffff",
+                                border: "none"
+                            }}
+                        >
+                            {sendingWishId === `welcome-${activeNewJoiner.id || activeNewJoiner.userId || activeNewJoiner.name}` ? (
+                                <>
+                                    <span className="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true" style={{ width: '12px', height: '12px' }}></span>
+                                    Sending...
+                                </>
+                            ) : sentWishes[`welcome-${activeNewJoiner.id || activeNewJoiner.userId || activeNewJoiner.name}`] ? (
+                                <>
+                                    <i className="bi bi-check2-circle text-success me-1"></i>
+                                    Welcome Sent ✨
+                                </>
+                            ) : (currentUser?.id && activeNewJoiner.userId && Number(currentUser.id) === Number(activeNewJoiner.userId)) ? (
+                                <>
+                                    <i className="bi bi-person-badge me-1"></i>
+                                    You Joined! 👋
+                                </>
+                            ) : (
+                                <>
+                                    <i className="bi bi-send me-1"></i>
+                                    Send Welcome
+                                </>
+                            )}
+                        </button>
+                    ) : null}
                 </div>
             </div>
         </div>
@@ -2534,6 +2800,102 @@ export default function EmployeeTemplate({
 {activePage === "employee-requests" && <EmployeeRequests employeeProfile={employeeProfile} currentUser={currentUser} />}
 {activePage === "calendar" && <Calendar employeeProfile={employeeProfile} currentUser={currentUser} initialTab={calendarTab} />}
 {activePage === "announcements" && <Announcements currentUser={currentUser} employeeProfile={employeeProfile} />}
+
+        {/* Break Duration Customization Modal */}
+        {showBreakModal && (
+            <>
+            <div className="modal-backdrop fade show" style={{ zIndex: 9998, backgroundColor: "rgba(0,0,0,0.5)" }} onClick={() => setShowBreakModal(false)}></div>
+            <div className="modal fade show d-block" id="edBreakModal" tabIndex="-1" role="dialog" style={{ zIndex: 9999 }} onClick={(e) => { if (e.target === e.currentTarget) setShowBreakModal(false); }}>
+                <div className="modal-dialog modal-dialog-centered" style={{ maxWidth: "420px" }}>
+                    <div className="modal-content" style={{ borderRadius: "20px", border: "none", boxShadow: "0 20px 45px rgba(0,0,0,0.18)", backgroundColor: "#ffffff", padding: "16px 20px" }}>
+                        <div className="d-flex align-items-center justify-content-between pb-3 border-bottom mb-3">
+                            <div className="d-flex align-items-center gap-2">
+                                <div style={{ width: "38px", height: "38px", borderRadius: "12px", background: "#eeecff", color: "#3c2fbc", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "18px" }}>
+                                    <i className="bi bi-cup-hot-fill"></i>
+                                </div>
+                                <div>
+                                    <h5 className="mb-0 fw-bold" style={{ fontSize: "16px", color: "#1e293b" }}>Break Time Duration</h5>
+                                    <small className="text-muted">Default is 1 hour (dynamically adjusted)</small>
+                                </div>
+                            </div>
+                            <button type="button" className="btn-close" onClick={() => setShowBreakModal(false)}></button>
+                        </div>
+
+                        <div className="mb-3">
+                            <label className="form-label text-muted small fw-semibold mb-2">Select Duration:</label>
+                            <div className="d-flex flex-wrap gap-2">
+                                {[30, 45, 60, 75, 90].map(mins => (
+                                    <button
+                                        key={mins}
+                                        type="button"
+                                        className="btn btn-sm"
+                                        onClick={() => setTempBreakMinutes(mins)}
+                                        style={{
+                                            borderRadius: "10px",
+                                            padding: "6px 14px",
+                                            fontSize: "12.5px",
+                                            fontWeight: 600,
+                                            border: tempBreakMinutes === mins ? "2px solid #3c2fbc" : "1px solid #e2e8f0",
+                                            backgroundColor: tempBreakMinutes === mins ? "#eeecff" : "#ffffff",
+                                            color: tempBreakMinutes === mins ? "#3c2fbc" : "#475569",
+                                            boxShadow: tempBreakMinutes === mins ? "0 2px 6px rgba(60, 47, 188, 0.2)" : "none"
+                                        }}
+                                    >
+                                        {formatBreakDisplay(mins)}{mins === 60 ? " (Default)" : ""}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        <div className="mb-4">
+                            <label className="form-label text-muted small fw-semibold mb-1">Custom Minutes:</label>
+                            <input
+                                type="number"
+                                min="0"
+                                max="180"
+                                step="5"
+                                value={tempBreakMinutes}
+                                onChange={(e) => setTempBreakMinutes(Math.max(0, parseInt(e.target.value, 10) || 0))}
+                                className="form-control form-control-sm"
+                                style={{ borderRadius: "10px", fontSize: "14px", padding: "8px 12px" }}
+                            />
+                            <small className="text-muted mt-1 d-block" style={{ fontSize: "11.5px" }}>
+                                Break time is automatically deducted from elapsed time to calculate net working time.
+                            </small>
+                        </div>
+
+                        <div className="d-flex align-items-center justify-content-end gap-2 pt-2 border-top">
+                            <button type="button" className="btn btn-sm btn-light px-3" onClick={() => setShowBreakModal(false)} style={{ borderRadius: "10px", fontWeight: 500 }}>
+                                Cancel
+                            </button>
+                            <button 
+                                type="button" 
+                                className="btn btn-sm px-4" 
+                                onClick={async () => {
+                                    const mins = tempBreakMinutes || 60;
+                                    setDynamicBreakMinutes(mins);
+                                    localStorage.setItem('hrms_break_minutes', String(mins));
+                                    setShowBreakModal(false);
+                                    try {
+                                        if (currentUser?.id) {
+                                            await fetch(`${API_BASE}/api/attendance/break`, {
+                                                method: 'PUT',
+                                                headers: { 'Content-Type': 'application/json' },
+                                                body: JSON.stringify({ userId: currentUser.id, breakMinutes: mins })
+                                            });
+                                        }
+                                    } catch (_) {}
+                                }}
+                                style={{ borderRadius: "10px", backgroundColor: "#3c2fbc", color: "#ffffff", fontWeight: 600, padding: "7px 18px" }}
+                            >
+                                Apply Break
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            </>
+        )}
 
         {/* Check-Out Confirmation Modal */}
         {showCheckOutConfirm && (

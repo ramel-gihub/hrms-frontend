@@ -205,7 +205,7 @@ export default function EmployeeRequests({ employeeProfile, currentUser }) {
   const userId = currentUser?.id || profile.user_id;
   const firstName = profile.first_name || currentUser?.first_name || "Employee";
   const lastName = profile.last_name || currentUser?.last_name || "Name";
-  const employeeName = `${firstName} ${lastName}`.trim();
+  const employeeName = employeeProfile?.preferred_name || `${firstName} ${lastName}`.trim() || (currentUser?.email ? currentUser.email.split('@')[0] : "Employee");
   const initials = `${firstName[0] || ""}${lastName[0] || ""}`.toUpperCase();
 
   const [requests, setRequests] = useState([]);
@@ -293,6 +293,12 @@ export default function EmployeeRequests({ employeeProfile, currentUser }) {
     if (form.category === "Asset Request") {
       if (!form.assetType) {
         errors.assetType = "Please select an asset type.";
+      }
+      if (form.dateNeeded) {
+        const todayStr = new Date().toISOString().split("T")[0];
+        if (form.dateNeeded < todayStr) {
+          errors.dateNeeded = "Date needed cannot be in the past.";
+        }
       }
     }
     if (form.category === "Leave Request") {
@@ -576,6 +582,13 @@ export default function EmployeeRequests({ employeeProfile, currentUser }) {
     }
   };
 
+  const formatDateForInput = (d) => {
+    if (!d) return "";
+    if (typeof d === "string") return d.split("T")[0];
+    if (d instanceof Date && !isNaN(d.getTime())) return d.toISOString().split("T")[0];
+    return "";
+  };
+
   const openEditModal = (req) => {
     setEditingRequest(req);
     setForm({
@@ -587,19 +600,19 @@ export default function EmployeeRequests({ employeeProfile, currentUser }) {
       description: req.description || "",
       assetType: req.asset_type || "",
       preferredModel: req.preferred_model || "",
-      dateNeeded: req.date_needed || "",
+      dateNeeded: formatDateForInput(req.date_needed || req.dateNeeded),
       workLocation: req.work_location || "",
       additionalRequirements: req.additional_requirements || "",
       leaveTypeId: req.leave_type_id || "",
       approverId: req.approver_id || "",
-      startDate: req.start_date || "",
-      endDate: req.end_date || "",
-      isHalfDay: req.is_half_day || false,
+      startDate: formatDateForInput(req.start_date || req.startDate || req.wfh_start_date),
+      endDate: formatDateForInput(req.end_date || req.endDate || req.wfh_end_date),
+      isHalfDay: Boolean(req.is_half_day),
       halfDayPeriod: req.half_day_period || "First Half",
       expenseCategory: req.expense_category || "Travel & Cab",
       claimAmount: req.claim_amount || "",
       merchantName: req.merchant_name || "",
-      expenseDate: req.expense_date || new Date().toISOString().split("T")[0],
+      expenseDate: formatDateForInput(req.expense_date || req.expenseDate) || new Date().toISOString().split("T")[0],
       wfhContact: req.wfh_contact || ""
     });
     setAttachment(null);
@@ -682,7 +695,17 @@ export default function EmployeeRequests({ employeeProfile, currentUser }) {
             subject: form.subject.trim(),
             description: form.description.trim(),
             priority: form.priority,
-            preferredResponse: form.response
+            preferredResponse: form.response,
+            startDate: form.startDate,
+            endDate: form.endDate,
+            dateNeeded: form.dateNeeded,
+            wfhStartDate: form.startDate,
+            wfhEndDate: form.endDate,
+            wfhContact: form.wfhContact,
+            expenseDate: form.expenseDate,
+            claimAmount: form.claimAmount,
+            merchantName: form.merchantName,
+            expenseCategory: form.expenseCategory
           })
         });
         const data = await res.json();
@@ -852,11 +875,23 @@ export default function EmployeeRequests({ employeeProfile, currentUser }) {
                     <h3>{employeeName}</h3>
                     <span className="esc-status-badge"><span></span>Active</span>
                   </div>
-                  <p>{profile.designation || "Senior Software Engineer"}</p>
                   <div className="esc-employee-meta">
-                    <span><i className="bi bi-diagram-3" aria-hidden="true"></i>{profile.department || "Engineering"}</span>
-                    <span><i className="bi bi-code-slash" aria-hidden="true"></i>{profile.team || "Backend"}</span>
-                    <span><i className="bi bi-person-badge" aria-hidden="true"></i>{profile.employee_code || "EMP-1360"}</span>
+                    <span>
+                      <i className="bi bi-person-badge" aria-hidden="true"></i>
+                      {profile.employee_code || "EMP-1360"}
+                    </span>
+                    <span>
+                      <i className="bi bi-briefcase" aria-hidden="true"></i>
+                      {profile.designation || "Senior Software Engineer"}
+                    </span>
+                    <span>
+                      <i className="bi bi-diagram-3" aria-hidden="true"></i>
+                      {profile.department ? `${profile.department}${profile.team ? ` · ${profile.team}` : " · Backend"}` : "Engineering · Backend"}
+                    </span>
+                    <span>
+                      <i className="bi bi-geo-alt" aria-hidden="true"></i>
+                      {profile.city || profile.location || "Nagpur"}
+                    </span>
                   </div>
                 </div>
               </div>
@@ -1057,8 +1092,8 @@ export default function EmployeeRequests({ employeeProfile, currentUser }) {
                                   </>
                                 ) : (
                                   <>
-                                    <i className="bi bi-exclamation-triangle" aria-hidden="true"></i>
-                                    High Priority
+                                    <i className="bi bi-flag me-1" aria-hidden="true"></i>
+                                    Mark as High Priority
                                   </>
                                 )}
                               </button>
@@ -1336,6 +1371,7 @@ export default function EmployeeRequests({ employeeProfile, currentUser }) {
                         <input
                           id="request-date-needed"
                           type="date"
+                          min={new Date().toISOString().split("T")[0]}
                           value={form.dateNeeded}
                           onChange={(event) => setForm({ ...form, dateNeeded: event.target.value })}
                           onClick={(e) => {
@@ -1482,6 +1518,7 @@ export default function EmployeeRequests({ employeeProfile, currentUser }) {
                         <input
                           id="request-start-date"
                           type="date"
+                          min={new Date().toISOString().split("T")[0]}
                           value={form.startDate}
                           style={{ cursor: "pointer", borderColor: fieldErrors.startDate ? '#dc2626' : undefined }}
                           onChange={(event) => {
@@ -1552,6 +1589,7 @@ export default function EmployeeRequests({ employeeProfile, currentUser }) {
                         <input
                           id="wfh-start-date"
                           type="date"
+                          min={new Date().toISOString().split("T")[0]}
                           value={form.startDate}
                           style={{ cursor: "pointer", borderColor: fieldErrors.startDate ? '#dc2626' : undefined }}
                           onChange={(e) => {
@@ -1765,6 +1803,44 @@ export default function EmployeeRequests({ employeeProfile, currentUser }) {
                   </div>
                   <div className="request-form-group full">
                     <span className="request-upload-label">Attachment</span>
+                    {editingRequest?.attachment && !attachment && (
+                      <div className="d-flex align-items-center justify-content-between p-2 mb-2 bg-light rounded border">
+                        <div className="d-flex align-items-center gap-2 text-truncate">
+                          <i className="bi bi-paperclip text-primary fs-5"></i>
+                          <span className="small text-truncate">Current: <strong>{editingRequest.attachment}</strong></span>
+                        </div>
+                        <div className="d-flex gap-2 shrink-0">
+                          {editingRequest.receipt_url ? (
+                            <a
+                              href={editingRequest.receipt_url.startsWith('http') ? editingRequest.receipt_url : `${API_BASE}${editingRequest.receipt_url}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="btn btn-sm btn-outline-primary py-0 px-2"
+                              style={{ fontSize: "11px", borderRadius: "6px" }}
+                            >
+                              <i className="bi bi-eye me-1"></i> Preview / Download
+                            </a>
+                          ) : (
+                            <button
+                              type="button"
+                              className="btn btn-sm btn-outline-primary py-0 px-2"
+                              style={{ fontSize: "11px", borderRadius: "6px" }}
+                              onClick={() => {
+                                const blob = new Blob([`Attachment Name: ${editingRequest.attachment}\nRequest ID: ${editingRequest.id}\nCategory: ${editingRequest.category}\nSubject: ${editingRequest.subject}\nDescription: ${editingRequest.description}`], { type: 'text/plain;charset=utf-8' });
+                                const url = URL.createObjectURL(blob);
+                                const a = document.createElement('a');
+                                a.href = url;
+                                a.download = editingRequest.attachment;
+                                a.click();
+                                URL.revokeObjectURL(url);
+                              }}
+                            >
+                              <i className="bi bi-download me-1"></i> Download
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    )}
                     <label className="request-upload-box">
                       <input
                         type="file"
@@ -1773,7 +1849,7 @@ export default function EmployeeRequests({ employeeProfile, currentUser }) {
                         hidden
                       />
                       <i className="bi bi-cloud-arrow-up" aria-hidden="true"></i>
-                      <strong>{attachment ? attachment.name : "Click to upload a file"}</strong>
+                      <strong>{attachment ? attachment.name : editingRequest?.attachment ? "Click to replace file" : "Click to upload a file"}</strong>
                       <span>PDF, JPG, PNG or DOCX · Maximum 500 KB</span>
                     </label>
                     {fileError && <span className="request-file-error" role="alert">{fileError}</span>}
@@ -1839,11 +1915,11 @@ export default function EmployeeRequests({ employeeProfile, currentUser }) {
                 <h3><i className="bi bi-clock-history" aria-hidden="true"></i>Request Timeline</h3>
                 <div className="request-detail-timeline">
                   <div className="request-detail-timeline-item completed">
-                    <span className="timeline-dot"><i className="bi bi-check" aria-hidden="true"></i></span>
+                    <div className="timeline-dot"><i className="bi bi-check-lg" aria-hidden="true"></i></div>
                     <div><strong>Request Submitted</strong><span>{selectedRequest.date}</span></div>
                   </div>
                   <div className={`request-detail-timeline-item ${["In Review", "Approved", "Completed", "Rejected"].includes(selectedRequest.status) ? "completed" : "current"}`}>
-                    <span className="timeline-dot"><i className={`bi ${statusIcon(selectedRequest.status)}`} aria-hidden="true"></i></span>
+                    <div className="timeline-dot"><i className={`bi ${statusIcon(selectedRequest.status)}`} aria-hidden="true"></i></div>
                     <div>
                       <strong>{selectedRequest.status === "Pending" ? "Waiting for Manager Review" : selectedRequest.status}</strong>
                       <span>
@@ -1858,11 +1934,11 @@ export default function EmployeeRequests({ employeeProfile, currentUser }) {
                     </div>
                   </div>
                   <div className={`request-detail-timeline-item ${["Approved", "Completed"].includes(selectedRequest.status) ? "completed" : ""}`}>
-                    <span className="timeline-dot"><i className={`bi ${["Approved", "Completed"].includes(selectedRequest.status) ? "bi-check" : "bi-circle"}`} aria-hidden="true"></i></span>
+                    <div className="timeline-dot"><i className={`bi ${["Approved", "Completed"].includes(selectedRequest.status) ? "bi-check-lg" : "bi-circle"}`} aria-hidden="true"></i></div>
                     <div><strong>HR Verification</strong><span>{["Approved", "Completed"].includes(selectedRequest.status) ? "Completed" : "Pending"}</span></div>
                   </div>
                   <div className={`request-detail-timeline-item ${selectedRequest.status === "Completed" ? "completed" : ""}`}>
-                    <span className="timeline-dot"><i className={`bi ${selectedRequest.status === "Completed" ? "bi-check" : "bi-circle"}`} aria-hidden="true"></i></span>
+                    <div className="timeline-dot"><i className={`bi ${selectedRequest.status === "Completed" ? "bi-check-lg" : "bi-circle"}`} aria-hidden="true"></i></div>
                     <div><strong>Request Completed</strong><span>{selectedRequest.status === "Completed" ? "Completed" : "Pending"}</span></div>
                   </div>
                 </div>
@@ -1958,7 +2034,52 @@ export default function EmployeeRequests({ employeeProfile, currentUser }) {
                     </>
                   )}
                   {selectedRequest.attachment && (
-                    <div><span>Attachment</span><strong>{selectedRequest.attachment}</strong></div>
+                    <div>
+                      <span>Attachment</span>
+                      <strong>
+                        <span className="d-inline-flex align-items-center gap-2 flex-wrap">
+                          <span>{selectedRequest.attachment}</span>
+                          {selectedRequest.receipt_url ? (
+                            <a
+                              href={selectedRequest.receipt_url.startsWith('http') ? selectedRequest.receipt_url : `${API_BASE}${selectedRequest.receipt_url}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="btn btn-sm btn-outline-primary py-0 px-2"
+                              style={{ fontSize: "11px", borderRadius: "6px" }}
+                            >
+                              <i className="bi bi-eye me-1"></i> Preview / Download
+                            </a>
+                          ) : (selectedRequest.source_type === "leave" || selectedRequest.leave_id) ? (
+                            <a
+                              href={`${API_BASE}/api/employee/leave-requests/document/${selectedRequest.source_id || selectedRequest.leave_id}?download=true`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="btn btn-sm btn-outline-primary py-0 px-2"
+                              style={{ fontSize: "11px", borderRadius: "6px" }}
+                            >
+                              <i className="bi bi-download me-1"></i> Download
+                            </a>
+                          ) : (
+                            <button
+                              type="button"
+                              className="btn btn-sm btn-outline-primary py-0 px-2"
+                              style={{ fontSize: "11px", borderRadius: "6px" }}
+                              onClick={() => {
+                                const blob = new Blob([`Attachment Name: ${selectedRequest.attachment}\nRequest ID: ${selectedRequest.id}\nCategory: ${selectedRequest.category}\nSubject: ${selectedRequest.subject}\nDescription: ${selectedRequest.description}`], { type: 'text/plain;charset=utf-8' });
+                                const url = URL.createObjectURL(blob);
+                                const a = document.createElement('a');
+                                a.href = url;
+                                a.download = selectedRequest.attachment;
+                                a.click();
+                                URL.revokeObjectURL(url);
+                              }}
+                            >
+                              <i className="bi bi-download me-1"></i> Download
+                            </button>
+                          )}
+                        </span>
+                      </strong>
+                    </div>
                   )}
                   {(selectedRequest.claim_amount || selectedRequest.category === "Expenses & Claims") && (
                     <>
@@ -2059,8 +2180,8 @@ export default function EmployeeRequests({ employeeProfile, currentUser }) {
                       </>
                     ) : (
                       <>
-                        <i className="bi bi-exclamation-triangle" aria-hidden="true"></i>
-                        High Priority
+                        <i className="bi bi-flag me-1" aria-hidden="true"></i>
+                        Mark as High Priority
                       </>
                     )}
                   </button>
@@ -2163,7 +2284,7 @@ export default function EmployeeRequests({ employeeProfile, currentUser }) {
             </header>
             <form onSubmit={handleContactSubmit}>
               <div className="request-form-group">
-                <label htmlFor="contact-hr-subject">Subject</label>
+                <label htmlFor="contact-hr-subject">Subject <span className="text-danger">*</span></label>
                 <input
                   id="contact-hr-subject"
                   value={contactForm.subject}
@@ -2173,7 +2294,7 @@ export default function EmployeeRequests({ employeeProfile, currentUser }) {
                 />
               </div>
               <div className="request-form-group">
-                <label htmlFor="contact-hr-message">Message</label>
+                <label htmlFor="contact-hr-message">Message <span className="text-danger">*</span></label>
                 <textarea
                   id="contact-hr-message"
                   rows="6"

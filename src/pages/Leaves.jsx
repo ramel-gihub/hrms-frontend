@@ -518,17 +518,28 @@ export default function Leaves({ currentUser, employeeProfile, embedded = false 
 
                                 <div className="esc-employee-info">
                                     <div className="esc-name-row">
-        <h3>{employeeProfile?.first_name ? `${employeeProfile.first_name} ${employeeProfile.last_name || ''}` : currentUser?.email}</h3>
+        <h3>{employeeProfile?.preferred_name || (employeeProfile?.first_name ? `${employeeProfile.first_name} ${employeeProfile.last_name || ''}`.trim() : (currentUser?.email ? currentUser.email.split('@')[0] : 'Employee'))}</h3>
         <span className="esc-status-badge"><span></span>Active</span>
     </div>
 
-                                    <p className="esc-role">{employeeProfile?.designation || "Senior Software Engineer"}</p>
-
                                     <div className="esc-employee-meta">
-        <span><i className="bi bi-diagram-3"></i> {employeeProfile?.department || "Engineering"}</span>
-        <span><i className="bi bi-geo-alt"></i> {employeeProfile?.city || employeeProfile?.location || "Nagpur"}</span>
-        <span><i className="bi bi-person-badge"></i> {employeeProfile?.employee_code || "EMP-1360"}</span>
-    </div>
+                                        <span>
+                                            <i className="bi bi-person-badge"></i>
+                                            {employeeProfile?.employee_code || "EMP-1360"}
+                                        </span>
+                                        <span>
+                                            <i className="bi bi-briefcase"></i>
+                                            {employeeProfile?.designation || "Senior Software Engineer"}
+                                        </span>
+                                        <span>
+                                            <i className="bi bi-diagram-3"></i>
+                                            {employeeProfile?.department ? `${employeeProfile.department}${employeeProfile.team ? ` · ${employeeProfile.team}` : " · Backend"}` : "Engineering · Backend"}
+                                        </span>
+                                        <span>
+                                            <i className="bi bi-geo-alt"></i>
+                                            {employeeProfile?.city || employeeProfile?.location || "Nagpur"}
+                                        </span>
+                                    </div>
                                 </div>
 
                             </div>
@@ -1141,7 +1152,7 @@ export default function Leaves({ currentUser, employeeProfile, embedded = false 
                                     <div className="col-md-6">
 
                                         <label className="form-label">
-                                            Leave Type
+                                            Leave Type <span className="text-danger">*</span>
                                         </label>
 
                                         <select id="eplApplyType" className="form-select">
@@ -1170,7 +1181,7 @@ export default function Leaves({ currentUser, employeeProfile, embedded = false 
                                     <div className="col-md-6">
 
                                         <label className="form-label">
-                                            Approver
+                                            Approver <span className="text-danger">*</span>
                                         </label>
 
                                         <select className="form-select">
@@ -1187,7 +1198,7 @@ export default function Leaves({ currentUser, employeeProfile, embedded = false 
                                     <div className="col-md-6">
 
                                         <label className="form-label">
-                                            From Date
+                                            From Date <span className="text-danger">*</span>
                                         </label>
 
                                         <input
@@ -1209,7 +1220,7 @@ export default function Leaves({ currentUser, employeeProfile, embedded = false 
                                     <div className="col-md-6">
 
                                         <label className="form-label">
-                                            To Date
+                                            To Date <span className="text-danger">*</span>
                                         </label>
 
                                         <input
@@ -1253,7 +1264,7 @@ export default function Leaves({ currentUser, employeeProfile, embedded = false 
                                     <div className="col-12">
 
                                         <label className="form-label">
-                                            Reason
+                                            Reason <span className="text-danger">*</span>
                                         </label>
 
                                         <textarea className="form-control" rows="3"

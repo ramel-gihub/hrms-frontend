@@ -55,16 +55,27 @@ export default function Calendar({ employeeProfile, currentUser, initialTab = "c
       if (res.ok && data.success) {
         setSentWishes(prev => ({ ...prev, [wishKey]: true }));
         setWishToast({
-          title: type === 'birthday' ? "🎂 Birthday Wishes Sent!" : "🌟 Work Anniversary Wishes Sent!",
+          type: "success",
+          title: type === 'birthday' ? "🎂 Birthday Wishes Sent!" : type === 'welcome' ? "👋 Welcome Onboard Wishes Sent!" : "🌟 Work Anniversary Wishes Sent!",
           message: data.message || `Wishes sent to ${user.name}!`
         });
         setTimeout(() => setWishToast(null), 6000);
       } else {
-        alert(data.message || data.error || "Failed to send wishes");
+        setWishToast({
+          type: "danger",
+          title: "Unable to Send Wishes:",
+          message: data.error || data.message || "Wishes can only be sent on the exact celebration date."
+        });
+        setTimeout(() => setWishToast(null), 6000);
       }
     } catch (err) {
       console.error("Error sending wish:", err);
-      alert("Failed to send wishes. Please try again.");
+      setWishToast({
+        type: "danger",
+        title: "Error:",
+        message: "Failed to send wishes. Please try again."
+      });
+      setTimeout(() => setWishToast(null), 6000);
     } finally {
       setSendingWishId(null);
     }
@@ -325,7 +336,7 @@ export default function Calendar({ employeeProfile, currentUser, initialTab = "c
       );
     });
 
-    // 3. Work Anniversary event (from employee_employment_details.joining_date)
+    // 3. Work Anniversary event vs Welcome Onboard (from employee_employment_details.joining_date)
     const dayAnnivs = allUsers.filter(u => {
       if (!u.doj) return false;
       const p = parseDateParts(u.doj);
@@ -336,45 +347,89 @@ export default function Calendar({ employeeProfile, currentUser, initialTab = "c
       const p = parseDateParts(a.doj);
       const joinYear = p ? p.year : new Date(a.doj).getFullYear();
       const yrs = date.getFullYear() - joinYear;
-      const label = yrs > 0 ? `${yrs}y Anniv: ${a.name}` : `Joined: ${a.name}`;
-      events.push(
-        <div
-          key={`anniv-${idx}-${a.name}`}
-          className="calendar-event anniversary"
-          title={`🏅 Work Anniversary: ${a.name} (${yrs > 0 ? `${yrs} Years` : 'Joined'})`}
-          onClick={() => {
-            setModalData({
-              title: "Work Anniversary",
-              type: "anniversary",
-              personName: a.name,
-              years: yrs,
-              eventDate: date,
-              list: [yrs > 0 ? `${a.name} (${yrs} Years)` : `${a.name} (Joined)`]
-            });
-            setShowModal(true);
-          }}
-          style={{
-            cursor: "pointer",
-            backgroundColor: "#fefce8",
-            color: "#ca8a04",
-            borderLeft: "3px solid #eab308",
-            padding: "2px 6px",
-            borderRadius: "4px",
-            fontSize: "11px",
-            fontWeight: 600,
-            marginTop: "2px",
-            display: "flex",
-            alignItems: "center",
-            gap: "4px",
-            whiteSpace: "nowrap",
-            overflow: "hidden",
-            textOverflow: "ellipsis"
-          }}
-        >
-          <i className="bi bi-award-fill" style={{ fontSize: "10px", color: "#eab308" }}></i>
-          <span>{label}</span>
-        </div>
-      );
+      
+      if (yrs <= 0) {
+        // Employee joined in the current calendar year - do NOT show as Work Anniversary!
+        // Show as Welcome Onboard event.
+        events.push(
+          <div
+            key={`welcome-${idx}-${a.name}`}
+            className="calendar-event welcome"
+            title={`👋 Welcome Onboard: ${a.name}`}
+            onClick={() => {
+              setModalData({
+                title: "Welcome Onboard",
+                type: "welcome",
+                personName: a.name,
+                eventDate: date,
+                list: [`Welcome ${a.name} to the team! Joined on ${date.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}.`]
+              });
+              setShowModal(true);
+            }}
+            style={{
+              cursor: "pointer",
+              backgroundColor: "#ecfdf5",
+              color: "#059669",
+              borderLeft: "3px solid #10b981",
+              padding: "2px 6px",
+              borderRadius: "4px",
+              fontSize: "11px",
+              fontWeight: 600,
+              marginTop: "2px",
+              display: "flex",
+              alignItems: "center",
+              gap: "4px",
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+              textOverflow: "ellipsis"
+            }}
+          >
+            <i className="bi bi-person-plus-fill" style={{ fontSize: "10px", color: "#10b981" }}></i>
+            <span>👋 Welcome: {a.name}</span>
+          </div>
+        );
+      } else {
+        // Established Work Anniversary (1+ years)
+        const label = `${yrs}y Anniv: ${a.name}`;
+        events.push(
+          <div
+            key={`anniv-${idx}-${a.name}`}
+            className="calendar-event anniversary"
+            title={`🏅 Work Anniversary: ${a.name} (${yrs} Years)`}
+            onClick={() => {
+              setModalData({
+                title: "Work Anniversary",
+                type: "anniversary",
+                personName: a.name,
+                years: yrs,
+                eventDate: date,
+                list: [`${a.name} (${yrs} Year${yrs > 1 ? 's' : ''})`]
+              });
+              setShowModal(true);
+            }}
+            style={{
+              cursor: "pointer",
+              backgroundColor: "#fefce8",
+              color: "#ca8a04",
+              borderLeft: "3px solid #eab308",
+              padding: "2px 6px",
+              borderRadius: "4px",
+              fontSize: "11px",
+              fontWeight: 600,
+              marginTop: "2px",
+              display: "flex",
+              alignItems: "center",
+              gap: "4px",
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+              textOverflow: "ellipsis"
+            }}
+          >
+            <i className="bi bi-award-fill" style={{ fontSize: "10px", color: "#eab308" }}></i>
+            <span>{label}</span>
+          </div>
+        );
+      }
     });
 
     return events;
@@ -390,8 +445,9 @@ export default function Calendar({ employeeProfile, currentUser, initialTab = "c
   }, []);
   const currentCalendarYear = currentMonth.getFullYear();
 
-  // Helper arrays for Overview Tab & Send Wishes Tab (Birthdays & Work Anniversaries)
-  const thisMonthBdays = useMemo(() => {
+  // Helper arrays for Calendar, Overview Tab & Send Wishes Tab
+  // 1. All birthdays for this calendar month
+  const monthAllBdays = useMemo(() => {
     return allUsers
       .filter(u => {
         if (!u.dob) return false;
@@ -406,18 +462,23 @@ export default function Calendar({ employeeProfile, currentUser, initialTab = "c
           ...u,
           day: p.day,
           date: bdayDate,
-          daysUntil
+          daysUntil,
+          eventType: 'birthday'
         };
       })
       .sort((a, b) => a.day - b.day);
   }, [allUsers, month, year, today]);
 
-  const thisMonthAnnivs = useMemo(() => {
+  // 2. All established work anniversaries for this calendar month (years > 0)
+  // If someone joined in the current year, they are excluded from Work Anniversaries.
+  const monthAllAnnivs = useMemo(() => {
     return allUsers
       .filter(u => {
         if (!u.doj) return false;
         const p = parseDateParts(u.doj);
-        return p && p.month === month;
+        if (!p || p.month !== month) return false;
+        const joinYear = p.year || new Date(u.doj).getFullYear();
+        return (year - joinYear) > 0;
       })
       .map(u => {
         const p = parseDateParts(u.doj);
@@ -429,12 +490,56 @@ export default function Calendar({ employeeProfile, currentUser, initialTab = "c
           ...u,
           day: p.day,
           date: annivDate,
-          years: years > 0 ? years : 1,
-          daysUntil
+          years,
+          daysUntil,
+          eventType: 'anniversary'
         };
       })
       .sort((a, b) => a.day - b.day);
   }, [allUsers, month, year, today]);
+
+  // 3. Employees who joined in the current calendar year (Welcome Onboard)
+  const monthAllNewJoiners = useMemo(() => {
+    return allUsers
+      .filter(u => {
+        if (!u.doj) return false;
+        const p = parseDateParts(u.doj);
+        if (!p || p.month !== month) return false;
+        const joinYear = p.year || new Date(u.doj).getFullYear();
+        return (year - joinYear) <= 0;
+      })
+      .map(u => {
+        const p = parseDateParts(u.doj);
+        const joinDate = new Date(year, month, p.day);
+        const daysUntil = Math.ceil((joinDate - today) / (1000 * 60 * 60 * 24));
+        return {
+          ...u,
+          day: p.day,
+          date: joinDate,
+          daysUntil,
+          eventType: 'welcome'
+        };
+      })
+      .sort((a, b) => a.day - b.day);
+  }, [allUsers, month, year, today]);
+
+  // 4. Combined full special days list for this month
+  const allSpecialDaysThisMonth = useMemo(() => {
+    return [...monthAllBdays, ...monthAllAnnivs, ...monthAllNewJoiners].sort((a, b) => a.day - b.day);
+  }, [monthAllBdays, monthAllAnnivs, monthAllNewJoiners]);
+
+  // Filtered upcoming celebrations for Send Wishes tab (excluding past celebrations)
+  const thisMonthBdays = useMemo(() => {
+    return monthAllBdays.filter(u => u.daysUntil >= 0);
+  }, [monthAllBdays]);
+
+  const thisMonthAnnivs = useMemo(() => {
+    return monthAllAnnivs.filter(u => u.daysUntil >= 0);
+  }, [monthAllAnnivs]);
+
+  const thisMonthNewJoiners = useMemo(() => {
+    return monthAllNewJoiners;
+  }, [monthAllNewJoiners]);
 
   // Send Wishes Tab Pagination
   const [bdayPage, setBdayPage] = useState(1);
@@ -590,7 +695,7 @@ export default function Calendar({ employeeProfile, currentUser, initialTab = "c
                   </div>
                   <div>
                     <span>Team Members</span>
-                    <strong>{allUsers.length || 0}</strong>
+                    <strong>{teamDirectoryMembers.length || 0}</strong>
                   </div>
                 </div>
                 <div className="summary-item">
@@ -690,6 +795,60 @@ export default function Calendar({ employeeProfile, currentUser, initialTab = "c
                       <div className="side-card">
                         <div className="side-card-header">
                           <div>
+                            <span className="section-label">{monthName.toUpperCase()} {yearName}</span>
+                            <h3>Celebrations</h3>
+                          </div>
+                          <div className="side-card-icon purple">
+                            <i className="bi bi-stars"></i>
+                          </div>
+                        </div>
+                        <div className="mt-3">
+                          {allSpecialDaysThisMonth.length === 0 ? (
+                            <EmptyState
+                              compact
+                              emoji="🎂"
+                              title="No celebrations this month"
+                              message={`There are no celebrations scheduled for ${monthName}.`}
+                            />
+                          ) : (
+                            <ul className="list-unstyled mb-0" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                              {allSpecialDaysThisMonth.map((u, i) => (
+                                <li key={`fcel-${i}`} className="d-flex align-items-center gap-3">
+                                  <div style={{
+                                    background: u.eventType === 'birthday' ? '#ffeeff' : u.eventType === 'anniversary' ? '#eeecff' : '#ecfdf5',
+                                    color: u.eventType === 'birthday' ? '#d63384' : u.eventType === 'anniversary' ? '#3c2fbc' : '#059669',
+                                    width: '38px',
+                                    height: '38px',
+                                    borderRadius: '50%',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    flexShrink: 0
+                                  }}>
+                                    <i className={`bi ${u.eventType === 'birthday' ? 'bi-gift-fill' : u.eventType === 'anniversary' ? 'bi-award-fill' : 'bi-person-plus-fill'}`}></i>
+                                  </div>
+                                  <div className="min-w-0">
+                                    <strong style={{ fontSize: '13.5px', display: 'block' }} className="text-truncate">
+                                      {u.eventType === 'birthday' ? `${u.name}'s Birthday` : u.eventType === 'anniversary' ? `${u.name}'s Work Anniversary` : `👋 Welcome ${u.name}`}
+                                    </strong>
+                                    <small className="text-muted">
+                                      {u.eventType === 'birthday' 
+                                        ? `${u.day} ${monthName.slice(0, 3)}`
+                                        : u.eventType === 'anniversary'
+                                        ? `${u.years} Year${u.years > 1 ? 's' : ''} · ${u.day} ${monthName.slice(0, 3)}`
+                                        : `Joined ${u.day} ${monthName.slice(0, 3)} · Welcome Onboard!`}
+                                    </small>
+                                  </div>
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="side-card">
+                        <div className="side-card-header">
+                          <div>
                             <span className="section-label">UPCOMING</span>
                             <h3>Holidays</h3>
                           </div>
@@ -739,42 +898,44 @@ export default function Calendar({ employeeProfile, currentUser, initialTab = "c
                                    </div>
                                </div>
                                <div className="mt-3">
-                                   {thisMonthBdays.length === 0 && thisMonthAnnivs.length === 0 ? (
+                                   {allSpecialDaysThisMonth.length === 0 ? (
                                        <EmptyState
                                             compact
                                             emoji="🎂"
                                             title="No celebrations this month"
-                                            message="There are no birthdays or work anniversaries scheduled for this month."
+                                            message="There are no birthdays, work anniversaries, or new joiners scheduled for this month."
                                         />
                                    ) : (
                                        <ul className="list-unstyled mb-0" style={{display: 'flex', flexDirection: 'column', gap: '15px'}}>
-                                           {thisMonthBdays.map((u, i) => (
+                                           {allSpecialDaysThisMonth.map((u, i) => (
                                                <li key={`obday-${i}`} className="d-flex align-items-center gap-3">
-                                                   <div style={{background: '#ffeeff', color: '#d63384', width: '40px', height: '40px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center'}}>
-                                                       <i className="bi bi-gift-fill"></i>
+                                                   <div style={{
+                                                       background: u.eventType === 'birthday' ? '#ffeeff' : u.eventType === 'anniversary' ? '#eeecff' : '#ecfdf5',
+                                                       color: u.eventType === 'birthday' ? '#d63384' : u.eventType === 'anniversary' ? '#3c2fbc' : '#059669',
+                                                       width: '40px', 
+                                                       height: '40px', 
+                                                       borderRadius: '50%', 
+                                                       display: 'flex', 
+                                                       alignItems: 'center', 
+                                                       justifyContent: 'center',
+                                                       flexShrink: 0
+                                                   }}>
+                                                       <i className={`bi ${u.eventType === 'birthday' ? 'bi-gift-fill' : u.eventType === 'anniversary' ? 'bi-award-fill' : 'bi-person-plus-fill'}`}></i>
                                                    </div>
-                                                   <div>
-                                                       <h6 className="mb-0">{u.name}'s Birthday</h6>
-                                                       <small className="text-muted">{new Date(u.dob).toLocaleDateString('en-GB', {day: '2-digit', month: 'short'})}</small>
+                                                   <div className="min-w-0">
+                                                       <h6 className="mb-0 text-truncate" style={{ fontSize: '14px', fontWeight: 600 }}>
+                                                           {u.eventType === 'birthday' ? `${u.name}'s Birthday` : u.eventType === 'anniversary' ? `${u.name}'s Work Anniversary` : `👋 Welcome ${u.name} (Joined)`}
+                                                       </h6>
+                                                       <small className="text-muted">
+                                                           {u.eventType === 'birthday' 
+                                                               ? `${u.day} ${monthName.slice(0,3)}` 
+                                                               : u.eventType === 'anniversary'
+                                                               ? `${u.years} Year${u.years > 1 ? 's' : ''} · ${u.day} ${monthName.slice(0,3)}`
+                                                               : `Joined on ${u.day} ${monthName.slice(0,3)} · Welcome Onboard!`}
+                                                       </small>
                                                    </div>
                                                </li>
                                            ))}
-                                           {thisMonthAnnivs.map((u, i) => {
-                                               const joinYear = new Date(u.doj).getFullYear();
-                                               const yrs = year - joinYear;
-                                               const annivLabel = yrs > 0 ? `${u.name}'s Work Anniversary (${yrs} ${yrs === 1 ? 'Year' : 'Years'})` : `${u.name} Joined the Team`;
-                                               return (
-                                               <li key={`oanniv-${i}`} className="d-flex align-items-center gap-3">
-                                                   <div style={{background: '#fff3cd', color: '#ffc107', width: '40px', height: '40px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center'}}>
-                                                       <i className="bi bi-award-fill"></i>
-                                                   </div>
-                                                   <div>
-                                                       <h6 className="mb-0">{annivLabel}</h6>
-                                                       <small className="text-muted">{new Date(u.doj).toLocaleDateString('en-GB', {day: '2-digit', month: 'short'})}</small>
-                                                   </div>
-                                               </li>
-                                               );
-                                           })}
                                        </ul>
                                    )}
                                </div>
@@ -906,11 +1067,17 @@ export default function Calendar({ employeeProfile, currentUser, initialTab = "c
 
                   {wishToast && (
                     <div 
-                      className="alert alert-success alert-dismissible fade show d-flex align-items-center gap-2 mb-4" 
+                      className={`alert alert-${wishToast.type === 'danger' ? 'danger' : 'success'} alert-dismissible fade show d-flex align-items-center gap-2 mb-4`} 
                       role="alert"
-                      style={{ borderRadius: "14px", border: "1px solid #bbf7d0", backgroundColor: "#f0fdf4", color: "#166534" }}
+                      style={{
+                        borderRadius: "14px",
+                        border: wishToast.type === 'danger' ? "1px solid #fecaca" : "1px solid #bbf7d0",
+                        backgroundColor: wishToast.type === 'danger' ? "#fef2f2" : "#f0fdf4",
+                        color: wishToast.type === 'danger' ? "#991b1b" : "#166534",
+                        boxShadow: "0 2px 6px rgba(0,0,0,0.05)"
+                      }}
                     >
-                      <i className="bi bi-check-circle-fill text-success fs-5"></i>
+                      <i className={`bi ${wishToast.type === 'danger' ? 'bi-exclamation-triangle-fill text-danger' : 'bi-check-circle-fill text-success'} fs-5`}></i>
                       <div className="flex-grow-1">
                         <strong>{wishToast.title}</strong> {wishToast.message}
                       </div>
@@ -951,6 +1118,7 @@ export default function Calendar({ employeeProfile, currentUser, initialTab = "c
                             <div className="d-flex flex-column gap-2">
                               {paginatedBdays.map((u, i) => {
                                 const isCurrentUser = currentUser?.id && u.userId && Number(currentUser.id) === Number(u.userId);
+                                const isToday = u.date && today && u.date.toDateString() === today.toDateString();
                                 const wishKey = `birthday-${u.id || u.userId || u.name}`;
                                 const isSent = sentWishes[wishKey];
                                 const isSending = sendingWishId === wishKey;
@@ -1003,21 +1171,22 @@ export default function Calendar({ employeeProfile, currentUser, initialTab = "c
                                       <button
                                         type="button"
                                         className="btn btn-sm"
-                                        disabled={isSent || isSending || isCurrentUser}
+                                        disabled={isSent || isSending || isCurrentUser || u.daysUntil !== 0}
                                         onClick={() => handleSendWish(u, 'birthday')}
+                                        title={u.daysUntil !== 0 ? `Wishes can only be sent on ${u.day} ${monthName}` : undefined}
                                         style={{
                                           borderRadius: "10px",
                                           padding: "7px 14px",
                                           fontSize: "12.5px",
                                           fontWeight: 600,
-                                          backgroundColor: isSent ? "#dcfce7" : isCurrentUser ? "#f1f5f9" : "#3c2fbc",
-                                          color: isSent ? "#15803d" : isCurrentUser ? "#94a3b8" : "#ffffff",
-                                          border: "none",
+                                          backgroundColor: isSent ? "#dcfce7" : isCurrentUser ? "#f1f5f9" : u.daysUntil !== 0 ? "#f8fafc" : "#3c2fbc",
+                                          color: isSent ? "#15803d" : isCurrentUser ? "#94a3b8" : u.daysUntil !== 0 ? "#64748b" : "#ffffff",
+                                          border: u.daysUntil !== 0 ? "1px solid #e2e8f0" : "none",
                                           display: "inline-flex",
                                           alignItems: "center",
                                           gap: "6px",
-                                          cursor: (isSent || isCurrentUser) ? "default" : "pointer",
-                                          boxShadow: (isSent || isCurrentUser) ? "none" : "0 2px 6px rgba(60, 47, 188, 0.25)"
+                                          cursor: (isSent || isCurrentUser || u.daysUntil !== 0) ? "default" : "pointer",
+                                          boxShadow: (isSent || isCurrentUser || u.daysUntil !== 0) ? "none" : "0 2px 6px rgba(60, 47, 188, 0.25)"
                                         }}
                                       >
                                         {isSending ? (
@@ -1033,6 +1202,11 @@ export default function Calendar({ employeeProfile, currentUser, initialTab = "c
                                         ) : isCurrentUser ? (
                                           <>
                                             <span>Your Day 🎉</span>
+                                          </>
+                                        ) : u.daysUntil !== 0 ? (
+                                          <>
+                                            <i className="bi bi-clock"></i>
+                                            <span>Send on {u.day} {monthName.slice(0, 3)}</span>
                                           </>
                                         ) : (
                                           <>
@@ -1197,6 +1371,7 @@ export default function Calendar({ employeeProfile, currentUser, initialTab = "c
                             <div className="d-flex flex-column gap-2">
                               {paginatedAnnivs.map((u, i) => {
                                 const isCurrentUser = currentUser?.id && u.userId && Number(currentUser.id) === Number(u.userId);
+                                const isToday = u.date && today && u.date.toDateString() === today.toDateString();
                                 const wishKey = `anniversary-${u.id || u.userId || u.name}`;
                                 const isSent = sentWishes[wishKey];
                                 const isSending = sendingWishId === wishKey;
@@ -1249,21 +1424,22 @@ export default function Calendar({ employeeProfile, currentUser, initialTab = "c
                                       <button
                                         type="button"
                                         className="btn btn-sm"
-                                        disabled={isSent || isSending || isCurrentUser}
+                                        disabled={isSent || isSending || isCurrentUser || u.daysUntil !== 0}
                                         onClick={() => handleSendWish(u, 'anniversary')}
+                                        title={u.daysUntil !== 0 ? `Wishes can only be sent on ${u.day} ${monthName}` : undefined}
                                         style={{
                                           borderRadius: "10px",
                                           padding: "7px 14px",
                                           fontSize: "12.5px",
                                           fontWeight: 600,
-                                          backgroundColor: isSent ? "#dcfce7" : isCurrentUser ? "#f1f5f9" : "#3c2fbc",
-                                          color: isSent ? "#15803d" : isCurrentUser ? "#94a3b8" : "#ffffff",
-                                          border: "none",
+                                          backgroundColor: isSent ? "#dcfce7" : isCurrentUser ? "#f1f5f9" : u.daysUntil !== 0 ? "#f8fafc" : "#3c2fbc",
+                                          color: isSent ? "#15803d" : isCurrentUser ? "#94a3b8" : u.daysUntil !== 0 ? "#64748b" : "#ffffff",
+                                          border: u.daysUntil !== 0 ? "1px solid #e2e8f0" : "none",
                                           display: "inline-flex",
                                           alignItems: "center",
                                           gap: "6px",
-                                          cursor: (isSent || isCurrentUser) ? "default" : "pointer",
-                                          boxShadow: (isSent || isCurrentUser) ? "none" : "0 2px 6px rgba(60, 47, 188, 0.25)"
+                                          cursor: (isSent || isCurrentUser || u.daysUntil !== 0) ? "default" : "pointer",
+                                          boxShadow: (isSent || isCurrentUser || u.daysUntil !== 0) ? "none" : "0 2px 6px rgba(60, 47, 188, 0.25)"
                                         }}
                                       >
                                         {isSending ? (
@@ -1279,6 +1455,11 @@ export default function Calendar({ employeeProfile, currentUser, initialTab = "c
                                         ) : isCurrentUser ? (
                                           <>
                                             <span>Your Milestone 🌟</span>
+                                          </>
+                                        ) : u.daysUntil !== 0 ? (
+                                          <>
+                                            <i className="bi bi-clock"></i>
+                                            <span>Send on {u.day} {monthName.slice(0, 3)}</span>
                                           </>
                                         ) : (
                                           <>
@@ -1410,6 +1591,111 @@ export default function Calendar({ employeeProfile, currentUser, initialTab = "c
                         </div>
                       </div>
                     </div>
+
+                    {/* Section 3: Welcome Onboard (New Joiners) */}
+                    {monthAllNewJoiners.length > 0 && (
+                      <div className="col-12 mt-4">
+                        <div className="side-card mb-0 d-flex flex-column" style={{ borderRadius: "20px", border: "1px solid #d1fae5", background: "#f0fdf4", padding: "22px" }}>
+                          <div className="side-card-header d-flex align-items-center justify-content-between pb-3 border-bottom mb-3" style={{ borderColor: "#a7f3d0" }}>
+                            <div>
+                              <span className="section-label text-uppercase fw-semibold" style={{ fontSize: "11px", letterSpacing: "0.5px", color: "#059669" }}>
+                                {monthName.toUpperCase()} {yearName} NEW JOINEES
+                              </span>
+                              <div className="d-flex align-items-center gap-2 mt-1">
+                                <h3 className="mb-0" style={{ fontSize: "18px", fontWeight: "700", color: "#065f46" }}>👋 Welcome Onboard</h3>
+                                <span className="badge rounded-pill" style={{ backgroundColor: "#d1fae5", color: "#065f46", fontSize: "12px", padding: "4px 10px" }}>
+                                  {monthAllNewJoiners.length} New {monthAllNewJoiners.length === 1 ? 'Joiner' : 'Joiners'}
+                                </span>
+                              </div>
+                            </div>
+                            <div style={{ width: "42px", height: "42px", borderRadius: "12px", background: "#d1fae5", color: "#059669", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "20px" }}>
+                              <i className="bi bi-person-plus-fill"></i>
+                            </div>
+                          </div>
+
+                          <div className="row g-3">
+                            {monthAllNewJoiners.map((u, i) => {
+                              const isCurrentUser = currentUser?.id && u.userId && Number(currentUser.id) === Number(u.userId);
+                              const wishKey = `welcome-${u.id || u.userId || u.name}`;
+                              const isSent = sentWishes[wishKey];
+                              const isSending = sendingWishId === wishKey;
+                              const avatarSrc = u.profilePic 
+                                ? (/^(https?:\/\/|data:|blob:)/i.test(u.profilePic) ? u.profilePic : `${API_BASE}/${u.profilePic.replace(/^\/+/, '')}`)
+                                : null;
+
+                              return (
+                                <div key={`wnew-${u.id || i}`} className="col-12 col-md-6">
+                                  <div className="d-flex align-items-center justify-content-between p-3 rounded-4 bg-white" style={{ border: "1px solid #a7f3d0" }}>
+                                    <div className="d-flex align-items-center gap-3 min-w-0">
+                                      <div style={{ width: "48px", height: "48px", borderRadius: "14px", overflow: "hidden", flexShrink: 0, border: "1px solid #a7f3d0" }}>
+                                        {avatarSrc ? (
+                                          <img src={avatarSrc} alt={u.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                                        ) : (
+                                          <div style={{ width: "100%", height: "100%", background: "#d1fae5", color: "#059669", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: "700", fontSize: "16px" }}>
+                                            {u.name?.charAt(0) || "👋"}
+                                          </div>
+                                        )}
+                                      </div>
+                                      <div className="min-w-0">
+                                        <div className="d-flex align-items-center gap-2">
+                                          <strong className="d-block text-truncate" style={{ fontSize: "14.5px", color: "#1e293b" }}>{u.name}</strong>
+                                          {isCurrentUser && <span className="badge bg-primary text-white rounded-pill px-2 py-0" style={{ fontSize: "10px" }}>You</span>}
+                                        </div>
+                                        <span className="d-block text-truncate text-muted" style={{ fontSize: "12px" }}>
+                                          {u.designation || u.department || "Team Member"}
+                                        </span>
+                                        <small style={{ fontSize: "11.5px", color: "#059669", fontWeight: 500 }}>
+                                          <i className="bi bi-calendar-check me-1"></i>
+                                          Joined {u.day} {monthName} · Welcome to the team!
+                                        </small>
+                                      </div>
+                                    </div>
+                                    <div className="flex-shrink-0 ms-2">
+                                      <button
+                                        type="button"
+                                        className="btn btn-sm"
+                                        disabled={isSent || isSending || isCurrentUser}
+                                        onClick={() => handleSendWish(u, 'welcome')}
+                                        style={{
+                                          borderRadius: "10px",
+                                          padding: "6px 14px",
+                                          fontSize: "12px",
+                                          fontWeight: 600,
+                                          backgroundColor: isSent ? "#e2e8f0" : isCurrentUser ? "#f1f5f9" : "#059669",
+                                          color: isSent ? "#64748b" : isCurrentUser ? "#94a3b8" : "#ffffff",
+                                          border: "none",
+                                          cursor: (isSent || isCurrentUser) ? "default" : "pointer",
+                                          boxShadow: (isSent || isCurrentUser) ? "none" : "0 2px 6px rgba(5, 150, 105, 0.25)"
+                                        }}
+                                      >
+                                        {isSending ? (
+                                          <>
+                                            <span className="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true" style={{ width: "12px", height: "12px" }}></span>
+                                            Sending...
+                                          </>
+                                        ) : isSent ? (
+                                          <>
+                                            <i className="bi bi-check-circle-fill me-1"></i>
+                                            Welcome Sent ✨
+                                          </>
+                                        ) : isCurrentUser ? (
+                                          <span>You</span>
+                                        ) : (
+                                          <>
+                                            <i className="bi bi-send-fill me-1"></i>
+                                            Send Welcome
+                                          </>
+                                        )}
+                                      </button>
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </section>
               )}
@@ -1427,6 +1713,8 @@ export default function Calendar({ employeeProfile, currentUser, initialTab = "c
                             ? 'linear-gradient(135deg, #ff9a9e 0%, #fecfef 99%, #fecfef 100%)' 
                             : modalData.type === 'anniversary'
                             ? 'linear-gradient(135deg, #f6d365 0%, #fda085 100%)'
+                            : modalData.type === 'welcome'
+                            ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)'
                             : modalData.type === 'holiday'
                             ? 'linear-gradient(135deg, #ff9966 0%, #ff5e62 100%)'
                             : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', 
@@ -1440,6 +1728,8 @@ export default function Calendar({ employeeProfile, currentUser, initialTab = "c
                                 ? 'bi-cake2-fill' 
                                 : modalData.type === 'anniversary'
                                 ? 'bi-award-fill'
+                                : modalData.type === 'welcome'
+                                ? 'bi-person-plus-fill'
                                 : modalData.type === 'holiday'
                                 ? 'bi-flag-fill'
                                 : 'bi-calendar-heart-fill'

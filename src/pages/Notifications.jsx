@@ -7,10 +7,11 @@ const API_BASE = import.meta.env.VITE_API_URL || (
     : "https://hrms-backend-5xo8.onrender.com"
 );
 const FILTERS = ["All Notifications", "Unread", "Important", "Archived"];
-const CATEGORIES = ["Leave", "Attendance", "Requests", "Assets", "IT Access", "Documents", "HR Announcement", "Celebrations"];
+const CATEGORIES = ["Leave", "Attendance", "Work From Home (WFH)", "Requests", "Assets", "IT Access", "Documents", "HR Announcement", "Celebrations"];
 const ICONS = {
   Leave: "bi-calendar-check",
   Attendance: "bi-clock-history",
+  "Work From Home (WFH)": "bi-house-door",
   Requests: "bi-inbox",
   Assets: "bi-laptop",
   "IT Access": "bi-shield-lock",
@@ -93,6 +94,13 @@ export default function Notifications({ currentUser, employeeProfile, adminView 
     };
   }, [loadNotifications]);
 
+  const [page, setPage] = useState(1);
+  const pageSize = 8;
+
+  useEffect(() => {
+    setPage(1);
+  }, [activeFilter, activeCategory, search]);
+
   const visibleNotifications = useMemo(() => {
     const query = search.trim().toLowerCase();
     return notifications.filter((notification) => {
@@ -101,11 +109,25 @@ export default function Notifications({ currentUser, employeeProfile, adminView 
       if (activeFilter !== "Archived" && archived) return false;
       if (activeFilter === "Unread" && notification.is_read) return false;
       if (activeFilter === "Important" && !notification.is_important) return false;
-      if (activeCategory && notification.category !== activeCategory) return false;
+      if (activeCategory) {
+        const normCat = (notification.category || "").toLowerCase();
+        const normActive = activeCategory.toLowerCase();
+        if (normActive.includes("wfh") || normActive.includes("work from home")) {
+          if (!normCat.includes("wfh") && !normCat.includes("work from home")) return false;
+        } else if (normCat !== normActive) {
+          return false;
+        }
+      }
       if (query && !`${notification.title} ${notification.message} ${notification.category}`.toLowerCase().includes(query)) return false;
       return true;
     });
   }, [notifications, activeFilter, activeCategory, search]);
+
+  const totalPages = Math.max(1, Math.ceil(visibleNotifications.length / pageSize));
+  const paginatedNotifications = useMemo(() => {
+    const startIndex = (page - 1) * pageSize;
+    return visibleNotifications.slice(startIndex, startIndex + pageSize);
+  }, [visibleNotifications, page, pageSize]);
 
   const updateNotification = async (notification, update) => {
     setBusyId(notification.id);
@@ -215,38 +237,83 @@ export default function Notifications({ currentUser, employeeProfile, adminView 
             </div>
             {loading ? (
               <div className="text-center text-muted py-5"><span className="spinner-border spinner-border-sm me-2" role="status"></span>Loading notifications...</div>
-            ) : visibleNotifications.length ? visibleNotifications.map((notification) => (
-              <article 
-                key={notification.id} 
-                className={`en-notification ${notification.is_read ? "" : "unread"}`}
-                style={{ cursor: notification.is_read ? "default" : "pointer" }}
-                onClick={() => { if (!notification.is_read) updateNotification(notification, { is_read: true }); }}
-              >
-                <div className="en-notification-icon en-icon-purple"><i className={`bi ${ICONS[notification.category] || "bi-bell"}`}></i></div>
-                <div className="en-notification-main">
-                  <div className="en-notification-top">
-                    <h5 className="en-notification-title">{notification.title}</h5>
-                    {!notification.is_read && <span className="en-unread-badge">New</span>}
-                    {notification.is_important && <i className="bi bi-star-fill en-important-badge" title="Important"></i>}
+            ) : visibleNotifications.length ? (
+              <>
+                {paginatedNotifications.map((notification) => (
+                  <article 
+                    key={notification.id} 
+                    className={`en-notification ${notification.is_read ? "" : "unread"}`}
+                    style={{ cursor: notification.is_read ? "default" : "pointer" }}
+                    onClick={() => { if (!notification.is_read) updateNotification(notification, { is_read: true }); }}
+                  >
+                    <div className="en-notification-icon en-icon-purple"><i className={`bi ${ICONS[notification.category] || "bi-bell"}`}></i></div>
+                    <div className="en-notification-main">
+                      <div className="en-notification-top">
+                        <h5 className="en-notification-title">{notification.title}</h5>
+                        {!notification.is_read && <span className="en-unread-badge">New</span>}
+                        {notification.is_important && <i className="bi bi-star-fill en-important-badge" title="Important"></i>}
+                      </div>
+                      <p className="en-notification-description">{notification.message}</p>
+                      <div className="en-notification-meta">
+                        <span className="en-category-label">{notification.category}</span>
+                        <span><i className="bi bi-clock"></i>{formatDate(notification.created_at)}</span>
+                      </div>
+                    </div>
+                    <div className="en-notification-actions">
+                      {!notification.is_archived && (
+                        <button type="button" className="en-action-btn" title={notification.is_read ? "Mark unread" : "Mark read"} aria-label={notification.is_read ? "Mark unread" : "Mark read"} disabled={busyId === notification.id} onClick={() => updateNotification(notification, { is_read: !notification.is_read })}>
+                          <i className={`bi ${notification.is_read ? "bi-envelope" : "bi-envelope-open"}`}></i>
+                        </button>
+                      )}
+                      <button type="button" className="en-action-btn" title={notification.is_archived ? "Restore" : "Archive"} aria-label={notification.is_archived ? "Restore notification" : "Archive notification"} disabled={busyId === notification.id} onClick={() => updateNotification(notification, { is_archived: !notification.is_archived })}>
+                        <i className={`bi ${notification.is_archived ? "bi-arrow-counterclockwise" : "bi-archive"}`}></i>
+                      </button>
+                    </div>
+                  </article>
+                ))}
+                {visibleNotifications.length > pageSize && (
+                  <div className="d-flex align-items-center justify-content-between p-3 border-top mt-3 flex-wrap gap-2">
+                    <span className="text-muted" style={{ fontSize: "13px" }}>
+                      Showing {((page - 1) * pageSize) + 1} to {Math.min(page * pageSize, visibleNotifications.length)} of {visibleNotifications.length} notifications
+                    </span>
+                    <div className="d-flex align-items-center gap-1">
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-outline-secondary"
+                        style={{ fontSize: "12px", borderRadius: "6px" }}
+                        disabled={page <= 1}
+                        onClick={() => setPage((p) => Math.max(1, p - 1))}
+                      >
+                        <i className="bi bi-chevron-left me-1"></i> Prev
+                      </button>
+                      {Array.from({ length: totalPages }).map((_, idx) => {
+                        const pageNum = idx + 1;
+                        return (
+                          <button
+                            key={pageNum}
+                            type="button"
+                            className={`btn btn-sm ${page === pageNum ? "btn-primary" : "btn-outline-secondary"}`}
+                            style={{ fontSize: "12px", minWidth: "30px", borderRadius: "6px" }}
+                            onClick={() => setPage(pageNum)}
+                          >
+                            {pageNum}
+                          </button>
+                        );
+                      })}
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-outline-secondary"
+                        style={{ fontSize: "12px", borderRadius: "6px" }}
+                        disabled={page >= totalPages}
+                        onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                      >
+                        Next <i className="bi bi-chevron-right ms-1"></i>
+                      </button>
+                    </div>
                   </div>
-                  <p className="en-notification-description">{notification.message}</p>
-                  <div className="en-notification-meta">
-                    <span className="en-category-label">{notification.category}</span>
-                    <span><i className="bi bi-clock"></i>{formatDate(notification.created_at)}</span>
-                  </div>
-                </div>
-                <div className="en-notification-actions">
-                  {!notification.is_archived && (
-                    <button type="button" className="en-action-btn" title={notification.is_read ? "Mark unread" : "Mark read"} aria-label={notification.is_read ? "Mark unread" : "Mark read"} disabled={busyId === notification.id} onClick={() => updateNotification(notification, { is_read: !notification.is_read })}>
-                      <i className={`bi ${notification.is_read ? "bi-envelope" : "bi-envelope-open"}`}></i>
-                    </button>
-                  )}
-                  <button type="button" className="en-action-btn" title={notification.is_archived ? "Restore" : "Archive"} aria-label={notification.is_archived ? "Restore notification" : "Archive notification"} disabled={busyId === notification.id} onClick={() => updateNotification(notification, { is_archived: !notification.is_archived })}>
-                    <i className={`bi ${notification.is_archived ? "bi-arrow-counterclockwise" : "bi-archive"}`}></i>
-                  </button>
-                </div>
-              </article>
-            )) : (
+                )}
+              </>
+            ) : (
               <EmptyState
                 emoji="🔔"
                 title={notifications.length ? "No matching notifications" : "No notifications yet"}

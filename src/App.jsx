@@ -52,8 +52,32 @@ export default function App() {
     return () => window.removeEventListener('storage', handleStorageSync);
   }, []);
 
-  const [loginEmail, setLoginEmail] = useState('');
-  const [loginPassword, setLoginPassword] = useState('');
+  const [rememberMe, setRememberMe] = useState(() => {
+    try {
+      return localStorage.getItem('hrms_remember_me') === 'true';
+    } catch (_) {
+      return false;
+    }
+  });
+
+  const [loginEmail, setLoginEmail] = useState(() => {
+    try {
+      if (localStorage.getItem('hrms_remember_me') === 'true') {
+        return localStorage.getItem('hrms_remembered_email') || '';
+      }
+    } catch (_) {}
+    return '';
+  });
+
+  const [loginPassword, setLoginPassword] = useState(() => {
+    try {
+      if (localStorage.getItem('hrms_remember_me') === 'true') {
+        const p = localStorage.getItem('hrms_remembered_pass');
+        return p ? atob(p) : '';
+      }
+    } catch (_) {}
+    return '';
+  });
   const [showPassword, setShowPassword] = useState(false);
   const [loginError, setLoginError] = useState('');
   const [loadingAuth, setLoadingAuth] = useState(false);
@@ -392,7 +416,11 @@ export default function App() {
         } else {
           setCheckOutTime('--:--');
         }
-        if (data.today.working_hours_display) {
+        if (data.today.check_out_time && data.today.working_hours_display) {
+          setWorkingTime(data.today.working_hours_display);
+        } else if (!data.today.check_out_time && data.today.check_in_time) {
+          setWorkingTime('--');
+        } else if (data.today.working_hours_display) {
           setWorkingTime(data.today.working_hours_display);
         }
         const loc = data.today.check_out_time
@@ -644,10 +672,35 @@ export default function App() {
       );
       localStorage.removeItem('hrms_user');
 
+      // Remember me credential handling
+      if (rememberMe) {
+        try {
+          localStorage.setItem('hrms_remember_me', 'true');
+          localStorage.setItem('hrms_remembered_email', loginEmail);
+          localStorage.setItem('hrms_remembered_pass', btoa(loginPassword));
+        } catch (_) {}
+      } else {
+        try {
+          localStorage.removeItem('hrms_remember_me');
+          localStorage.removeItem('hrms_remembered_email');
+          localStorage.removeItem('hrms_remembered_pass');
+        } catch (_) {}
+      }
+
+      // Fresh login redirect: clear any remembered tabs/pages so the user ALWAYS lands on Dashboard
+      try {
+        localStorage.removeItem('admin_active_tab');
+        localStorage.removeItem('hrms_last_page');
+        window.history.replaceState({ page: 'index' }, '', '/');
+      } catch (_) {}
+
       setCurrentUser(data.user);
 
-      setLoginEmail('');
-      setLoginPassword('');
+      // Only clear input fields if rememberMe is unchecked
+      if (!rememberMe) {
+        setLoginEmail('');
+        setLoginPassword('');
+      }
     } catch (error) {
       console.error('Login error:', error);
 
@@ -666,16 +719,40 @@ export default function App() {
   const handleLogout = () => {
     sessionStorage.removeItem('hrms_user');
     localStorage.removeItem('hrms_user');
+    localStorage.removeItem('admin_active_tab');
+    localStorage.removeItem('hrms_last_page');
     try {
       localStorage.setItem('hrms_logout_signal', String(Date.now()));
+    } catch (_) {}
+
+    // Reset browser address bar to root '/' so next login lands directly on Dashboard
+    try {
+      window.history.replaceState({ page: 'index' }, '', '/');
     } catch (_) {}
 
     setCurrentUser(null);
     setPendingFirstTimeUser(null);
     setEmployeeProfile(null);
     setEmployees([]);
-    setLoginEmail('');
-    setLoginPassword('');
+
+    // Restore remembered credentials if Remember me was selected
+    const isRemembered = localStorage.getItem('hrms_remember_me') === 'true';
+    if (isRemembered) {
+      const savedEmail = localStorage.getItem('hrms_remembered_email') || '';
+      let savedPass = '';
+      try {
+        const p = localStorage.getItem('hrms_remembered_pass');
+        if (p) savedPass = atob(p);
+      } catch (_) {}
+      setLoginEmail(savedEmail);
+      setLoginPassword(savedPass);
+      setRememberMe(true);
+    } else {
+      setLoginEmail('');
+      setLoginPassword('');
+      setRememberMe(false);
+    }
+
     setAttendanceStatus('Checked Out');
     setCheckInTime('--:--');
     setCheckOutTime('--:--');
@@ -1708,9 +1785,10 @@ export default function App() {
                             type="checkbox"
                             id="remember"
                             name="remember"
-                            value="1"
+                            checked={rememberMe}
+                            onChange={(e) => setRememberMe(e.target.checked)}
                           />
-                          <label className="form-check-label" htmlFor="remember">
+                          <label className="form-check-label" htmlFor="remember" style={{ cursor: "pointer" }}>
                             Remember me
                           </label>
                         </div>

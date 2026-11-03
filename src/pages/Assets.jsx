@@ -50,9 +50,16 @@ export default function Assets({ currentUser, employeeProfile, embedded = false 
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleting, setDeleting] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [editingRequest, setEditingRequest] = useState(null);
   const [notice, setNotice] = useState(null);
   const emptyForm = { assetType: "", priority: "", preferredModel: "", dateNeeded: "", justification: "", workLocation: "", additionalRequirements: "" };
   const [form, setForm] = useState(emptyForm);
+  useEffect(() => {
+    if (!notice) return;
+    const t = setTimeout(() => setNotice(null), 5000);
+    return () => clearTimeout(t);
+  }, [notice]);
+
   const setField = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
 
   useEffect(() => {
@@ -102,8 +109,28 @@ export default function Assets({ currentUser, employeeProfile, embedded = false 
   };
   useEffect(() => { loadRequests(); }, [user?.id]);
 
+    const openEditRequest = (req) => {
+    setEditingRequest(req);
+    setForm({
+      assetType: req.asset_type || "",
+      priority: req.priority || "",
+      preferredModel: req.preferred_model || "",
+      dateNeeded: req.date_needed ? (req.date_needed.includes("T") ? req.date_needed.split("T")[0] : req.date_needed) : "",
+      justification: req.justification || "",
+      workLocation: req.work_location || "",
+      additionalRequirements: req.additional_requirements || ""
+    });
+  };
+
   const submitRequest = async (e) => {
     e.preventDefault();
+    if (form.dateNeeded) {
+      const todayStr = new Date().toISOString().split("T")[0];
+      if (form.dateNeeded < todayStr) {
+        setNotice({ type: "danger", text: "Date needed cannot be in the past. Please select today or a future date." });
+        return;
+      }
+    }
     setSubmitting(true);
     try {
       const res = await fetch(`${API_BASE}/api/assets/request`, {
@@ -152,7 +179,7 @@ export default function Assets({ currentUser, employeeProfile, embedded = false 
   }, [user?.id]);
 
   const { employee, assets } = data;
-  const fullName = employee ? `${employee.first_name || ""} ${employee.last_name || ""}`.trim() || user?.email : user?.email || "";
+  const fullName = employeeProfile?.preferred_name || employee?.preferred_name || (employee ? `${employee.first_name || ""} ${employee.last_name || ""}`.trim() : "") || (user?.email ? user.email.split('@')[0] : "Employee");
   const initials = fullName.split(/[\s@.]+/).filter(Boolean).slice(0, 2).map((p) => p[0].toUpperCase()).join("");
 
   const total = assets.length;
@@ -227,7 +254,8 @@ export default function Assets({ currentUser, employeeProfile, embedded = false 
                             </button>} */}
 
                             <button className="btn ea-btn-primary" type="button" data-bs-toggle="modal"
-                                data-bs-target="#eaAssignAssetModal">
+                                data-bs-target="#eaAssignAssetModal"
+                                onClick={() => { setEditingRequest(null); setForm(emptyForm); }}>
                                 <i className="bi bi-plus-lg"></i>
                                 New Asset Request
                             </button>
@@ -268,17 +296,22 @@ export default function Assets({ currentUser, employeeProfile, embedded = false 
                                     </span>
                                 </div>
 
-                                <p>{employee?.designation || employee?.role_name || ""}</p>
-
                                 <div className="esc-employee-meta">
                                     <span>
-                                        <i className="bi bi-diagram-3"></i>
-                                        {employee?.department || "—"}
-                                    </span>
-
-                                    <span>
                                         <i className="bi bi-person-badge"></i>
-                                        {employee?.employee_code || "—"}
+                                        {employee?.employee_code || "EMP-1360"}
+                                    </span>
+                                    <span>
+                                        <i className="bi bi-briefcase"></i>
+                                        {employee?.designation || employee?.role_name || "Senior Software Engineer"}
+                                    </span>
+                                    <span>
+                                        <i className="bi bi-diagram-3"></i>
+                                        {employee?.department ? `${employee.department}${employee.team ? ` · ${employee.team}` : " · Backend"}` : "Engineering · Backend"}
+                                    </span>
+                                    <span>
+                                        <i className="bi bi-geo-alt"></i>
+                                        {employee?.city || employee?.location || "Nagpur"}
                                     </span>
                                 </div>
                             </div>
@@ -490,7 +523,17 @@ export default function Assets({ currentUser, employeeProfile, embedded = false 
                                                         </div>
                                                     </div>
                                                     {r.status === "Pending" && (
-                                                        <div className="ea-asset-actions ms-3">
+                                                        <div className="ea-asset-actions ms-3 d-flex align-items-center gap-2">
+                                                            <button
+                                                                type="button"
+                                                                className="btn btn-outline-primary btn-sm"
+                                                                style={{ borderRadius: "8px", fontWeight: 600, fontSize: "0.82rem", display: "inline-flex", alignItems: "center", gap: "6px", padding: "6px 12px" }}
+                                                                data-bs-toggle="modal"
+                                                                data-bs-target="#eaAssignAssetModal"
+                                                                onClick={() => openEditRequest(r)}
+                                                            >
+                                                                <i className="bi bi-pencil"></i> Edit
+                                                            </button>
                                                             <button
                                                                 type="button"
                                                                 className="btn btn-outline-danger btn-sm"
@@ -639,7 +682,7 @@ export default function Assets({ currentUser, employeeProfile, embedded = false 
                                             <div className="row g-3">
 
                                                 <div className="col-md-6">
-                                                    <label className="form-label">Asset Type</label>
+                                                    <label className="form-label">Asset Type <span className="text-danger">*</span></label>
                                                     <select className="form-select" required value={form.assetType} onChange={setField("assetType")}>
                                                         <option value="" disabled>Select asset type</option>
                                                         <option value="laptop">Laptop</option>
@@ -655,7 +698,7 @@ export default function Assets({ currentUser, employeeProfile, embedded = false 
                                                 </div>
 
                                                 <div className="col-md-6">
-                                                    <label className="form-label">Priority</label>
+                                                    <label className="form-label">Priority <span className="text-danger">*</span></label>
                                                     <select className="form-select" required value={form.priority} onChange={setField("priority")}>
                                                         <option value="" disabled>Select priority</option>
                                                         <option>Low</option>
@@ -676,6 +719,7 @@ export default function Assets({ currentUser, employeeProfile, embedded = false 
                                                     <input
                                                         type="date"
                                                         className="form-control"
+                                                        min={new Date().toISOString().split("T")[0]}
                                                         value={form.dateNeeded}
                                                         onChange={setField("dateNeeded")}
                                                         onClick={(e) => {
@@ -689,7 +733,7 @@ export default function Assets({ currentUser, employeeProfile, embedded = false 
                                                 </div>
 
                                                 <div className="col-12">
-                                                    <label className="form-label">Business Justification</label>
+                                                    <label className="form-label">Business Justification <span className="text-danger">*</span></label>
                                                     <textarea className="form-control" rows="3" required
                                                         placeholder="Explain how this asset will support your work..."
                                                         value={form.justification} onChange={setField("justification")}></textarea>

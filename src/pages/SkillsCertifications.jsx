@@ -53,8 +53,9 @@ const EMPTY_SKILL_FORM = {
 };
 
 export default function SkillsCertifications({ currentUser, employeeProfile, embedded = false }) {
-  const employeeName = [employeeProfile?.first_name, employeeProfile?.last_name].filter(Boolean).join(" ")
-    || currentUser?.email
+  const employeeName = employeeProfile?.preferred_name
+    || [employeeProfile?.first_name, employeeProfile?.last_name].filter(Boolean).join(" ")
+    || (currentUser?.email ? currentUser.email.split('@')[0] : "Employee")
     || "Employee";
   const employeeInitials = employeeName.split(/\s+/).map((name) => name[0]).slice(0, 2).join("").toUpperCase();
   const [isCertOpen, setIsCertOpen] = useState(false);
@@ -64,9 +65,21 @@ export default function SkillsCertifications({ currentUser, employeeProfile, emb
   const [certFeedback, setCertFeedback] = useState({ type: "", text: "" });
   const [certMode, setCertMode] = useState("add");
   const [selectedCert, setSelectedCert] = useState(null);
+  const [certAlertMessage, setCertAlertMessage] = useState("");
+
+  useEffect(() => {
+    if (!certAlertMessage) return;
+    const t = setTimeout(() => setCertAlertMessage(""), 5000);
+    return () => clearTimeout(t);
+  }, [certAlertMessage]);
 
   const handleOpenCertificate = (cert) => {
     if (!cert) return;
+    if (!cert.file_path && !cert.file_name) {
+      setCertAlertMessage("Document Not Found: No document has been uploaded for this certification.");
+      return;
+    }
+    setCertAlertMessage("");
     if (cert.id) {
       window.open(`${API_BASE}/api/employee/certifications/file/${cert.id}`, "_blank", "noopener,noreferrer");
       return;
@@ -412,7 +425,7 @@ export default function SkillsCertifications({ currentUser, employeeProfile, emb
       skillCategory: skill.skill_category || "",
       otherSkill: skill.other_skill || "",
       proficiency: skill.proficiency || "Beginner",
-      yearsOfExperience: skill.years_of_experience ?? "",
+      yearsOfExperience: skill.years_of_experience !== null && skill.years_of_experience !== undefined && skill.years_of_experience !== "" ? (Number(skill.years_of_experience) % 1 === 0 ? Number(skill.years_of_experience).toFixed(0) : String(skill.years_of_experience)) : "",
       lastUsed: skill.last_used || "",
     });
     setSkillFeedback({ type: "", text: "" });
@@ -476,7 +489,8 @@ export default function SkillsCertifications({ currentUser, employeeProfile, emb
 
   const skillRows = paginatedSkills.map((skill) => {
     const style = CATEGORY_STYLE[skill.skill_category] || CATEGORY_STYLE.Others;
-    const years = skill.years_of_experience === null ? null : Number(skill.years_of_experience);
+    const rawYears = (skill.years_of_experience === null || skill.years_of_experience === undefined || skill.years_of_experience === "") ? null : Number(skill.years_of_experience);
+    const years = rawYears === null || isNaN(rawYears) ? null : (rawYears % 1 === 0 ? rawYears.toFixed(0) : rawYears.toString());
     const verified = skill.verification_status === "Verified";
     const highLevel = skill.proficiency === "Advanced" || skill.proficiency === "Expert";
     return (
@@ -505,7 +519,7 @@ export default function SkillsCertifications({ currentUser, employeeProfile, emb
         </div>
 
         <div className="esc-skill-experience">
-          <strong>{years === null ? "—" : `${years} ${years === 1 ? "year" : "years"}`}</strong>
+          <strong>{years === null ? "—" : `${years} ${Number(years) === 1 ? "Year" : "Years"}`}</strong>
           <span>Experience</span>
         </div>
 
@@ -642,22 +656,22 @@ export default function SkillsCertifications({ currentUser, employeeProfile, emb
                                         </span>
                                     </div>
 
-                                    <p>{employeeProfile?.designation || employeeProfile?.role_name || "—"}</p>
-
                                     <div className="esc-employee-meta">
                                         <span>
-                                            <i className="bi bi-diagram-3"></i>
-                                            {employeeProfile?.department || "—"}
-                                        </span>
-
-                                        <span>
-                                            <i className="bi bi-code-slash"></i>
-                                            {employeeProfile?.location || employeeProfile?.city || "—"}
-                                        </span>
-
-                                        <span>
                                             <i className="bi bi-person-badge"></i>
-                                            {employeeProfile?.employee_code || "—"}
+                                            {employeeProfile?.employee_code || "EMP-1360"}
+                                        </span>
+                                        <span>
+                                            <i className="bi bi-briefcase"></i>
+                                            {employeeProfile?.designation || employeeProfile?.role_name || "Senior Software Engineer"}
+                                        </span>
+                                        <span>
+                                            <i className="bi bi-diagram-3"></i>
+                                            {employeeProfile?.department ? `${employeeProfile.department}${employeeProfile.team ? ` · ${employeeProfile.team}` : " · Backend"}` : "Engineering · Backend"}
+                                        </span>
+                                        <span>
+                                            <i className="bi bi-geo-alt"></i>
+                                            {employeeProfile?.city || employeeProfile?.location || "Nagpur"}
                                         </span>
                                     </div>
                                 </div>
@@ -671,8 +685,17 @@ export default function SkillsCertifications({ currentUser, employeeProfile, emb
 
                         </div>
 
-
-                        
+                        {certAlertMessage && (
+                            <div 
+                                className="alert alert-warning alert-dismissible fade show d-flex align-items-center gap-2 mb-4 shadow-sm" 
+                                role="alert"
+                                style={{ borderRadius: "10px", fontWeight: 500, fontSize: "0.92rem", border: "1px solid #fed7aa", background: "#fff7ed", color: "#9a3412" }}
+                            >
+                                <i className="bi bi-exclamation-triangle-fill fs-5 text-warning"></i>
+                                <div className="flex-grow-1">{certAlertMessage}</div>
+                                <button type="button" className="btn-close" onClick={() => setCertAlertMessage("")} aria-label="Close"></button>
+                            </div>
+                        )}
 
                         <div className="row g-3 esc-summary-row">
 
@@ -1136,7 +1159,7 @@ export default function SkillsCertifications({ currentUser, employeeProfile, emb
                                     <div className="row g-3">
 
                                         <div className="col-md-6">
-                                            <label className="form-label">Skill</label>
+                                            <label className="form-label">Skill <span className="text-danger">*</span></label>
                                             <input
                                                 type="text"
                                                 className="form-control"
@@ -1149,7 +1172,7 @@ export default function SkillsCertifications({ currentUser, employeeProfile, emb
                                         </div>
 
                                         <div className="col-md-6">
-                                            <label className="form-label">Skill Category</label>
+                                            <label className="form-label">Skill Category <span className="text-danger">*</span></label>
                                             <select className="form-select" id="escSkillCategoryInput" name="skillCategory" value={skillCategory} onChange={updateSkillField}>
                                                 <option value="">Select category</option>
                                                 <option>Programming</option>
@@ -1167,7 +1190,7 @@ export default function SkillsCertifications({ currentUser, employeeProfile, emb
                                         </div>
 
                                         <div className="col-md-6">
-                                            <label className="form-label">Other Skill</label>
+                                            <label className="form-label">Other Skill {skillCategory === "Others" && <span className="text-danger">*</span>}</label>
 
                                             <input className="form-control" placeholder="...." name="otherSkill" value={skillForm.otherSkill} onChange={updateSkillField} disabled={skillCategory !== "Others"} />
                                         </div>
@@ -1326,7 +1349,7 @@ export default function SkillsCertifications({ currentUser, employeeProfile, emb
                                   </div>
                                   <div className="esc-skill-detail-item">
                                     <span>Experience</span>
-                                    <strong>{selectedSkill.years_of_experience == null ? "—" : `${selectedSkill.years_of_experience} ${Number(selectedSkill.years_of_experience) === 1 ? "year" : "years"}`}</strong>
+                                    <strong>{selectedSkill.years_of_experience == null || selectedSkill.years_of_experience === "" ? "—" : `${Number(selectedSkill.years_of_experience) % 1 === 0 ? Number(selectedSkill.years_of_experience).toFixed(0) : selectedSkill.years_of_experience} ${Number(selectedSkill.years_of_experience) === 1 ? "Year" : "Years"}`}</strong>
                                   </div>
                                   <div className="esc-skill-detail-item">
                                     <span>Verification</span>
@@ -1434,7 +1457,7 @@ export default function SkillsCertifications({ currentUser, employeeProfile, emb
                                     <div className="row g-3">
 
                                         <div className="col-md-6">
-                                            <label className="form-label">Skill Category</label>
+                                            <label className="form-label">Skill Category <span className="text-danger">*</span></label>
                                             <select className="form-select" id="escSkillCategoryInput" name="skillCategory" value={certForm.skillCategory} onChange={updateCertField}>
                                                 <option value="">Select category</option>
                                                 <option>Programming</option>
@@ -1453,7 +1476,7 @@ export default function SkillsCertifications({ currentUser, employeeProfile, emb
 
                                         <div className="col-md-6">
                                             <label className="form-label">
-                                                Certification Name
+                                                Certification Name <span className="text-danger">*</span>
                                             </label>
 
                                             <input
