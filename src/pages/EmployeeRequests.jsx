@@ -92,7 +92,7 @@ const formatActionDate = (value) => {
 const statusClass = (status) => {
   if (status === "In Review") return "review";
   if (status === "Settled") return "completed";
-  return status ? status.toLowerCase() : "pending";
+  return status && typeof status === "string" ? status.toLowerCase() : "pending";
 };
 
 const statusIcon = (status) => {
@@ -172,7 +172,7 @@ const emptyForm = {
 
 const mapRequest = (request) => {
   const style = categoryStyle(request.category);
-  const normPriority = request.priority
+  const normPriority = (request.priority && typeof request.priority === "string")
     ? (request.priority.charAt(0).toUpperCase() + request.priority.slice(1).toLowerCase().trim())
     : "Normal";
 
@@ -226,12 +226,6 @@ export default function EmployeeRequests({ employeeProfile, currentUser }) {
     return list.length > 0 ? list : [{ id: 1, first_name: 'Admin', last_name: 'User', role_name: 'Organization Admin' }];
   }, [approvers]);
 
-  useEffect(() => {
-    if (adminApprovers.length > 0 && !form.approverId && form.category === "Leave Request") {
-      setForm((prev) => ({ ...prev, approverId: adminApprovers[0].id }));
-    }
-  }, [adminApprovers, form.approverId, form.category]);
-
   const [requestStats, setRequestStats] = useState({
     average_resolution_days: null,
     completed_asset_requests: 0
@@ -243,18 +237,6 @@ export default function EmployeeRequests({ employeeProfile, currentUser }) {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [categoryFilter, setCategoryFilter] = useState("all");
-  useEffect(() => {
-    const shouldOpenWfh = sessionStorage.getItem("open_wfh_request") === "true" ||
-                          window.location.search.includes("category=wfh");
-    if (shouldOpenWfh) {
-      sessionStorage.removeItem("open_wfh_request");
-      setCategoryFilter("Work From Home (WFH)");
-      const timer = setTimeout(() => {
-        openRequestModal("Work From Home (WFH)");
-      }, 300);
-      return () => clearTimeout(timer);
-    }
-  }, []);
   const [page, setPage] = useState(1);
   const requestModalRef = useRef(null);
   const [editingRequest, setEditingRequest] = useState(null);
@@ -271,6 +253,25 @@ export default function EmployeeRequests({ employeeProfile, currentUser }) {
   const [deletingRequest, setDeletingRequest] = useState(false);
   const [updatingPriorityId, setUpdatingPriorityId] = useState(null);
   const pageSize = 5;
+
+  useEffect(() => {
+    if (adminApprovers.length > 0 && !form.approverId && form.category === "Leave Request") {
+      setForm((prev) => ({ ...prev, approverId: adminApprovers[0].id }));
+    }
+  }, [adminApprovers, form.approverId, form.category]);
+
+  useEffect(() => {
+    const shouldOpenWfh = sessionStorage.getItem("open_wfh_request") === "true" ||
+                          window.location.search.includes("category=wfh");
+    if (shouldOpenWfh) {
+      sessionStorage.removeItem("open_wfh_request");
+      setCategoryFilter("Work From Home (WFH)");
+      const timer = setTimeout(() => {
+        openRequestModal("Work From Home (WFH)");
+      }, 300);
+      return () => clearTimeout(timer);
+    }
+  }, []);
 
   const clearFieldError = (fieldName) => {
     setFieldErrors((prev) => {
@@ -524,7 +525,7 @@ export default function EmployeeRequests({ employeeProfile, currentUser }) {
       const matchesSearch =
         !query ||
         [request.id, request.subject, request.category, request.description]
-          .some((value) => value.toLowerCase().includes(query));
+          .some((value) => (value !== null && value !== undefined ? String(value).toLowerCase() : "").includes(query));
       const matchesStatus =
         statusFilter === "all" || statusClass(request.status) === statusFilter;
       const matchesCategory =
