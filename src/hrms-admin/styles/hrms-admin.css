@@ -22903,6 +22903,7 @@ a {
    MODAL
    ========================================================= */
 
+.request-modal-overlay,
 .employee-requests-page .request-modal-overlay {
     position: fixed;
     inset: 0;
@@ -22914,10 +22915,12 @@ a {
     background: rgba(24, 25, 42, .55);
 }
 
+.request-modal-overlay.show,
 .employee-requests-page .request-modal-overlay.show {
     display: flex;
 }
 
+.request-modal,
 .employee-requests-page .request-modal {
     width: min(700px, 100%);
     max-height: 90vh;
@@ -22928,6 +22931,7 @@ a {
     animation: requestModalIn .2s ease;
 }
 
+.request-details-modal,
 .employee-requests-page .request-details-modal {
     width: min(760px, 100%);
 }
@@ -23421,7 +23425,8 @@ a {
         gap: 5px;
     }
 
-    .employee-requests-page .request-modal {
+    .request-modal,
+.employee-requests-page .request-modal {
         border-radius: 17px;
     }
 

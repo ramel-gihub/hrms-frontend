@@ -22046,6 +22046,7 @@ button.es-edit-btn:hover,
    MODAL
    ========================================================= */
 
+.request-modal-overlay,
 .employee-requests-page .request-modal-overlay {
     position: fixed;
     inset: 0;
@@ -22057,10 +22058,12 @@ button.es-edit-btn:hover,
     background: rgba(24, 25, 42, .55);
 }
 
+.request-modal-overlay.show,
 .employee-requests-page .request-modal-overlay.show {
     display: flex;
 }
 
+.request-modal,
 .employee-requests-page .request-modal {
     width: 100%;
     background: #fff;
@@ -22094,6 +22097,7 @@ button.es-edit-btn:hover,
     overscroll-behavior: contain;
 }
 
+.request-details-modal,
 .employee-requests-page .request-details-modal {
     width: min(620px, 100%);
 }
@@ -22687,7 +22691,8 @@ button.es-edit-btn:hover,
         gap: 5px;
     }
 
-    .employee-requests-page .request-modal {
+    .request-modal,
+.employee-requests-page .request-modal {
         border-radius: 17px;
         min-height: 0;
         height: calc(100vh - 24px);

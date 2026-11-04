@@ -1250,8 +1250,6 @@ export default function EmployeeRequests({ employeeProfile, currentUser }) {
                 </section>
               </aside>
             </div>
-          </div>
-        </div>
 
       <div
         className="modal fade"
@@ -1860,6 +1858,23 @@ export default function EmployeeRequests({ employeeProfile, currentUser }) {
       {selectedRequest && (
         <div
           className="request-modal-overlay show"
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            width: "100vw",
+            height: "100vh",
+            backgroundColor: "rgba(15, 23, 42, 0.65)",
+            backdropFilter: "blur(3px)",
+            WebkitBackdropFilter: "blur(3px)",
+            zIndex: 99999,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "20px"
+          }}
           onClick={(event) => {
             if (event.target === event.currentTarget) setSelectedRequest(null);
           }}
@@ -1869,6 +1884,18 @@ export default function EmployeeRequests({ employeeProfile, currentUser }) {
             role="dialog"
             aria-modal="true"
             aria-labelledby="detail-request-title"
+            style={{
+              backgroundColor: "#ffffff",
+              borderRadius: "16px",
+              width: "100%",
+              maxWidth: "640px",
+              maxHeight: "calc(100vh - 48px)",
+              display: "flex",
+              flexDirection: "column",
+              boxShadow: "0 25px 60px rgba(0, 0, 0, 0.25)",
+              overflow: "hidden",
+              zIndex: 100000
+            }}
           >
             <header className="request-modal-header">
               <div>
