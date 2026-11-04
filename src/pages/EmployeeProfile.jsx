@@ -94,6 +94,7 @@ export default function EmployeeProfile({ currentUser, employeeProfile, onProfil
     const [commutePage, setCommutePage] = useState(1);
     const [commutePageSize, setCommutePageSize] = useState(5); // 5, 10, 25, 50, 100, or 'all'
     const [recentActivities, setRecentActivities] = useState([]);
+    const [showAllActivityModal, setShowAllActivityModal] = useState(false);
 
     const handlePrintCommute = () => {
         try {
@@ -394,7 +395,7 @@ export default function EmployeeProfile({ currentUser, employeeProfile, onProfil
                     icon = "bi-file-earmark-text";
                     colorClass = "ep-activity-blue";
                 } else if (title.includes("profile") || cat.includes("profile")) {
-                    icon = "bi-pencil";
+                    icon = "bi-person-check";
                     colorClass = "ep-activity-purple";
                 }
 
@@ -628,7 +629,7 @@ export default function EmployeeProfile({ currentUser, employeeProfile, onProfil
                                     </span>
                                     <span>
                                         <i className="bi bi-briefcase"></i>
-                                        {employeeProfile?.designation || "Senior Software Engineer"}
+                                        {employeeProfile?.designation || currentUser?.designation || currentUser?.role || "Software Engineer"}
                                     </span>
                                     <span>
                                         <i className="bi bi-diagram-3"></i>
@@ -840,19 +841,6 @@ export default function EmployeeProfile({ currentUser, employeeProfile, onProfil
                                             <strong>{employeeProfile?.reporting_manager_name || "Maruthi Vara Prasad"}</strong>
                                             <small>Engineering Manager</small>
                                         </div>
-                                        <button 
-                                            type="button"
-                                            title="View reporting structure details"
-                                            onClick={() => {
-                                                if (typeof onNavigate === "function") {
-                                                    onNavigate("employement-details");
-                                                } else {
-                                                    setActiveProfileTab("employment");
-                                                }
-                                            }}
-                                        >
-                                            <i className="bi bi-chevron-right"></i>
-                                        </button>
                                     </div>
 
                                     <div className="ep-person-card">
@@ -864,17 +852,6 @@ export default function EmployeeProfile({ currentUser, employeeProfile, onProfil
                                             <strong>{hrManagerName || "—"}</strong>
                                             {hrManagerName ? <small>HR Department</small> : null}
                                         </div>
-                                        <button 
-                                            type="button"
-                                            title="Contact HR / View Requests"
-                                            onClick={() => {
-                                                if (typeof onNavigate === "function") {
-                                                    onNavigate("employee-requests");
-                                                }
-                                            }}
-                                        >
-                                            <i className="bi bi-chevron-right"></i>
-                                        </button>
                                     </div>
                                 </div>
                             </div>
@@ -1001,7 +978,7 @@ export default function EmployeeProfile({ currentUser, employeeProfile, onProfil
 
                                         <div className="ep-activity-list">
                                             {(recentActivities.length > 0 ? recentActivities : [
-                                                { id: "def-1", title: "Profile updated", timeDisplay: "Recently", icon: "bi-pencil", colorClass: "ep-activity-purple" },
+                                                { id: "def-1", title: "Profile updated", timeDisplay: "Recently", icon: "bi-person-check", colorClass: "ep-activity-purple" },
                                                 { id: "def-2", title: "Laptop assigned", timeDisplay: "Recently", icon: "bi-laptop", colorClass: "ep-activity-blue" },
                                                 { id: "def-3", title: "Profile verified", timeDisplay: "Verified", icon: "bi-check2-circle", colorClass: "ep-activity-green" },
                                                 { id: "def-4", title: "Designation updated", timeDisplay: "Active", icon: "bi-arrow-up-right", colorClass: "ep-activity-orange" }
@@ -1022,11 +999,7 @@ export default function EmployeeProfile({ currentUser, employeeProfile, onProfil
                                     <button 
                                         type="button" 
                                         className="ep-view-activity"
-                                        onClick={() => {
-                                            if (typeof onNavigate === "function") {
-                                                onNavigate("notifications");
-                                            }
-                                        }}
+                                        onClick={() => setShowAllActivityModal(true)}
                                     >
                                         View all activity
                                         <i className="bi bi-arrow-right"></i>
@@ -2014,6 +1987,96 @@ export default function EmployeeProfile({ currentUser, employeeProfile, onProfil
                         </div>
                     </div>
                 </div>
+            )}
+
+            {/* All Activity Modal */}
+            {showAllActivityModal && (
+                <>
+                    <div className="modal-backdrop fade show" onClick={() => setShowAllActivityModal(false)} style={{ zIndex: 1055 }}></div>
+                    <div
+                        className="modal fade show d-block"
+                        tabIndex="-1"
+                        role="dialog"
+                        aria-modal="true"
+                        aria-labelledby="allActivityModalTitle"
+                        style={{ zIndex: 1056 }}
+                        onClick={(e) => { if (e.target === e.currentTarget) setShowAllActivityModal(false); }}
+                    >
+                        <div className="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-lg">
+                            <div className="modal-content" style={{ borderRadius: 16, border: "none", boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)" }}>
+                                <div className="modal-header border-0 pb-0 pt-4 px-4 d-flex justify-content-between align-items-center">
+                                    <div className="d-flex align-items-center gap-3">
+                                        <div style={{ width: 44, height: 44, borderRadius: 12, backgroundColor: "#eff6ff", color: "#2563eb", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20 }}>
+                                            <i className="bi bi-clock-history"></i>
+                                        </div>
+                                        <div>
+                                            <h5 className="modal-title fw-bold text-dark mb-0" id="allActivityModalTitle">Recent Activity & Updates</h5>
+                                            <small className="text-muted">Detailed log of your requests, profile changes, and system updates</small>
+                                        </div>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        className="btn-close"
+                                        aria-label="Close"
+                                        onClick={() => setShowAllActivityModal(false)}
+                                    ></button>
+                                </div>
+                                <div className="modal-body px-4 py-3">
+                                    <div className="d-flex flex-column gap-3">
+                                        {(recentActivities.length > 0 ? recentActivities : [
+                                            { id: "def-1", title: "Profile updated", timeDisplay: "Recently", icon: "bi-person-check", colorClass: "ep-activity-purple" },
+                                            { id: "def-2", title: "Laptop assigned", timeDisplay: "Recently", icon: "bi-laptop", colorClass: "ep-activity-blue" },
+                                            { id: "def-3", title: "Profile verified", timeDisplay: "Verified", icon: "bi-check2-circle", colorClass: "ep-activity-green" },
+                                            { id: "def-4", title: "Designation updated", timeDisplay: "Active", icon: "bi-arrow-up-right", colorClass: "ep-activity-orange" }
+                                        ]).map((act, index) => (
+                                            <div 
+                                                key={act.id || index}
+                                                className="p-3 rounded-3 d-flex align-items-center justify-content-between"
+                                                style={{ backgroundColor: "#f8fafc", border: "1px solid #f1f5f9" }}
+                                            >
+                                                <div className="d-flex align-items-center gap-3">
+                                                    <div className={`ep-activity-icon ${act.colorClass || "ep-activity-purple"}`}>
+                                                        <i className={`bi ${act.icon || "bi-bell"}`}></i>
+                                                    </div>
+                                                    <div>
+                                                        <h6 className="mb-1 text-dark fw-semibold" style={{ fontSize: "14px" }}>{act.title}</h6>
+                                                        <small className="text-muted d-block" style={{ fontSize: "12px" }}>Activity Event #{index + 1}</small>
+                                                    </div>
+                                                </div>
+                                                <span className="badge rounded-pill bg-white text-secondary border px-3 py-2 fw-medium" style={{ fontSize: "12px" }}>
+                                                    <i className="bi bi-clock me-1 text-primary"></i> {act.timeDisplay}
+                                                </span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                                <div className="modal-footer border-0 pt-0 pb-4 px-4">
+                                    {typeof onNavigate === "function" && (
+                                        <button
+                                            type="button"
+                                            className="btn btn-outline-primary btn-sm me-auto"
+                                            style={{ borderRadius: 8, padding: "7px 16px", fontWeight: 500 }}
+                                            onClick={() => {
+                                                setShowAllActivityModal(false);
+                                                onNavigate("notifications");
+                                            }}
+                                        >
+                                            <i className="bi bi-bell me-1"></i> Open Notifications Page
+                                        </button>
+                                    )}
+                                    <button
+                                        type="button"
+                                        className="btn btn-secondary btn-sm"
+                                        style={{ borderRadius: 8, padding: "7px 18px", fontWeight: 500 }}
+                                        onClick={() => setShowAllActivityModal(false)}
+                                    >
+                                        Close
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </>
             )}
 
     </>

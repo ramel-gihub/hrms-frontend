@@ -44,6 +44,15 @@ export default function EmploymentDetails({ employeeProfile, currentUser, onProf
   const [payslipsData, setPayslipsData] = useState([]);
   const [loadingPayslips, setLoadingPayslips] = useState(false);
   const [activePayslipModal, setActivePayslipModal] = useState(null);
+  const [showProfileModal, setShowProfileModal] = useState(false);
+  const [payslipAlert, setPayslipAlert] = useState(null);
+
+  useEffect(() => {
+    if (payslipAlert) {
+      const timer = setTimeout(() => setPayslipAlert(null), 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [payslipAlert]);
 
   // Generate Available Financial Years dynamically (past 3 FYs, current, and next FY)
   const availableFYs = [
@@ -282,12 +291,8 @@ export default function EmploymentDetails({ employeeProfile, currentUser, onProf
   const completionPercentage = Math.round((completedFields / totalFields) * 100);
   const incompleteSections = allSections.filter(sec => sec.fields.some(f => !isFieldComplete(f.value)));
 
-  return (
-    <>
-      <main className="dashboard-wrapper">
-        <div className="dashboard-container">
-          <div className="px-0 px-md-5 employee-dashboard">
-            <div className="employment-details-page">
+  const pageBody = (
+    <div className="employment-details-page w-100" style={{ width: "100%", maxWidth: "100%" }}>
 
               {!embedded && (
                 <>
@@ -296,8 +301,8 @@ export default function EmploymentDetails({ employeeProfile, currentUser, onProf
                       <h1>Employment Details</h1>
                       <p>Employment profile and organizational details for this employee.</p>
                     </div>
-                    <button type="button" className="epd-upload-btn" id="epdHeaderUploadBtn" onClick={() => onNavigate?.("employee-profile")}>
-                      <i className="bi bi-eye"></i> View-only profile
+                    <button type="button" className="epd-upload-btn" id="epdHeaderUploadBtn" onClick={() => setShowProfileModal(true)}>
+                      <i className="bi bi-person-vcard"></i> View Profile Summary
                     </button>
                   </div>
 
@@ -622,13 +627,27 @@ export default function EmploymentDetails({ employeeProfile, currentUser, onProf
                           <button
                             type="button"
                             className="payslip-btn-view"
-                            disabled={isUpcoming || loadingPayslips || !activePayslip}
-                            onClick={() => activePayslip && setActivePayslipModal(activePayslip)}
+                            disabled={!selectedFY || !selectedMonth || loadingPayslips}
+                            onClick={() => {
+                              if (activePayslip) {
+                                setActivePayslipModal(activePayslip);
+                              } else {
+                                setPayslipAlert("No payslip available for this month");
+                              }
+                            }}
                           >
                             <i className="bi bi-eye"></i> View payslip
                           </button>
                         </div>
                       </div>
+
+                      {payslipAlert && (
+                        <div className="alert alert-warning alert-dismissible fade show d-flex align-items-center mt-3 mb-0" role="alert" style={{ borderRadius: 10, fontSize: "14px" }}>
+                          <i className="bi bi-exclamation-triangle-fill text-warning me-2 fs-5"></i>
+                          <div className="flex-grow-1">{payslipAlert}</div>
+                          <button type="button" className="btn-close" aria-label="Close" onClick={() => setPayslipAlert(null)}></button>
+                        </div>
+                      )}
 
                       <div className="payslip-footer-hint">
                         <i className="bi bi-info-circle"></i>
@@ -733,9 +752,23 @@ export default function EmploymentDetails({ employeeProfile, currentUser, onProf
               </div>
 
             </div>
-          </div>
+  );
+
+  return (
+    <>
+      {embedded ? (
+        <div className="w-100 mt-2" style={{ width: "100%" }}>
+          {pageBody}
         </div>
-      </main>
+      ) : (
+        <main className="dashboard-wrapper">
+          <div className="dashboard-container">
+            <div className="px-0 px-md-5 employee-dashboard">
+              {pageBody}
+            </div>
+          </div>
+        </main>
+      )}
 
       {/* Official Ramel Payslip Modal */}
       {activePayslipModal && (
@@ -930,6 +963,113 @@ export default function EmploymentDetails({ employeeProfile, currentUser, onProf
             </div>
           </div>
         </div>
+      )}
+
+      {/* Employee Profile Summary Modal */}
+      {showProfileModal && (
+        <>
+          <div className="modal-backdrop fade show" onClick={() => setShowProfileModal(false)} style={{ zIndex: 1055 }}></div>
+          <div
+            className="modal fade show d-block"
+            tabIndex="-1"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="empProfileSummaryTitle"
+            style={{ zIndex: 1056 }}
+            onClick={(e) => { if (e.target === e.currentTarget) setShowProfileModal(false); }}
+          >
+            <div className="modal-dialog modal-dialog-centered modal-lg">
+              <div className="modal-content" style={{ borderRadius: 16, border: "none", boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)" }}>
+                <div className="modal-header border-0 pb-0 pt-4 px-4 d-flex justify-content-between align-items-center">
+                  <div className="d-flex align-items-center gap-3">
+                    <div style={{ width: 44, height: 44, borderRadius: 12, backgroundColor: "#eff6ff", color: "#2563eb", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20 }}>
+                      <i className="bi bi-person-vcard"></i>
+                    </div>
+                    <div>
+                      <h5 className="modal-title fw-bold text-dark mb-0" id="empProfileSummaryTitle">Employee Profile Summary</h5>
+                      <small className="text-muted">Verified read-only record for this employee</small>
+                    </div>
+                  </div>
+                  <button type="button" className="btn-close" aria-label="Close" onClick={() => setShowProfileModal(false)}></button>
+                </div>
+                <div className="modal-body px-4 py-3">
+                  <div className="p-3 mb-3 rounded-3 d-flex align-items-center gap-3" style={{ backgroundColor: "#f8fafc", border: "1px solid #e2e8f0" }}>
+                    <div style={{ width: 56, height: 56, borderRadius: "50%", backgroundColor: "#3b82f6", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, fontWeight: 700 }}>
+                      {getInitials(profile.first_name, profile.last_name)}
+                    </div>
+                    <div className="flex-grow-1">
+                      <h5 className="mb-0 fw-bold text-dark">{profile.first_name || 'Employee'} {profile.last_name || 'Name'}</h5>
+                      <span className="text-muted" style={{ fontSize: "13px" }}>{profile.employee_code || "EMP-1360"} · {profile.designation || employeeProfile?.designation || "Software Engineer"}</span>
+                    </div>
+                    <span className="badge bg-success-subtle text-success px-3 py-2 rounded-pill fw-medium">Active</span>
+                  </div>
+
+                  <div className="row g-3">
+                    <div className="col-md-6">
+                      <div className="p-3 rounded-3" style={{ backgroundColor: "#f8fafc", border: "1px solid #f1f5f9" }}>
+                        <small className="text-muted d-block mb-1" style={{ fontSize: "11px", textTransform: "uppercase", letterSpacing: "0.5px" }}>Department</small>
+                        <strong className="text-dark" style={{ fontSize: "14px" }}>{profile.department || "Engineering"}</strong>
+                      </div>
+                    </div>
+                    <div className="col-md-6">
+                      <div className="p-3 rounded-3" style={{ backgroundColor: "#f8fafc", border: "1px solid #f1f5f9" }}>
+                        <small className="text-muted d-block mb-1" style={{ fontSize: "11px", textTransform: "uppercase", letterSpacing: "0.5px" }}>Designation</small>
+                        <strong className="text-dark" style={{ fontSize: "14px" }}>{profile.designation || employeeProfile?.designation || "Software Engineer"}</strong>
+                      </div>
+                    </div>
+                    <div className="col-md-6">
+                      <div className="p-3 rounded-3" style={{ backgroundColor: "#f8fafc", border: "1px solid #f1f5f9" }}>
+                        <small className="text-muted d-block mb-1" style={{ fontSize: "11px", textTransform: "uppercase", letterSpacing: "0.5px" }}>Reporting Manager</small>
+                        <strong className="text-dark" style={{ fontSize: "14px" }}>{profile.reporting_manager_name || "Maruthi Vara Prasad"}</strong>
+                      </div>
+                    </div>
+                    <div className="col-md-6">
+                      <div className="p-3 rounded-3" style={{ backgroundColor: "#f8fafc", border: "1px solid #f1f5f9" }}>
+                        <small className="text-muted d-block mb-1" style={{ fontSize: "11px", textTransform: "uppercase", letterSpacing: "0.5px" }}>Location & Work Mode</small>
+                        <strong className="text-dark" style={{ fontSize: "14px" }}>{profile.location || profile.city || "Nagpur"} · {workMode || "Hybrid"}</strong>
+                      </div>
+                    </div>
+                    <div className="col-md-6">
+                      <div className="p-3 rounded-3" style={{ backgroundColor: "#f8fafc", border: "1px solid #f1f5f9" }}>
+                        <small className="text-muted d-block mb-1" style={{ fontSize: "11px", textTransform: "uppercase", letterSpacing: "0.5px" }}>Date of Joining</small>
+                        <strong className="text-dark" style={{ fontSize: "14px" }}>{formatDate(profile.joining_date)}</strong>
+                      </div>
+                    </div>
+                    <div className="col-md-6">
+                      <div className="p-3 rounded-3" style={{ backgroundColor: "#f8fafc", border: "1px solid #f1f5f9" }}>
+                        <small className="text-muted d-block mb-1" style={{ fontSize: "11px", textTransform: "uppercase", letterSpacing: "0.5px" }}>Official Email</small>
+                        <strong className="text-dark" style={{ fontSize: "14px" }}>{profile.email || currentUser?.email || "—"}</strong>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div className="modal-footer border-0 pt-0 pb-4 px-4">
+                  {typeof onNavigate === "function" && (
+                    <button
+                      type="button"
+                      className="btn btn-outline-primary btn-sm me-auto"
+                      style={{ borderRadius: 8, padding: "7px 16px", fontWeight: 500 }}
+                      onClick={() => {
+                        setShowProfileModal(false);
+                        onNavigate("employee-profile");
+                      }}
+                    >
+                      <i className="bi bi-person me-1"></i> Open Full Profile
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    style={{ borderRadius: 8, padding: "7px 18px", fontWeight: 500 }}
+                    onClick={() => setShowProfileModal(false)}
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </>
       )}
     </>
   );

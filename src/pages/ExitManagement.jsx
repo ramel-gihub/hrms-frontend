@@ -35,6 +35,7 @@ export default function ExitManagement({ currentUser, employeeProfile, onNavigat
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState("");
+  const [fieldErrors, setFieldErrors] = useState({});
   const [form, setForm] = useState({ resignationDate: toISO(new Date()), noticePeriod: 60, reason: "", comments: "", confirm: false });
   const [checkboxAlert, setCheckboxAlert] = useState(false);
 
@@ -44,6 +45,18 @@ export default function ExitManagement({ currentUser, employeeProfile, onNavigat
     setAlertBanner({ type, message });
     setToast({ type: type === "danger" ? "error" : type, text: message });
   };
+
+  useEffect(() => {
+    if (!alertBanner) return undefined;
+    const t = setTimeout(() => setAlertBanner(null), 5000);
+    return () => clearTimeout(t);
+  }, [alertBanner]);
+
+  useEffect(() => {
+    if (!toast) return undefined;
+    const t = setTimeout(() => setToast(null), 5000);
+    return () => clearTimeout(t);
+  }, [toast]);
 
   const downloadResignationAcceptance = () => {
     if (data?.resignation?.status !== "Approved") {
@@ -128,12 +141,6 @@ export default function ExitManagement({ currentUser, employeeProfile, onNavigat
     return () => controller.abort();
   }, [load]);
 
-  useEffect(() => {
-    if (!toast) return undefined;
-    const t = setTimeout(() => setToast(null), 4000);
-    return () => clearTimeout(t);
-  }, [toast]);
-
   const call = async (url, method, body) => {
     const res = await fetch(`${API_BASE}${url}`, {
       method,
@@ -158,6 +165,7 @@ export default function ExitManagement({ currentUser, employeeProfile, onNavigat
   const openSubmit = () => {
     setEditing(false);
     setFormError("");
+    setFieldErrors({});
     const noticePeriods = data?.options?.noticePeriods || [];
     const noticePeriod = noticePeriods.includes(60) ? 60 : (noticePeriods[0] ?? "");
     setForm({ resignationDate: toISO(new Date()), noticePeriod, reason: "", comments: "", confirm: false });
@@ -168,6 +176,7 @@ export default function ExitManagement({ currentUser, employeeProfile, onNavigat
     const r = data.resignation;
     setEditing(true);
     setFormError("");
+    setFieldErrors({});
     setForm({ resignationDate: r.resignation_date, noticePeriod: r.notice_period_days, reason: r.reason || "", comments: r.comments || "", confirm: true });
     setShowModal(true);
   };
@@ -175,27 +184,37 @@ export default function ExitManagement({ currentUser, employeeProfile, onNavigat
   const calcLastDay = form.resignationDate ? addDays(form.resignationDate, Number(form.noticePeriod) - 1) : "";
 
   const submit = async () => {
-    if (!form.resignationDate) return setFormError("Please select a resignation date.");
-    if (!form.reason) return setFormError("Please select a reason for leaving.");
+    const errors = {};
+    if (!form.resignationDate) {
+      errors.resignationDate = "Please select a resignation date.";
+    }
+    if (!form.reason || !form.reason.trim()) {
+      errors.reason = "Please select a reason for leaving.";
+    }
     if (!form.confirm) {
-      setFormError("Please confirm that you understand the exit process by selecting the checkbox below.");
-      setToast({
-        type: "error",
-        text: "Please select the required acknowledgment checkbox before submitting your resignation."
-      });
-      setCheckboxAlert(true);
+      errors.confirm = "Please confirm that you understand the exit process by selecting the checkbox below.";
+    }
+
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors);
+      setFormError("");
+      if (errors.confirm && Object.keys(errors).length === 1) {
+        setCheckboxAlert(true);
+      }
       return;
     }
+
+    setFieldErrors({});
     setSaving(true);
     setFormError("");
     try {
-      const payload = { resignationDate: form.resignationDate, noticePeriod: Number(form.noticePeriod), reason: form.reason, comments: form.comments };
+      const payload = { resignationDate: form.resignationDate, noticePeriod: Number(form.noticePeriod), reason: form.reason.trim(), comments: form.comments };
       if (editing) await call(`/api/exit/${data.resignation.id}`, "PUT", payload);
       else await call("/api/exit/resign", "POST", payload);
       setShowModal(false);
       showAlert("success", editing ? "Resignation updated successfully." : "Your resignation has been submitted.");
     } catch (e) {
-      setFormError(e.message);
+      setFormError(e.message || "Failed to submit resignation.");
     } finally {
       setSaving(false);
     }
@@ -254,10 +273,8 @@ export default function ExitManagement({ currentUser, employeeProfile, onNavigat
   if (resignation) {
     active = ["Submitted", "Approved"].includes(resignation.status);
     const exitItems = data.checklist || [];
-    const assetsDone = (pendingAssets || []).length === 0;
-    const isDone = (item) => item.item_key === "asset_return"
-      ? assetsDone
-      : item.status === "Completed";
+    const hasAssets = (pendingAssets || []).length > 0;
+    const isDone = (item) => item.status === "Completed";
     const approved = resignation.status === "Approved";
     const rejected = resignation.status === "Rejected";
     const settled = settlement?.status === "Paid";
@@ -271,8 +288,8 @@ export default function ExitManagement({ currentUser, employeeProfile, onNavigat
         d: isDone(item) ? item.completed_at || "Completed"
           : item.item_key === "exit_interview" && resignation.exit_interview_date
             ? `Scheduled ${fmt(resignation.exit_interview_date)}`
-            : item.item_key === "asset_return" && !assetsDone
-              ? `${pendingAssets.length} asset${pendingAssets.length === 1 ? "" : "s"} pending`
+            : item.item_key === "asset_return"
+              ? (hasAssets ? `${pendingAssets.length} asset${pendingAssets.length === 1 ? "" : "s"} pending` : "Not Applicable")
               : item.status || "Pending",
         p: item.description || "",
         done: isDone(item),
@@ -290,15 +307,44 @@ export default function ExitManagement({ currentUser, employeeProfile, onNavigat
     checklist = exitItems.map((i) => {
         const itemDone = isDone(i);
         if (i.item_key === "asset_return") {
-          return { key: i.item_key, title: i.title, done: itemDone,
-            sub: itemDone ? (i.completed_at ? `Completed on ${fmt(i.completed_at)}` : "All assets returned")
-              : assetsDone ? i.description : `${pendingAssets.length} asset${pendingAssets.length > 1 ? "s" : ""} pending: ${pendingAssets.map((a) => a.asset_name).join(", ")}`,
-            action: assetsDone ? null : { label: "View Assets", fn: () => onNavigate && onNavigate("assets") } };
+          if (itemDone) {
+            return {
+              key: i.item_key,
+              title: i.title,
+              done: true,
+              notApplicable: false,
+              sub: i.completed_at ? `Completed on ${fmt(i.completed_at)}` : "All assets returned and confirmed by HR",
+              action: null
+            };
+          }
+          if (!hasAssets) {
+            return {
+              key: i.item_key,
+              title: i.title,
+              done: false,
+              notApplicable: true,
+              sub: "No company assets currently assigned",
+              action: null
+            };
+          }
+          return {
+            key: i.item_key,
+            title: i.title,
+            done: false,
+            notApplicable: false,
+            sub: `${pendingAssets.length} asset${pendingAssets.length > 1 ? "s" : ""} pending return: ${pendingAssets.map((a) => a.asset_name).join(", ")}`,
+            action: { label: "View Assets", fn: () => onNavigate && onNavigate("assets") }
+          };
         }
-        return { key: i.item_key, title: i.title, done: itemDone,
+        return {
+          key: i.item_key,
+          title: i.title,
+          done: itemDone,
+          notApplicable: false,
           sub: itemDone ? `Completed on ${fmt(i.completed_at)}` : i.description,
           action: i.employee_can_complete && !itemDone && active
-            ? { label: "Mark Done", fn: () => confirmChecklistAction(i.item_key, i.title) } : null };
+            ? { label: "Mark Done", fn: () => confirmChecklistAction(i.item_key, i.title) } : null
+        };
       });
 
     const today = new Date(); today.setHours(0, 0, 0, 0);
@@ -473,16 +519,27 @@ export default function ExitManagement({ currentUser, employeeProfile, onNavigat
                     <div className="exit-checklist">
                       {checklist.map((c) => (
                         <div key={c.key} className={`exit-check-item ${c.done ? "completed" : ""}`}>
-                          <div className={`exit-check-icon ${c.done ? "" : "pending"}`}>
-                            <i className={`bi ${c.done ? "bi-check-lg" : "bi-arrow-right"}`}></i>
+                          <div className={`exit-check-icon ${c.done ? "" : c.notApplicable ? "not-applicable" : "pending"}`}>
+                            <i className={`bi ${c.done ? "bi-check-lg" : c.notApplicable ? "bi-dash-circle" : "bi-arrow-right"}`}></i>
                           </div>
                           <div className="exit-check-content">
                             <strong>{c.title}</strong>
                             <span>{c.sub}</span>
                           </div>
-                          {c.done ? <span className="exit-check-status completed">Completed</span>
-                            : c.action ? <button className="exit-action-link" onClick={c.action.fn}>{c.action.label}</button>
-                            : <span className="exit-pending-badge">Pending HR</span>}
+                          {c.done ? (
+                            <span className="exit-check-status completed">Completed</span>
+                          ) : c.notApplicable ? (
+                            <span className="badge bg-secondary-subtle text-secondary px-2 py-1 rounded-pill" style={{ fontSize: "12px", fontWeight: "600" }}>
+                              Not Applicable
+                            </span>
+                          ) : c.action ? (
+                            <div className="d-flex align-items-center gap-2">
+                              <span className="exit-pending-badge">Pending</span>
+                              <button className="exit-action-link" onClick={c.action.fn}>{c.action.label}</button>
+                            </div>
+                          ) : (
+                            <span className="exit-pending-badge">Pending HR</span>
+                          )}
                         </div>
                       ))}
                     </div>
@@ -619,19 +676,36 @@ export default function ExitManagement({ currentUser, employeeProfile, onNavigat
                 </div>
                 <div className="exit-form-grid">
                   <div className="exit-form-group">
-                    <label>Resignation Date</label>
+                    <label>
+                      Resignation Date <span style={{ color: "#dc2626" }}>*</span>
+                    </label>
                     <input
                       type="date"
                       value={form.resignationDate}
-                      onChange={(e) => setForm({ ...form, resignationDate: e.target.value })}
+                      onChange={(e) => {
+                        setForm({ ...form, resignationDate: e.target.value });
+                        if (fieldErrors.resignationDate) {
+                          setFieldErrors((prev) => ({ ...prev, resignationDate: "" }));
+                        }
+                      }}
                       onClick={(e) => {
                         try { e.currentTarget.showPicker(); } catch (_) {}
                       }}
                       onFocus={(e) => {
                         try { e.currentTarget.showPicker(); } catch (_) {}
                       }}
-                      style={{ cursor: "pointer" }}
+                      style={{
+                        cursor: "pointer",
+                        borderColor: fieldErrors.resignationDate ? "#dc2626" : undefined,
+                        boxShadow: fieldErrors.resignationDate ? "0 0 0 2px rgba(220, 38, 38, 0.15)" : undefined
+                      }}
                     />
+                    {fieldErrors.resignationDate && (
+                      <small className="text-danger d-block mt-1" style={{ fontSize: "12px", color: "#dc2626", fontWeight: "500" }}>
+                        <i className="bi bi-exclamation-circle me-1"></i>
+                        {fieldErrors.resignationDate}
+                      </small>
+                    )}
                   </div>
                   <div className="exit-form-group">
                     <label>Notice Period</label>
@@ -647,10 +721,31 @@ export default function ExitManagement({ currentUser, employeeProfile, onNavigat
                     </div>
                   </div>
                   <div className="exit-form-group">
-                    <label>Reason for Leaving</label>
-                    <input type="text" maxLength={100} value={form.reason}
-                      onChange={(e) => setForm({ ...form, reason: e.target.value })}
-                      placeholder="Enter your reason for leaving" />
+                    <label>
+                      Reason for Leaving <span style={{ color: "#dc2626" }}>*</span>
+                    </label>
+                    <input 
+                      type="text" 
+                      maxLength={100} 
+                      value={form.reason}
+                      onChange={(e) => {
+                        setForm({ ...form, reason: e.target.value });
+                        if (fieldErrors.reason) {
+                          setFieldErrors((prev) => ({ ...prev, reason: "" }));
+                        }
+                      }}
+                      placeholder="Enter your reason for leaving" 
+                      style={{
+                        borderColor: fieldErrors.reason ? "#dc2626" : undefined,
+                        boxShadow: fieldErrors.reason ? "0 0 0 2px rgba(220, 38, 38, 0.15)" : undefined
+                      }}
+                    />
+                    {fieldErrors.reason && (
+                      <small className="text-danger d-block mt-1" style={{ fontSize: "12px", color: "#dc2626", fontWeight: "500" }}>
+                        <i className="bi bi-exclamation-circle me-1"></i>
+                        {fieldErrors.reason}
+                      </small>
+                    )}
                   </div>
                   <div className="exit-form-group full">
                     <label>Additional Comments</label>
@@ -658,12 +753,37 @@ export default function ExitManagement({ currentUser, employeeProfile, onNavigat
                       placeholder="Add any additional information for your manager or HR..."></textarea>
                   </div>
                   <div className="exit-form-group full">
-                    <label className="exit-checkbox-label">
-                      <input type="checkbox" checked={form.confirm} onChange={(e) => setForm({ ...form, confirm: e.target.checked })} />
+                    <label 
+                      className="exit-checkbox-label"
+                      style={{
+                        borderColor: fieldErrors.confirm ? "#dc2626" : undefined,
+                        boxShadow: fieldErrors.confirm ? "0 0 0 2px rgba(220, 38, 38, 0.15)" : undefined
+                      }}
+                    >
+                      <input 
+                        type="checkbox" 
+                        checked={form.confirm} 
+                        onChange={(e) => {
+                          setForm({ ...form, confirm: e.target.checked });
+                          if (fieldErrors.confirm) {
+                            setFieldErrors((prev) => ({ ...prev, confirm: "" }));
+                          }
+                        }} 
+                      />
                       <span>I understand that submitting my resignation will initiate the employee exit process and notice period.</span>
                     </label>
+                    {fieldErrors.confirm && (
+                      <small className="text-danger d-block mt-1" style={{ fontSize: "12px", color: "#dc2626", fontWeight: "500" }}>
+                        <i className="bi bi-exclamation-circle me-1"></i>
+                        {fieldErrors.confirm}
+                      </small>
+                    )}
                   </div>
-                  {formError && <div className="exit-form-group full" style={{ color: "#dc2626" }}>{formError}</div>}
+                  {formError && (
+                    <div className="exit-form-group full alert alert-danger p-2" style={{ color: "#dc2626", fontSize: "13px" }}>
+                      <i className="bi bi-exclamation-triangle-fill me-1"></i> {formError}
+                    </div>
+                  )}
                 </div>
               </div>
               <div className="exit-modal-footer">

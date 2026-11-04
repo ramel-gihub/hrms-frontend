@@ -450,19 +450,10 @@ export default function Leaves({ currentUser, employeeProfile, embedded = false 
 
   if (!currentUser) return <div>Loading...</div>;
 
-  return (
+  const pageBody = (
     <>
-      <main className="dashboard-wrapper">
-        <div className="dashboard-container">
-
-            
-            
-
-            <div className="px-0 px-md-5 employee-dashboard">
-
-                <div id="profileLeave">
-
-                    <div className="epl-page">
+    <div id="profileLeave" className="w-100" style={{ width: "100%" }}>
+      <div className="epl-page w-100" style={{ width: "100%", maxWidth: "100%" }}>
 
                         
 {alertBanner && (
@@ -995,10 +986,9 @@ export default function Leaves({ currentUser, employeeProfile, embedded = false 
                                     </div>
                                 )}
                             </div>
-</div>
-</div>
-</div>
-<div className="row g-4">
+                        </div>
+
+                        <div className="row g-4">
 
                             <div className="col-xl-7">
 
@@ -1292,8 +1282,25 @@ export default function Leaves({ currentUser, employeeProfile, embedded = false 
                         </div>
 
                     </div>
-</div>
-</main>
+                </div>
+    </>
+  );
+
+  return (
+    <>
+      {embedded ? (
+        <div className="w-100 mt-2" style={{ width: "100%" }}>
+          {pageBody}
+        </div>
+      ) : (
+        <main className="dashboard-wrapper">
+          <div className="dashboard-container">
+            <div className="px-0 px-md-5 employee-dashboard">
+              {pageBody}
+            </div>
+          </div>
+        </main>
+      )}
 
       {/* Dynamic Apply Leave Modal (overriding the bootstrap one in HTML if it was there) */}
       {showApplyModal && (

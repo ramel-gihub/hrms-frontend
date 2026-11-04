@@ -511,7 +511,7 @@ export default function EmployeeRequests({ employeeProfile, currentUser }) {
 
   useEffect(() => {
     if (!toast) return undefined;
-    const timeout = window.setTimeout(() => setToast(""), 3500);
+    const timeout = window.setTimeout(() => setToast(""), 5000);
     return () => window.clearTimeout(timeout);
   }, [toast]);
 
@@ -591,6 +591,29 @@ export default function EmployeeRequests({ employeeProfile, currentUser }) {
 
   const openEditModal = (req) => {
     setEditingRequest(req);
+
+    // Resolve leaveTypeId from req.leave_type_id, or by matching leaveTypes with leave_type or subject
+    let resolvedLeaveTypeId = req.leave_type_id || "";
+    if (!resolvedLeaveTypeId && req.leave_type) {
+      const match = leaveTypes.find(lt => lt.name?.toLowerCase() === req.leave_type?.toLowerCase());
+      if (match) resolvedLeaveTypeId = match.id;
+    }
+    if (!resolvedLeaveTypeId && req.subject) {
+      const match = leaveTypes.find(lt => req.subject.toLowerCase().includes(lt.name?.toLowerCase()));
+      if (match) resolvedLeaveTypeId = match.id;
+    }
+
+    // Resolve start_date and end_date from start_date, or extract from subject (e.g. "Casual Leave · 2026-11-05 - 2026-11-06")
+    let sDate = formatDateForInput(req.start_date || req.startDate || req.wfh_start_date);
+    let eDate = formatDateForInput(req.end_date || req.endDate || req.wfh_end_date);
+    if ((!sDate || !eDate) && req.subject) {
+      const datesMatch = req.subject.match(/(\d{4}-\d{2}-\d{2})/g);
+      if (datesMatch && datesMatch.length >= 1) {
+        if (!sDate) sDate = datesMatch[0];
+        if (!eDate) eDate = datesMatch[1] || datesMatch[0];
+      }
+    }
+
     setForm({
       ...emptyForm,
       category: req.category || "",
@@ -603,10 +626,10 @@ export default function EmployeeRequests({ employeeProfile, currentUser }) {
       dateNeeded: formatDateForInput(req.date_needed || req.dateNeeded),
       workLocation: req.work_location || "",
       additionalRequirements: req.additional_requirements || "",
-      leaveTypeId: req.leave_type_id || "",
+      leaveTypeId: resolvedLeaveTypeId,
       approverId: req.approver_id || "",
-      startDate: formatDateForInput(req.start_date || req.startDate || req.wfh_start_date),
-      endDate: formatDateForInput(req.end_date || req.endDate || req.wfh_end_date),
+      startDate: sDate,
+      endDate: eDate,
       isHalfDay: Boolean(req.is_half_day),
       halfDayPeriod: req.half_day_period || "First Half",
       expenseCategory: req.expense_category || "Travel & Cab",
@@ -698,6 +721,7 @@ export default function EmployeeRequests({ employeeProfile, currentUser }) {
             preferredResponse: form.response,
             startDate: form.startDate,
             endDate: form.endDate,
+            leaveTypeId: form.leaveTypeId,
             dateNeeded: form.dateNeeded,
             wfhStartDate: form.startDate,
             wfhEndDate: form.endDate,
@@ -817,7 +841,7 @@ export default function EmployeeRequests({ employeeProfile, currentUser }) {
       setContactForm({ subject: "", message: "" });
       setShowContactPanel(false);
       setShowContactSuccess(true);
-      window.setTimeout(() => setShowContactSuccess(false), 4500);
+      window.setTimeout(() => setShowContactSuccess(false), 5000);
     } catch (error) {
       setRequestError(error.message);
     }
@@ -833,11 +857,10 @@ export default function EmployeeRequests({ employeeProfile, currentUser }) {
   const averageResolutionDays = requestStats.average_resolution_days;
 
   return (
-    <main className="dashboard-wrapper employee-requests-page">
-      <div className="dashboard-container">
-        <div className="px-0 px-md-5 employee-dashboard">
-          <div className="employee-requests-page">
-            <header className="requests-page-header">
+    <>
+      <div className="px-0 px-md-5 employee-dashboard">
+        <div className="employee-requests-page">
+          <header className="requests-page-header">
               <div>
                 <h1>Employee Requests</h1>
                 <p>
@@ -1098,43 +1121,7 @@ export default function EmployeeRequests({ employeeProfile, currentUser }) {
                                 )}
                               </button>
                             )}
-                            {request.status === "Pending" && (
-                              <button
-                                className="btn btn-outline-danger btn-sm"
-                                style={{
-                                  borderRadius: "8px",
-                                  padding: "6px 12px",
-                                  fontWeight: 600,
-                                  fontSize: "0.82rem",
-                                  display: "inline-flex",
-                                  alignItems: "center",
-                                  gap: "6px"
-                                }}
-                                type="button"
-                                onClick={() => setDeleteConfirmTarget(request)}
-                              >
-                                <i className="bi bi-trash" aria-hidden="true"></i>
-                                Delete
-                              </button>
-                            )}
-                            {request.status === "Pending" && (
-                              <button
-                                className="request-view-btn"
-                                style={{
-                                  backgroundColor: "#f5f3ff",
-                                  color: "#6366f1",
-                                  border: "1px solid #ddd6fe",
-                                  display: "inline-flex",
-                                  alignItems: "center",
-                                  gap: "6px"
-                                }}
-                                type="button"
-                                onClick={() => openEditModal(request)}
-                              >
-                                <i className="bi bi-pencil" aria-hidden="true"></i>
-                                Edit
-                              </button>
-                            )}
+
                             <button
                               className="request-view-btn"
                               type="button"
@@ -1265,7 +1252,6 @@ export default function EmployeeRequests({ employeeProfile, currentUser }) {
             </div>
           </div>
         </div>
-      </div>
 
       <div
         className="modal fade"
@@ -2023,7 +2009,7 @@ export default function EmployeeRequests({ employeeProfile, currentUser }) {
                     <>
                       <div><span>Asset Type</span><strong>{selectedRequest.asset_type.replace(/-/g, " ")}</strong></div>
                       {selectedRequest.date_needed && (
-                        <div><span>Date Needed</span><strong>{selectedRequest.date_needed}</strong></div>
+                        <div><span>Date Needed</span><strong>{formatDateForInput(selectedRequest.date_needed) || selectedRequest.date_needed}</strong></div>
                       )}
                       {selectedRequest.preferred_model && (
                         <div><span>Preferred Model</span><strong>{selectedRequest.preferred_model}</strong></div>
@@ -2142,24 +2128,7 @@ export default function EmployeeRequests({ employeeProfile, currentUser }) {
             </div>
             <footer className="request-modal-footer" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-                {selectedRequest.status === "Pending" && (
-                  <button
-                    className="btn btn-outline-danger"
-                    style={{
-                      borderRadius: "10px",
-                      fontWeight: 600,
-                      fontSize: "0.875rem",
-                      padding: "8px 16px",
-                      display: "inline-flex",
-                      alignItems: "center",
-                      gap: "6px"
-                    }}
-                    type="button"
-                    onClick={() => setDeleteConfirmTarget(selectedRequest)}
-                  >
-                    <i className="bi bi-trash" aria-hidden="true"></i> Delete Request
-                  </button>
-                )}
+
                 {String(selectedRequest.status || "").trim().toLowerCase() === "pending" &&
                   String(selectedRequest.priority || "").trim().toLowerCase() !== "high" && (
                   <button
@@ -2368,6 +2337,6 @@ export default function EmployeeRequests({ employeeProfile, currentUser }) {
           </button>
         </div>
       )}
-    </main>
+    </>
   );
 }

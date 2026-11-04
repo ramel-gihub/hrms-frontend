@@ -295,6 +295,21 @@ export default function EmployeeTemplate({
     if (isNaN(num)) return val;
     return num % 1 === 0 ? String(Math.round(num)) : String(parseFloat(num.toFixed(2)));
   };
+
+  const formatAverageCheckIn = (val) => {
+    if (!val || val === '--') return '--';
+    const clean = String(val).replace(/h\s*/i, ':').replace(/m\s*/i, ' ').trim();
+    const match = clean.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)?$/i);
+    if (match) {
+      let h = parseInt(match[1], 10);
+      const m = match[2];
+      let ampm = match[3] ? match[3].toUpperCase() : (h >= 12 ? 'PM' : 'AM');
+      if (h > 12) h = h - 12;
+      if (h === 0) h = 12;
+      return `${String(h).padStart(2, '0')}:${m} ${ampm}`;
+    }
+    return val;
+  };
   const [pushToast, setPushToast] = useState(null);
   const [headerNotifOpen, setHeaderNotifOpen] = useState(false);
   const headerNotifRef = useRef(null);
@@ -379,7 +394,7 @@ export default function EmployeeTemplate({
     if (!pushToast) return;
     const timer = setTimeout(() => {
       setPushToast(null);
-    }, 9000);
+    }, 5000);
     return () => clearTimeout(timer);
   }, [pushToast]);
 
@@ -434,7 +449,21 @@ export default function EmployeeTemplate({
   const [todayWorkMode, setTodayWorkMode] = useState(employeeProfile?.work_mode || '');
   const [selectedShortcutIds, setSelectedShortcutIds] = useState([]);
   const [shortcutsLoading, setShortcutsLoading] = useState(true);
-  const [sentWishes, setSentWishes] = useState({});
+  const [sentWishes, setSentWishes] = useState(() => {
+    try {
+      const saved = localStorage.getItem("hrms_sent_wishes");
+      return saved ? JSON.parse(saved) : {};
+    } catch {
+      return {};
+    }
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("hrms_sent_wishes", JSON.stringify(sentWishes));
+    } catch (_) {}
+  }, [sentWishes]);
+
   const [sendingWishId, setSendingWishId] = useState(null);
   const [latestAnnouncement, setLatestAnnouncement] = useState(null);
 
@@ -1487,7 +1516,7 @@ export default function EmployeeTemplate({
 
                                     <h6>{employeeProfile?.preferred_name || employeeProfile?.first_name || currentUser.email.split("@")[0]}</h6>
 
-                                    <span className="text-nowrap">{employeeProfile?.designation || employeeProfile?.role_name || "Senior Software Engineer"}</span>
+                                    <span className="text-nowrap">{employeeProfile?.designation || employeeProfile?.role_name || currentUser?.designation || currentUser?.role || "Software Engineer"}</span>
 
                                 </div>
 
@@ -1617,7 +1646,7 @@ export default function EmployeeTemplate({
 
                                     <span>
                                         <i className="bi bi-briefcase"></i>
-                                        {employeeProfile?.designation || "Senior Software Engineer"}
+                                        {employeeProfile?.designation || currentUser?.designation || currentUser?.role || "Software Engineer"}
                                     </span>
 
                                     <span>
@@ -1839,7 +1868,7 @@ export default function EmployeeTemplate({
 
                                                 <div>
                                                     <span>Average Check-in</span>
-                                                    <strong>{attendanceStats?.averageCheckIn || '--'}</strong>
+                                                    <strong>{formatAverageCheckIn(attendanceStats?.averageCheckIn)}</strong>
                                                     <small>{attendanceStats?.todayCheckInDiff || 'Not checked in'}</small>
                                                 </div>
                                             </div>
@@ -2797,7 +2826,7 @@ export default function EmployeeTemplate({
 {activePage === "notifications" && <Notifications currentUser={currentUser} employeeProfile={employeeProfile} />}
 {activePage === "settings" && <Settings employeeProfile={employeeProfile} currentUser={currentUser} onProfileUpdate={fetchEmployeeProfile} onNavigate={navigateTo} />}
 {activePage === "exit-management" && <ExitManagement employeeProfile={employeeProfile} currentUser={currentUser} onNavigate={navigateTo} />}
-{activePage === "employee-requests" && <EmployeeRequests employeeProfile={employeeProfile} currentUser={currentUser} />}
+{activePage === "employee-requests" && <EmployeeRequests employeeProfile={employeeProfile} currentUser={currentUser} onNavigate={navigateTo} onProfileUpdate={fetchEmployeeProfile} />}
 {activePage === "calendar" && <Calendar employeeProfile={employeeProfile} currentUser={currentUser} initialTab={calendarTab} />}
 {activePage === "announcements" && <Announcements currentUser={currentUser} employeeProfile={employeeProfile} />}
 

@@ -177,7 +177,14 @@ export default function App() {
   const [todayAttendance, setTodayAttendance] = useState(null);
 
   // Employee full profile (name, code, designation, dept, city, etc.)
-  const [employeeProfile, setEmployeeProfile] = useState(null);
+  const [employeeProfile, setEmployeeProfile] = useState(() => {
+    try {
+      const cached = localStorage.getItem('hrms_cached_employee_profile');
+      return cached ? JSON.parse(cached) : null;
+    } catch (_) {
+      return null;
+    }
+  });
 
   // Attendance stats (present days, avg hours, late, overtime)
   const [attendanceStats, setAttendanceStats] = useState({
@@ -569,6 +576,9 @@ export default function App() {
       profileData.profile_completion_percentage = Number.isFinite(Number(profileData.profile_completion_percentage)) ? Math.min(100, Math.max(0, Number(profileData.profile_completion_percentage))) : 0;
 
       setEmployeeProfile(profileData);
+      try {
+        localStorage.setItem('hrms_cached_employee_profile', JSON.stringify(profileData));
+      } catch (_) {}
     } catch (error) {
       console.error('Error fetching employee profile:', error);
     }

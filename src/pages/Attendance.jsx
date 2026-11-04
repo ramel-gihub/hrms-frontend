@@ -269,12 +269,8 @@ export default function Attendance({ currentUser, employeeProfile, onNavigate, e
     return true;
   }).reverse(); // Show latest first within active week
 
-  return (
-    <>
-      <main className="dashboard-wrapper">
-        <div className="dashboard-container">
-          <div className="px-0 px-md-5 employee-dashboard">
-            <div className="epa-page">
+  const pageBody = (
+    <div className="epa-page w-100" style={{ width: "100%", maxWidth: "100%" }}>
 
                         
                         <div className={`esc-page-header${embedded ? " d-none" : ""}`}>
@@ -1124,10 +1120,24 @@ export default function Attendance({ currentUser, employeeProfile, onNavigate, e
                         </div>
 
                     </div>
-                </div>
-              </div>
-            </main>
-        </>
+  );
+
+  return (
+    <>
+      {embedded ? (
+        <div className="w-100 mt-2" style={{ width: "100%" }}>
+          {pageBody}
+        </div>
+      ) : (
+        <main className="dashboard-wrapper">
+          <div className="dashboard-container">
+            <div className="px-0 px-md-5 employee-dashboard">
+              {pageBody}
+            </div>
+          </div>
+        </main>
+      )}
+    </>
   );
 }
 

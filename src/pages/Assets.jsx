@@ -52,6 +52,7 @@ export default function Assets({ currentUser, employeeProfile, embedded = false 
   const [submitting, setSubmitting] = useState(false);
   const [editingRequest, setEditingRequest] = useState(null);
   const [notice, setNotice] = useState(null);
+  const [modalError, setModalError] = useState("");
   const emptyForm = { assetType: "", priority: "", preferredModel: "", dateNeeded: "", justification: "", workLocation: "", additionalRequirements: "" };
   const [form, setForm] = useState(emptyForm);
   useEffect(() => {
@@ -109,13 +110,34 @@ export default function Assets({ currentUser, employeeProfile, embedded = false 
   };
   useEffect(() => { loadRequests(); }, [user?.id]);
 
+    const toIsoDateString = (val) => {
+      if (!val) return "";
+      const s = String(val).trim();
+      if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+      if (s.includes("T")) return s.split("T")[0];
+      const d = new Date(s);
+      if (!isNaN(d.getTime())) {
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, "0");
+        const day = String(d.getDate()).padStart(2, "0");
+        return `${y}-${m}-${day}`;
+      }
+      return s;
+    };
+
     const openEditRequest = (req) => {
+    setModalError("");
     setEditingRequest(req);
+    const rawType = (req.asset_type || "").trim();
+    const typeKey = rawType.toLowerCase().replace(/\s+/g, "-");
+    const validKeys = ["laptop", "monitor", "mobile", "keyboard", "mouse", "headset", "access-card", "security-token", "other"];
+    const matchedType = validKeys.includes(typeKey) ? typeKey : (validKeys.includes(rawType.toLowerCase()) ? rawType.toLowerCase() : rawType);
+
     setForm({
-      assetType: req.asset_type || "",
+      assetType: matchedType,
       priority: req.priority || "",
       preferredModel: req.preferred_model || "",
-      dateNeeded: req.date_needed ? (req.date_needed.includes("T") ? req.date_needed.split("T")[0] : req.date_needed) : "",
+      dateNeeded: toIsoDateString(req.date_needed),
       justification: req.justification || "",
       workLocation: req.work_location || "",
       additionalRequirements: req.additional_requirements || ""
@@ -124,28 +146,64 @@ export default function Assets({ currentUser, employeeProfile, embedded = false 
 
   const submitRequest = async (e) => {
     e.preventDefault();
-    if (form.dateNeeded) {
+    setModalError("");
+    const cleanDate = toIsoDateString(form.dateNeeded);
+    if (cleanDate) {
       const todayStr = new Date().toISOString().split("T")[0];
-      if (form.dateNeeded < todayStr) {
-        setNotice({ type: "danger", text: "Date needed cannot be in the past. Please select today or a future date." });
+      if (cleanDate < todayStr) {
+        setModalError("Date needed cannot be in the past. Please select today or a future date.");
         return;
       }
     }
     setSubmitting(true);
     try {
-      const res = await fetch(`${API_BASE}/api/assets/request`, {
-        method: "POST",
+      const url = editingRequest
+        ? `${API_BASE}/api/assets/requests/${user?.id || ''}/${editingRequest.id}`
+        : `${API_BASE}/api/assets/request`;
+      const method = editingRequest ? "PUT" : "POST";
+      const payload = {
+        userId: user?.id,
+        ...form,
+        dateNeeded: cleanDate || null
+      };
+      const res = await fetch(url, {
+        method,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId: user?.id, ...form }),
+        body: JSON.stringify(payload),
       });
       const result = await res.json();
       if (!res.ok) throw new Error(result.error || "Request failed");
       const modalEl = document.getElementById("eaAssignAssetModal");
-    window.bootstrap?.Modal.getOrCreateInstance(modalEl)?.hide();
+      if (modalEl) {
+        if (window.bootstrap?.Modal) {
+          try {
+            window.bootstrap.Modal.getOrCreateInstance(modalEl)?.hide();
+          } catch (_) {}
+        }
+        modalEl.classList.remove("show");
+        modalEl.style.display = "none";
+        modalEl.setAttribute("aria-hidden", "true");
+        modalEl.removeAttribute("aria-modal");
+        const backdrop = document.querySelector(".modal-backdrop");
+        if (backdrop) backdrop.remove();
+        document.body.classList.remove("modal-open");
+        document.body.style.removeProperty("overflow");
+        document.body.style.removeProperty("padding-right");
+      }
+      const requestCode = editingRequest?.request_code || result.request?.request_code || "";
+      const isEdit = Boolean(editingRequest);
       setForm(emptyForm);
-      setNotice({ type: "success", text: `Request ${result.request.request_code} submitted. It is now pending admin review.` });
+      setEditingRequest(null);
+      setModalError("");
+      setNotice({
+        type: "success",
+        text: isEdit
+          ? `Request ${requestCode} updated successfully.`
+          : `Request ${requestCode} submitted. It is now pending admin review.`
+      });
       loadRequests();
     } catch (err) {
+      setModalError(err.message);
       setNotice({ type: "danger", text: err.message });
     } finally {
       setSubmitting(false);
@@ -233,12 +291,8 @@ export default function Assets({ currentUser, employeeProfile, embedded = false 
 
   const conditionClass = (c) => (c || "").toLowerCase();
 
-  return (
-    <>
-      <main className="dashboard-wrapper">
-        <div className="dashboard-container">
-          <div className="px-0 px-md-5 employee-dashboard">
-            <div className="employee-assets-page">
+  const pageBody = (
+    <div className="employee-assets-page w-100" style={{ width: "100%", maxWidth: "100%" }}>
 
                     <div className="esc-page-header">
                         {!embedded && <div>
@@ -665,14 +719,20 @@ export default function Assets({ currentUser, employeeProfile, embedded = false 
                                 <div className="modal-header">
                                     <div>
                                         <span className="ea-section-label">EMPLOYEE REQUEST</span>
-                                        <h4>New Asset Request</h4>
-                                        <p>Tell us what equipment you need and why.</p>
+                                        <h4>{editingRequest ? "Edit Asset Request" : "New Asset Request"}</h4>
+                                        <p>{editingRequest ? "Update your requested equipment details." : "Tell us what equipment you need and why."}</p>
                                     </div>
 
-                                    <button type="button" className="btn-close" data-bs-dismiss="modal"></button>
+                                    <button type="button" className="btn-close" data-bs-dismiss="modal" onClick={() => { setEditingRequest(null); setForm(emptyForm); }}></button>
                                 </div>
 
                                 <div className="modal-body">
+                                    {modalError && (
+                                        <div className="alert alert-danger d-flex align-items-center gap-2 mb-3 py-2 px-3" style={{ fontSize: "0.88rem", borderRadius: "8px" }}>
+                                            <i className="bi bi-exclamation-triangle-fill flex-shrink-0"></i>
+                                            <span>{modalError}</span>
+                                        </div>
+                                    )}
 
                                     <form id="eaNewAssetRequestForm" onSubmit={submitRequest}>
 
@@ -776,13 +836,13 @@ export default function Assets({ currentUser, employeeProfile, embedded = false 
                                 </div>
 
                                 <div className="modal-footer">
-                                    <button type="button" className="btn ea-btn-light" data-bs-dismiss="modal">
+                                    <button type="button" className="btn ea-btn-light" data-bs-dismiss="modal" onClick={() => { setEditingRequest(null); setForm(emptyForm); }}>
                                         Cancel
                                     </button>
 
                                     <button type="submit" form="eaNewAssetRequestForm" className="btn ea-btn-primary" disabled={submitting}>
                                         <i className="bi bi-check2"></i>
-                                        {submitting ? "Submitting..." : "Submit Request"}
+                                        {submitting ? (editingRequest ? "Saving..." : "Submitting...") : (editingRequest ? "Save Changes" : "Submit Request")}
                                     </button>
                                 </div>
 
@@ -972,9 +1032,23 @@ export default function Assets({ currentUser, employeeProfile, embedded = false 
                     </div>
 
                 </div>
+  );
+
+  return (
+    <>
+      {embedded ? (
+        <div className="w-100 mt-2" style={{ width: "100%" }}>
+          {pageBody}
+        </div>
+      ) : (
+        <main className="dashboard-wrapper">
+          <div className="dashboard-container">
+            <div className="px-0 px-md-5 employee-dashboard">
+              {pageBody}
             </div>
           </div>
         </main>
+      )}
     </>
   );
 }

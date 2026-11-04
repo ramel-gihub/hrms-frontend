@@ -339,10 +339,45 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
     const [sessionsToast, setSessionsToast] = useState("");
     useEffect(() => {
         if (!sessionsToast) return;
-        const t = setTimeout(() => setSessionsToast(""), 4000);
+        const t = setTimeout(() => setSessionsToast(""), 5000);
         return () => clearTimeout(t);
     }, [sessionsToast]);
 
+    useEffect(() => {
+        if (!commuteFeedback) return;
+        const t = setTimeout(() => setCommuteFeedback(""), 5000);
+        return () => clearTimeout(t);
+    }, [commuteFeedback]);
+
+    useEffect(() => {
+        if (!identityEditFeedback) return;
+        const t = setTimeout(() => setIdentityEditFeedback(""), 5000);
+        return () => clearTimeout(t);
+    }, [identityEditFeedback]);
+
+    useEffect(() => {
+        if (!emergencyEditFeedback) return;
+        const t = setTimeout(() => setEmergencyEditFeedback(""), 5000);
+        return () => clearTimeout(t);
+    }, [emergencyEditFeedback]);
+
+    useEffect(() => {
+        if (!personalEditFeedback) return;
+        const t = setTimeout(() => setPersonalEditFeedback(""), 5000);
+        return () => clearTimeout(t);
+    }, [personalEditFeedback]);
+
+    useEffect(() => {
+        if (!contactEditFeedback) return;
+        const t = setTimeout(() => setContactEditFeedback(""), 5000);
+        return () => clearTimeout(t);
+    }, [contactEditFeedback]);
+
+    useEffect(() => {
+        if (!bankEditFeedback) return;
+        const t = setTimeout(() => setBankEditFeedback(""), 5000);
+        return () => clearTimeout(t);
+    }, [bankEditFeedback]);
 
     // Change Password States
     const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
@@ -386,6 +421,48 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
     // Shortcut Limit Toast
     const [shortcutLimitToast, setShortcutLimitToast] = useState(false);
     const shortcutToastTimerRef = useRef(null);
+
+    useEffect(() => {
+        if (!passwordFeedback) return;
+        const t = setTimeout(() => setPasswordFeedback(""), 5000);
+        return () => clearTimeout(t);
+    }, [passwordFeedback]);
+
+    useEffect(() => {
+        if (!passwordSuccess) return;
+        const t = setTimeout(() => setPasswordSuccess(""), 5000);
+        return () => clearTimeout(t);
+    }, [passwordSuccess]);
+
+    useEffect(() => {
+        if (!preferencesFeedback) return;
+        const t = setTimeout(() => setPreferencesFeedback(""), 5000);
+        return () => clearTimeout(t);
+    }, [preferencesFeedback]);
+
+    useEffect(() => {
+        if (!preferencesSuccess) return;
+        const t = setTimeout(() => setPreferencesSuccess(""), 5000);
+        return () => clearTimeout(t);
+    }, [preferencesSuccess]);
+
+    useEffect(() => {
+        if (!securityModalFeedback) return;
+        const t = setTimeout(() => setSecurityModalFeedback(""), 5000);
+        return () => clearTimeout(t);
+    }, [securityModalFeedback]);
+
+    useEffect(() => {
+        if (!securityModalSuccess) return;
+        const t = setTimeout(() => setSecurityModalSuccess(""), 5000);
+        return () => clearTimeout(t);
+    }, [securityModalSuccess]);
+
+    useEffect(() => {
+        if (!shortcutLimitToast) return;
+        const t = setTimeout(() => setShortcutLimitToast(false), 5000);
+        return () => clearTimeout(t);
+    }, [shortcutLimitToast]);
 
     // Load preferences
     useEffect(() => {
@@ -967,14 +1044,22 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
         : emergencyContact ? [emergencyContact] : [];
     const primaryEmergencyContact = emergencyContacts[0] || null;
     const secondaryEmergencyContact = emergencyContacts[1] || null;
+    const standardRelationships = ["Father", "Mother", "Spouse", "Brother", "Sister", "Friend"];
     const openEmergencyEdit = () => {
+        const pRel = primaryEmergencyContact?.relationship || "";
+        const isPOther = pRel && !standardRelationships.includes(pRel);
+        const sRel = secondaryEmergencyContact?.relationship || "";
+        const isSOther = sRel && !standardRelationships.includes(sRel);
+
         setEmergencyEditForm({
             contactName: primaryEmergencyContact?.contact_name || "",
-            relationship: primaryEmergencyContact?.relationship || "",
+            relationship: isPOther ? "Other" : pRel,
+            relationshipOther: isPOther ? pRel : "",
             phoneNumber: primaryEmergencyContact?.phone_number || "",
             address: primaryEmergencyContact?.address || "",
             secondContactName: secondaryEmergencyContact?.contact_name || "",
-            secondRelationship: secondaryEmergencyContact?.relationship || "",
+            secondRelationship: isSOther ? "Other" : sRel,
+            secondRelationshipOther: isSOther ? sRel : "",
             secondPhoneNumber: secondaryEmergencyContact?.phone_number || "",
             secondAddress: secondaryEmergencyContact?.address || "",
         });
@@ -992,6 +1077,22 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
             return;
         }
 
+        const effectiveRel = emergencyEditForm.relationship === "Other"
+            ? (emergencyEditForm.relationshipOther?.trim() || "Other")
+            : emergencyEditForm.relationship;
+        const effectiveSecondRel = emergencyEditForm.secondRelationship === "Other"
+            ? (emergencyEditForm.secondRelationshipOther?.trim() || "Other")
+            : emergencyEditForm.secondRelationship;
+
+        if (emergencyEditForm.relationship === "Other" && !emergencyEditForm.relationshipOther?.trim()) {
+            setEmergencyEditFeedback("Please specify the relationship for primary emergency contact.");
+            return;
+        }
+        if (emergencyEditForm.secondRelationship === "Other" && emergencyEditForm.secondContactName?.trim() && !emergencyEditForm.secondRelationshipOther?.trim()) {
+            setEmergencyEditFeedback("Please specify the relationship for second emergency contact.");
+            return;
+        }
+
         setEmergencyEditSubmitting(true);
         setEmergencyEditFeedback("");
         try {
@@ -1002,11 +1103,11 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
                         contactName: emergencyEditForm.contactName,
-                        relationship: emergencyEditForm.relationship,
+                        relationship: effectiveRel,
                         phoneNumber: emergencyEditForm.phoneNumber,
                         address: emergencyEditForm.address,
                         secondContactName: emergencyEditForm.secondContactName,
-                        secondRelationship: emergencyEditForm.secondRelationship,
+                        secondRelationship: effectiveSecondRel,
                         secondPhoneNumber: emergencyEditForm.secondPhoneNumber,
                         secondAddress: emergencyEditForm.secondAddress,
                     }),
@@ -1375,7 +1476,14 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
     };
     const updateIdentityEditField = (event) => {
         const { name, value } = event.target;
-        const nextValue = name === "uanNumber" ? IntegerOnlyInput.sanitize(value) : value;
+        let nextValue = value;
+        if (name === "aadhaarNumber") {
+            nextValue = value.replace(/\D/g, "").slice(0, 12);
+        } else if (name === "panNumber") {
+            nextValue = value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 10);
+        } else if (name === "uanNumber") {
+            nextValue = IntegerOnlyInput.sanitize(value).slice(0, 12);
+        }
         setIdentityEditForm((current) => ({ ...current, [name]: nextValue }));
         setIdentityEditTouched((current) => ({ ...current, [name]: true }));
     };
@@ -1404,6 +1512,17 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
         const hasAnyInput = aadhaarNumber || panNumber || passportNumber || uanNumber;
         if (!hasAnyInput) {
             setIdentityEditFeedback("Please enter at least one identity number (Aadhaar, PAN, Passport, or UAN).");
+            return;
+        }
+
+        if (aadhaarNumber && aadhaarNumber.length !== 12) {
+            setIdentityEditFeedback("Aadhaar Number must be exactly 12 digits.");
+            return;
+        }
+
+        const panRegex = /^[A-Z]{5}[0-9]{4}[A-Z]{1}$/;
+        if (panNumber && !panRegex.test(panNumber)) {
+            setIdentityEditFeedback("PAN Number must be 10 characters in valid format (e.g., ABCDE1234F).");
             return;
         }
 
@@ -1523,11 +1642,22 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
             }
             setCommuteForm((prev) => ({
                 ...prev,
+                mode: data.mode || prev.mode,
+                distance: data.distance != null ? String(data.distance) : prev.distance,
+                transportType: isPublic ? (data.transport_type || prev.transportType) : "",
+                routeDetails: isPublic ? (data.route_details || prev.routeDetails) : "",
+                vehicleType: isPersonal ? (data.vehicle_type || prev.vehicleType) : "",
+                vehicleMakeModel: isPersonal ? (data.vehicle_make_model || prev.vehicleMakeModel) : "",
+                vehicleMileage: isPersonal && data.vehicle_mileage != null ? String(data.vehicle_mileage) : prev.vehicleMileage,
+                fuelType: isPersonal ? (data.fuel_type || prev.fuelType) : "",
                 status: data.status || "Pending"
             }));
             setCommuteFeedback("Travel details saved successfully (Status: Pending admin approval).");
             if (typeof onProfileUpdate === "function") {
                 onProfileUpdate();
+            }
+            if (typeof window !== "undefined") {
+                window.dispatchEvent(new CustomEvent("commuteUpdated", { detail: data }));
             }
         } catch (error) {
             setCommuteFeedback(error.message || "Unable to save commute details.");
@@ -1850,12 +1980,11 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
                                                     setCommuteForm((form) => ({ ...form, transportType: event.target.value }));
                                                     setCommuteFeedback("");
                                                 }}
-                                                required
                                             >
-                                                <option value="" disabled>Select a transport type</option>
+                                                <option value="">Select transport type</option>
                                                 <option value="Bus">Bus</option>
                                                 <option value="Train / Metro">Train / Metro</option>
-                                                <option value="Auto rickshaw">Auto rickshaw</option>
+                                                <option value="Shared Cab / Auto">Shared Cab / Auto</option>
                                                 <option value="Other">Other</option>
                                             </select>
                                         </label>
@@ -2049,7 +2178,7 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
                         </div>
                     </div>
                     <button className="btn" type="button" style={EDIT_TRIGGER_STYLE} onMouseEnter={(event) => setEditTriggerHover(event, true)} onMouseLeave={(event) => setEditTriggerHover(event, false)} onClick={openIdentityEdit}>
-                        <i className="bi bi-pencil"></i> Request Update
+                        <i className={`bi ${Boolean(identityInfo?.aadhaar_last_four || identityInfo?.pan_number_masked || identityInfo?.passport_number_masked || identityInfo?.uan_last_four) ? "bi-pencil" : "bi-plus-lg"}`}></i> {Boolean(identityInfo?.aadhaar_last_four || identityInfo?.pan_number_masked || identityInfo?.passport_number_masked || identityInfo?.uan_last_four) ? "Request Update" : "Add Details"}
                     </button>
                 </div>
 
@@ -2090,7 +2219,7 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
                         </div>
                     </div>
                     <button className="btn" type="button" style={EDIT_TRIGGER_STYLE} onMouseEnter={(event) => setEditTriggerHover(event, true)} onMouseLeave={(event) => setEditTriggerHover(event, false)} onClick={openEmergencyEdit}>
-                        <i className="bi bi-pencil"></i> Edit
+                        <i className={`bi ${Boolean(primaryEmergencyContact?.contact_name || primaryEmergencyContact?.phone_number || primaryEmergencyContact?.relationship || primaryEmergencyContact?.address) ? "bi-pencil" : "bi-plus-lg"}`}></i> {Boolean(primaryEmergencyContact?.contact_name || primaryEmergencyContact?.phone_number || primaryEmergencyContact?.relationship || primaryEmergencyContact?.address) ? "Edit" : "Add Details"}
                     </button>
                 </div>
 
@@ -2789,11 +2918,11 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
                 <div className="row g-3">
                     <div className="col-12 col-md-6 es-edit-field">
                         <label htmlFor="identityEditAadhaar">Aadhaar Number</label>
-                        <input id="identityEditAadhaar" className="form-control" name="aadhaarNumber" value={identityEditForm.aadhaarNumber} onFocus={focusIdentityNumberField} onChange={updateIdentityEditField} inputMode="numeric" maxLength="20" placeholder="Enter aadhaar number" />
+                        <input id="identityEditAadhaar" className="form-control" name="aadhaarNumber" value={identityEditForm.aadhaarNumber} onFocus={focusIdentityNumberField} onChange={updateIdentityEditField} inputMode="numeric" maxLength="12" placeholder="Enter 12-digit Aadhaar number" />
                     </div>
                     <div className="col-12 col-md-6 es-edit-field">
                         <label htmlFor="identityEditPan">PAN Number</label>
-                        <input id="identityEditPan" className="form-control" name="panNumber" value={identityEditForm.panNumber} onFocus={focusIdentityNumberField} onChange={updateIdentityEditField} maxLength="20" placeholder="Enter PAN number" />
+                        <input id="identityEditPan" className="form-control" name="panNumber" value={identityEditForm.panNumber} onFocus={focusIdentityNumberField} onChange={updateIdentityEditField} maxLength="10" placeholder="Enter 10-character PAN (e.g. ABCDE1234F)" style={{ textTransform: "uppercase" }} />
                     </div>
                     <div className="col-12 col-md-6 es-edit-field">
                         <label htmlFor="identityEditPassport">Passport Number</label>
@@ -2866,6 +2995,20 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
                             <option value="Friend">Friend</option>
                             <option value="Other">Other</option>
                         </select>
+                        {emergencyEditForm.relationship === "Other" && (
+                            <div className="mt-2">
+                                <label htmlFor="emergencyEditRelationshipOther" className="form-label small text-muted mb-1">Specify Relationship <span className="text-danger">*</span></label>
+                                <input
+                                    id="emergencyEditRelationshipOther"
+                                    className="form-control"
+                                    name="relationshipOther"
+                                    value={emergencyEditForm.relationshipOther || ""}
+                                    onChange={updateEmergencyEditField}
+                                    placeholder="Enter relationship (e.g., Guardian, Uncle)"
+                                    required
+                                />
+                            </div>
+                        )}
                     </div>
                     <div className="col-12 col-md-6 es-edit-field">
                         <label htmlFor="emergencyEditPhone">Phone Number <span className="text-danger">*</span></label>
@@ -2894,6 +3037,19 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
                             <option value="Friend">Friend</option>
                             <option value="Other">Other</option>
                         </select>
+                        {emergencyEditForm.secondRelationship === "Other" && (
+                            <div className="mt-2">
+                                <label htmlFor="emergencyEditSecondRelationshipOther" className="form-label small text-muted mb-1">Specify Relationship <span className="text-danger">*</span></label>
+                                <input
+                                    id="emergencyEditSecondRelationshipOther"
+                                    className="form-control"
+                                    name="secondRelationshipOther"
+                                    value={emergencyEditForm.secondRelationshipOther || ""}
+                                    onChange={updateEmergencyEditField}
+                                    placeholder="Enter relationship (e.g., Guardian, Uncle)"
+                                />
+                            </div>
+                        )}
                     </div>
                     <div className="col-12 col-md-6 es-edit-field">
                         <label htmlFor="emergencyEditSecondPhone">Phone Number</label>
@@ -2957,7 +3113,7 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
             
             {/* Manage Active Sessions Modal */}
             {isSessionsModalOpen && (
-                <div className="modal-backdrop fade show" onClick={() => setIsSessionsModalOpen(false)}></div>
+                <div className="modal-backdrop fade show" style={{ zIndex: 1050 }} onClick={() => setIsSessionsModalOpen(false)}></div>
             )}
             <div
                 className={`modal fade${isSessionsModalOpen ? " show d-block" : ""}`}
@@ -2966,6 +3122,11 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
                 aria-hidden={!isSessionsModalOpen}
                 aria-modal={isSessionsModalOpen || undefined}
                 role={isSessionsModalOpen ? "dialog" : undefined}
+                style={{
+                    display: isSessionsModalOpen ? "block" : "none",
+                    zIndex: 1055,
+                    backgroundColor: isSessionsModalOpen ? "rgba(15, 23, 42, 0.45)" : "transparent"
+                }}
                 onClick={(event) => {
                     if (event.target === event.currentTarget) setIsSessionsModalOpen(false);
                 }}

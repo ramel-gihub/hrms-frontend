@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import EmptyState from "../components/EmptyState";
 
 const API_BASE = import.meta.env.VITE_API_URL || (
@@ -54,10 +54,35 @@ export default function Notifications({ currentUser, employeeProfile, adminView 
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState(null);
   const [error, setError] = useState("");
+  const [toastMessage, setToastMessage] = useState("");
+  const [previewNotification, setPreviewNotification] = useState(null);
+  const [viewMode, setViewMode] = useState("preview");
+
+  const errorTimeoutRef = useRef(null);
+  const toastTimeoutRef = useRef(null);
+
+  const showError = (msg) => {
+    setError(msg);
+    if (errorTimeoutRef.current) clearTimeout(errorTimeoutRef.current);
+    if (msg) errorTimeoutRef.current = setTimeout(() => setError(""), 5000);
+  };
+
+  const showToast = (msg) => {
+    setToastMessage(msg);
+    if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
+    if (msg) toastTimeoutRef.current = setTimeout(() => setToastMessage(""), 5000);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (errorTimeoutRef.current) clearTimeout(errorTimeoutRef.current);
+      if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
+    };
+  }, []);
 
   const loadNotifications = useCallback(async (signal, showLoading = false) => {
     if (!userId) {
-      setError("Unable to identify your account. Please sign in again.");
+      showError("Unable to identify your account. Please sign in again.");
       setLoading(false);
       return;
     }
@@ -70,7 +95,7 @@ export default function Notifications({ currentUser, employeeProfile, adminView 
       setError("");
     } catch (loadError) {
       if (loadError.name !== "AbortError") {
-        setError(loadError.message || "Unable to load notifications.");
+        showError(loadError.message || "Unable to load notifications.");
       }
     } finally {
       if (!signal?.aborted && showLoading) setLoading(false);
@@ -138,12 +163,54 @@ export default function Notifications({ currentUser, employeeProfile, adminView 
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ userId, ...update })
       });
-      const result = await readApiResponse(response);
+      await readApiResponse(response);
       await loadNotifications();
     } catch (updateError) {
-      setError(updateError.message || "Unable to update notification.");
+      showError(updateError.message || "Unable to update notification.");
     } finally {
       setBusyId(null);
+    }
+  };
+
+  const deleteNotification = async (notification) => {
+    if (!notification || !notification.id) return;
+    setBusyId(notification.id);
+    setError("");
+
+    // Optimistically update notifications and counts
+    setNotifications((prev) => prev.filter((n) => n.id !== notification.id));
+    setCounts((prev) => ({
+      ...prev,
+      total: Math.max(0, prev.total - 1),
+      unread: !notification.is_read && !notification.is_archived ? Math.max(0, prev.unread - 1) : prev.unread,
+      important: notification.is_important && !notification.is_archived ? Math.max(0, prev.important - 1) : prev.important,
+      read: notification.is_read && !notification.is_archived ? Math.max(0, prev.read - 1) : prev.read,
+      archived: notification.is_archived ? Math.max(0, prev.archived - 1) : prev.archived
+    }));
+
+    if (previewNotification?.id === notification.id) {
+      setPreviewNotification(null);
+    }
+
+    try {
+      const response = await fetch(`${API_BASE}/api/notifications/${notification.id}?userId=${encodeURIComponent(userId)}`, {
+        method: "DELETE"
+      });
+      await readApiResponse(response);
+      showToast("Notification deleted successfully.");
+    } catch (err) {
+      await loadNotifications();
+      showError(err.message || "Unable to delete notification.");
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const openPreview = (notification, mode = "preview") => {
+    setPreviewNotification(notification);
+    setViewMode(mode);
+    if (!notification.is_read) {
+      updateNotification(notification, { is_read: true });
     }
   };
 
@@ -153,10 +220,11 @@ export default function Notifications({ currentUser, employeeProfile, adminView 
       const response = await fetch(`${API_BASE}/api/notifications/${encodeURIComponent(userId)}/read-all`, {
         method: "PATCH"
       });
-      const result = await readApiResponse(response);
+      await readApiResponse(response);
       await loadNotifications();
+      showToast("All notifications marked as read.");
     } catch (updateError) {
-      setError(updateError.message || "Unable to mark notifications as read.");
+      showError(updateError.message || "Unable to mark notifications as read.");
     }
   };
 
@@ -178,7 +246,24 @@ export default function Notifications({ currentUser, employeeProfile, adminView 
           </div>
         </div>
 
-        {error && <div className="alert alert-danger" role="alert">{error}</div>}
+        {error && (
+          <div className="alert alert-danger alert-dismissible fade show d-flex align-items-center justify-content-between" role="alert">
+            <div>
+              <i className="bi bi-exclamation-triangle-fill me-2"></i>
+              {error}
+            </div>
+            <button type="button" className="btn-close" onClick={() => setError("")} aria-label="Close"></button>
+          </div>
+        )}
+        {toastMessage && (
+          <div className="alert alert-success alert-dismissible fade show d-flex align-items-center justify-content-between" role="alert">
+            <div>
+              <i className="bi bi-check-circle-fill me-2"></i>
+              {toastMessage}
+            </div>
+            <button type="button" className="btn-close" onClick={() => setToastMessage("")} aria-label="Close"></button>
+          </div>
+        )}
 
         <div className="en-welcome-banner">
           <div className="en-welcome-icon"><i className="bi bi-bell-fill"></i></div>
@@ -243,8 +328,8 @@ export default function Notifications({ currentUser, employeeProfile, adminView 
                   <article 
                     key={notification.id} 
                     className={`en-notification ${notification.is_read ? "" : "unread"}`}
-                    style={{ cursor: notification.is_read ? "default" : "pointer" }}
-                    onClick={() => { if (!notification.is_read) updateNotification(notification, { is_read: true }); }}
+                    style={{ cursor: "pointer" }}
+                    onClick={() => openPreview(notification, "preview")}
                   >
                     <div className="en-notification-icon en-icon-purple"><i className={`bi ${ICONS[notification.category] || "bi-bell"}`}></i></div>
                     <div className="en-notification-main">
@@ -260,13 +345,55 @@ export default function Notifications({ currentUser, employeeProfile, adminView 
                       </div>
                     </div>
                     <div className="en-notification-actions">
+                      <button 
+                        type="button" 
+                        className="en-action-btn" 
+                        title="Notification Preview" 
+                        aria-label="Notification Preview" 
+                        onClick={(e) => { e.stopPropagation(); openPreview(notification, "preview"); }}
+                      >
+                        <i className="bi bi-eye"></i>
+                      </button>
+                      <button 
+                        type="button" 
+                        className="en-action-btn" 
+                        title="Email View" 
+                        aria-label="Email View" 
+                        onClick={(e) => { e.stopPropagation(); openPreview(notification, "email"); }}
+                      >
+                        <i className="bi bi-envelope-paper"></i>
+                      </button>
                       {!notification.is_archived && (
-                        <button type="button" className="en-action-btn" title={notification.is_read ? "Mark unread" : "Mark read"} aria-label={notification.is_read ? "Mark unread" : "Mark read"} disabled={busyId === notification.id} onClick={() => updateNotification(notification, { is_read: !notification.is_read })}>
+                        <button 
+                          type="button" 
+                          className="en-action-btn" 
+                          title={notification.is_read ? "Mark unread" : "Mark read"} 
+                          aria-label={notification.is_read ? "Mark unread" : "Mark read"} 
+                          disabled={busyId === notification.id} 
+                          onClick={(e) => { e.stopPropagation(); updateNotification(notification, { is_read: !notification.is_read }); }}
+                        >
                           <i className={`bi ${notification.is_read ? "bi-envelope" : "bi-envelope-open"}`}></i>
                         </button>
                       )}
-                      <button type="button" className="en-action-btn" title={notification.is_archived ? "Restore" : "Archive"} aria-label={notification.is_archived ? "Restore notification" : "Archive notification"} disabled={busyId === notification.id} onClick={() => updateNotification(notification, { is_archived: !notification.is_archived })}>
+                      <button 
+                        type="button" 
+                        className="en-action-btn" 
+                        title={notification.is_archived ? "Restore" : "Archive"} 
+                        aria-label={notification.is_archived ? "Restore notification" : "Archive notification"} 
+                        disabled={busyId === notification.id} 
+                        onClick={(e) => { e.stopPropagation(); updateNotification(notification, { is_archived: !notification.is_archived }); }}
+                      >
                         <i className={`bi ${notification.is_archived ? "bi-arrow-counterclockwise" : "bi-archive"}`}></i>
+                      </button>
+                      <button 
+                        type="button" 
+                        className="en-action-btn text-danger" 
+                        title="Delete notification" 
+                        aria-label="Delete notification" 
+                        disabled={busyId === notification.id} 
+                        onClick={(e) => { e.stopPropagation(); deleteNotification(notification); }}
+                      >
+                        <i className="bi bi-trash"></i>
                       </button>
                     </div>
                   </article>
@@ -322,6 +449,212 @@ export default function Notifications({ currentUser, employeeProfile, adminView 
             )}
           </section>
         </div>
+
+        {/* Notification Preview & Email View Modal */}
+        {previewNotification && (
+          <div 
+            className="modal fade show d-block" 
+            tabIndex="-1" 
+            style={{ backgroundColor: "rgba(0,0,0,0.55)", zIndex: 1060 }}
+            role="dialog"
+            aria-modal="true"
+          >
+            <div className="modal-dialog modal-dialog-centered modal-lg">
+              <div className="modal-content shadow border-0" style={{ borderRadius: "14px", overflow: "hidden" }}>
+                <div className="modal-header bg-light py-3 px-4 border-bottom d-flex align-items-center justify-content-between">
+                  <div className="d-flex align-items-center gap-2">
+                    <div className="btn-group p-1 bg-white rounded-pill border" role="group">
+                      <button
+                        type="button"
+                        className={`btn btn-sm rounded-pill px-3 py-1 ${viewMode === "preview" ? "btn-primary text-white" : "btn-light text-secondary"}`}
+                        style={{ fontSize: "12px", fontWeight: "600" }}
+                        onClick={() => setViewMode("preview")}
+                      >
+                        <i className="bi bi-eye me-1"></i> Standard Preview
+                      </button>
+                      <button
+                        type="button"
+                        className={`btn btn-sm rounded-pill px-3 py-1 ${viewMode === "email" ? "btn-primary text-white" : "btn-light text-secondary"}`}
+                        style={{ fontSize: "12px", fontWeight: "600" }}
+                        onClick={() => setViewMode("email")}
+                      >
+                        <i className="bi bi-envelope-paper me-1"></i> Email View
+                      </button>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    className="btn-close"
+                    aria-label="Close"
+                    onClick={() => setPreviewNotification(null)}
+                  ></button>
+                </div>
+
+                <div className="modal-body p-4" style={{ maxHeight: "75vh", overflowY: "auto" }}>
+                  {viewMode === "preview" ? (
+                    <div className="notification-preview-content">
+                      <div className="d-flex align-items-center justify-content-between mb-3 pb-2 border-bottom flex-wrap gap-2">
+                        <div className="d-flex align-items-center gap-2">
+                          <span className="badge bg-primary-subtle text-primary border border-primary-subtle px-2 py-1 rounded-pill" style={{ fontSize: "12px" }}>
+                            <i className={`bi ${ICONS[previewNotification.category] || "bi-bell"} me-1`}></i>
+                            {previewNotification.category || "General"}
+                          </span>
+                          {previewNotification.is_important && (
+                            <span className="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle px-2 py-1 rounded-pill" style={{ fontSize: "12px" }}>
+                              <i className="bi bi-star-fill me-1"></i> Important
+                            </span>
+                          )}
+                          {!previewNotification.is_read && (
+                            <span className="badge bg-info-subtle text-info-emphasis px-2 py-1 rounded-pill" style={{ fontSize: "12px" }}>
+                              New
+                            </span>
+                          )}
+                        </div>
+                        <small className="text-muted">
+                          <i className="bi bi-clock me-1"></i>
+                          {formatDate(previewNotification.created_at)}
+                        </small>
+                      </div>
+
+                      <div className="mb-4">
+                        <h4 className="fw-bold mb-3 text-dark d-flex align-items-center gap-2">
+                          <div 
+                            className="rounded-circle bg-primary bg-opacity-10 text-primary d-inline-flex align-items-center justify-content-center flex-shrink-0" 
+                            style={{ width: "40px", height: "40px", fontSize: "18px" }}
+                          >
+                            <i className={`bi ${ICONS[previewNotification.category] || "bi-bell"}`}></i>
+                          </div>
+                          {previewNotification.title}
+                        </h4>
+                        <div 
+                          className="p-3 bg-light rounded-3 text-secondary lh-lg border"
+                          style={{ fontSize: "14px", whiteSpace: "pre-wrap" }}
+                        >
+                          {previewNotification.message}
+                        </div>
+                      </div>
+
+                      {previewNotification.action_url && (
+                        <div className="mt-3 p-3 bg-white border rounded-3 d-flex align-items-center justify-content-between">
+                          <div>
+                            <small className="text-muted d-block fw-semibold">Action Required / Associated Link</small>
+                            <span className="text-dark small text-break">{previewNotification.action_url}</span>
+                          </div>
+                          <a 
+                            href={previewNotification.action_url} 
+                            className="btn btn-sm btn-outline-primary rounded-pill px-3"
+                            target="_blank" 
+                            rel="noreferrer"
+                          >
+                            Open Link <i className="bi bi-box-arrow-up-right ms-1"></i>
+                          </a>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    /* Email View */
+                    <div className="notification-email-view border rounded-3 shadow-sm bg-white overflow-hidden">
+                      <div className="bg-light p-3 border-bottom">
+                        <div className="row g-2 text-muted small">
+                          <div className="col-12 col-md-6">
+                            <strong className="text-dark">From:</strong> HRMS Portal &lt;notifications@company.internal&gt;
+                          </div>
+                          <div className="col-12 col-md-6 text-md-end">
+                            <strong className="text-dark">Date:</strong> {formatDate(previewNotification.created_at)}
+                          </div>
+                          <div className="col-12">
+                            <strong className="text-dark">To:</strong> {employeeProfile?.email || currentUser?.email || "employee@company.internal"}
+                          </div>
+                          <div className="col-12">
+                            <strong className="text-dark">Subject:</strong> [HRMS Notification] {previewNotification.title}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="p-4" style={{ backgroundColor: "#fafbfc" }}>
+                        <div className="bg-white p-4 rounded-3 border shadow-none" style={{ maxWidth: "680px", margin: "0 auto" }}>
+                          <div className="d-flex align-items-center justify-content-between pb-3 mb-3 border-bottom">
+                            <div className="fw-bold text-primary fs-5 d-flex align-items-center gap-2">
+                              <i className="bi bi-building"></i>
+                              <span>Enterprise HRMS Portal</span>
+                            </div>
+                            <span className="badge bg-secondary-subtle text-secondary small px-2 py-1">
+                              {previewNotification.category || "Notification"}
+                            </span>
+                          </div>
+
+                          <p className="mb-3 text-dark fw-medium">
+                            Dear {employeeProfile?.first_name || currentUser?.name || "Employee"},
+                          </p>
+
+                          <p className="text-secondary mb-3" style={{ fontSize: "14px", lineHeight: "1.6" }}>
+                            You have received an official communication from the HRMS portal regarding <strong>{previewNotification.title}</strong>:
+                          </p>
+
+                          <div className="p-3 my-3 border-start border-4 border-primary bg-light rounded-end" style={{ fontSize: "14px", lineHeight: "1.7", color: "#334155" }}>
+                            {previewNotification.message}
+                          </div>
+
+                          {previewNotification.action_url && (
+                            <div className="my-4 text-center">
+                              <a
+                                href={previewNotification.action_url}
+                                className="btn btn-primary px-4 py-2 rounded-pill fw-semibold"
+                                style={{ fontSize: "13px" }}
+                                target="_blank"
+                                rel="noreferrer"
+                              >
+                                View Details in Portal <i className="bi bi-arrow-right ms-1"></i>
+                              </a>
+                            </div>
+                          )}
+
+                          <div className="mt-4 pt-3 border-top text-muted" style={{ fontSize: "13px", lineHeight: "1.5" }}>
+                            <p className="mb-1">Best regards,</p>
+                            <p className="fw-bold text-dark mb-0">Human Resources & Operations Team</p>
+                            <p className="text-secondary small mb-0">Enterprise HRMS Portal | Automated Notification Service</p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="modal-footer bg-light py-2 px-4 border-top d-flex justify-content-between flex-wrap gap-2">
+                  <div className="d-flex align-items-center gap-2">
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-outline-danger"
+                      onClick={() => deleteNotification(previewNotification)}
+                      disabled={busyId === previewNotification.id}
+                    >
+                      <i className="bi bi-trash me-1"></i> Delete
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-outline-secondary"
+                      onClick={() => {
+                        updateNotification(previewNotification, { is_archived: !previewNotification.is_archived });
+                        setPreviewNotification((prev) => prev ? { ...prev, is_archived: !prev.is_archived } : null);
+                      }}
+                      disabled={busyId === previewNotification.id}
+                    >
+                      <i className={`bi ${previewNotification.is_archived ? "bi-arrow-counterclockwise" : "bi-archive"} me-1`}></i>
+                      {previewNotification.is_archived ? "Restore" : "Archive"}
+                    </button>
+                  </div>
+                  <button
+                    type="button"
+                    className="btn btn-sm btn-secondary px-3"
+                    onClick={() => setPreviewNotification(null)}
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

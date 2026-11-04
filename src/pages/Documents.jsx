@@ -25,7 +25,7 @@ const statusKind = (status) => {
   if (status === "Verified") return { cls: "verified", icon: "bi-check-circle-fill", label: "Verified" };
   if (status === "Rejected") return { cls: "rejected", icon: "bi-x-circle-fill", label: "Rejected" };
   if (status === "Re-upload") return { cls: "rejected", icon: "bi-arrow-repeat", label: "Re-upload Required" };
-  return { cls: "pending", icon: "bi-clock-fill", label: "Pending" };
+  return { cls: "pending", icon: "bi-clock-fill", label: "Pending (Awaiting HR verification)" };
 };
 const API_BASE = import.meta.env.VITE_API_URL || "https://hrms-backend-5xo8.onrender.com";
 
@@ -183,6 +183,7 @@ export default function Documents({ currentUser, employeeProfile, embedded = fal
   const [form, setForm] = useState(EMPTY_FORM);
   const [submitting, setSubmitting] = useState(false);
   const [feedback, setFeedback] = useState({ type: "", text: "" });
+  const [actionError, setActionError] = useState("");
   useEffect(() => {
     if (!feedback.text) return;
     const t = setTimeout(() => setFeedback({ type: "", text: "" }), 5000);
@@ -205,9 +206,16 @@ export default function Documents({ currentUser, employeeProfile, embedded = fal
   const [page, setPage] = useState(1);
   const [viewDoc, setViewDoc] = useState(null);
   const [editingDoc, setEditingDoc] = useState(null);
-  const [actionError, setActionError] = useState("");
-    const [deleteTarget, setDeleteTarget] = useState(null);
-    const [deleting, setDeleting] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deleting, setDeleting] = useState(false);
+  const [globalToast, setGlobalToast] = useState(null);
+
+  useEffect(() => {
+    if (globalToast) {
+      const timer = setTimeout(() => setGlobalToast(null), 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [globalToast]);
 
   const openEdit = (doc) => {
     setEditingDoc(doc);
@@ -240,6 +248,7 @@ export default function Documents({ currentUser, employeeProfile, embedded = fal
       if (!response.ok) throw new Error(data.message || "Delete failed");
             setDeleteTarget(null);
             await loadDocuments();
+            setGlobalToast({ type: "success", message: "Document deleted successfully" });
     } catch (err) {
       setActionError(err.message || "Delete failed");
         } finally {
@@ -248,13 +257,14 @@ export default function Documents({ currentUser, employeeProfile, embedded = fal
   };
 
   const loadDocuments = useCallback(async () => {
-    if (!currentUser?.id) {
+    const targetUserId = currentUser?.id || employeeProfile?.user_id || employeeProfile?.id;
+    if (!targetUserId) {
       setListLoading(false);
       return;
     }
     try {
       setListError("");
-      const response = await fetch(`${API_BASE}/api/employee/documents/${currentUser.id}`);
+      const response = await fetch(`${API_BASE}/api/employee/documents/${targetUserId}`);
       const data = await response.json();
       if (!response.ok) throw new Error(data.message || "Failed to load documents");
       setDocuments(data);
@@ -434,6 +444,7 @@ export default function Documents({ currentUser, employeeProfile, embedded = fal
         if (!response.ok) throw new Error(data.message || "Update failed");
         loadDocuments();
         closeUpload();
+        setGlobalToast({ type: "success", message: "Document updated successfully" });
       } catch (err) {
         setFeedback({ type: "danger", text: err.message || "Update failed" });
       } finally {
@@ -464,6 +475,7 @@ export default function Documents({ currentUser, employeeProfile, embedded = fal
       setForm(EMPTY_FORM);
     await loadDocuments();
     closeUpload();
+    setGlobalToast({ type: "success", message: "Document added successfully" });
     } catch (err) {
       setFeedback({ type: "danger", text: err.message || "Upload failed" });
     } finally {
@@ -484,11 +496,18 @@ export default function Documents({ currentUser, employeeProfile, embedded = fal
 
   return (
     <>
-<div className="px-0 px-md-5 employee-dashboard">
+      <div className={embedded ? "w-100" : "px-0 px-md-5 employee-dashboard"} style={{ width: "100%" }}>
 
-                <div id="profileDocuments">
+                <div id="profileDocuments" className="w-100" style={{ width: "100%" }}>
 
-                    <div className="epd-page">
+                    <div className="epd-page w-100" style={{ width: "100%", maxWidth: "100%" }}>
+                        {globalToast && (
+                            <div className="alert alert-success alert-dismissible fade show d-flex align-items-center mb-3" role="alert" style={{ borderRadius: 10, fontSize: "14px" }}>
+                                <i className="bi bi-check-circle-fill text-success me-2 fs-5"></i>
+                                <div className="flex-grow-1">{globalToast.message}</div>
+                                <button type="button" className="btn-close" aria-label="Close" onClick={() => setGlobalToast(null)}></button>
+                            </div>
+                        )}
 
                         
                         {!embedded && <div className="epd-header">
@@ -546,7 +565,7 @@ export default function Documents({ currentUser, employeeProfile, embedded = fal
                                         </span>
                                         <span>
                                             <i className="bi bi-briefcase"></i>
-                                            {employeeProfile?.designation || "Senior Software Engineer"}
+                                            {employeeProfile?.designation || currentUser?.designation || currentUser?.role || "Software Engineer"}
                                         </span>
                                         <span>
                                             <i className="bi bi-diagram-3"></i>
@@ -1316,7 +1335,7 @@ export default function Documents({ currentUser, employeeProfile, embedded = fal
                             </div>
                             <div className="modal-body">
                                 <p className="mb-0">
-                                    Delete <strong>{deleteTarget?.document_name || deleteTarget?.document_type}</strong>? This cannot be undone.
+                                    Are you sure you want to delete <strong>{deleteTarget?.document_name || deleteTarget?.document_type}</strong>?
                                 </p>
                                 {actionError && <p className="text-danger mt-3 mb-0" role="alert">{actionError}</p>}
                             </div>

@@ -73,37 +73,18 @@ export default function SkillsCertifications({ currentUser, employeeProfile, emb
     return () => clearTimeout(t);
   }, [certAlertMessage]);
 
+  const [globalToast, setGlobalToast] = useState(null);
+
+  useEffect(() => {
+    if (!globalToast) return;
+    const t = setTimeout(() => setGlobalToast(null), 5000);
+    return () => clearTimeout(t);
+  }, [globalToast]);
+
   const handleOpenCertificate = (cert) => {
     if (!cert) return;
-    if (!cert.file_path && !cert.file_name) {
-      setCertAlertMessage("Document Not Found: No document has been uploaded for this certification.");
-      return;
-    }
-    setCertAlertMessage("");
-    if (cert.id) {
-      window.open(`${API_BASE}/api/employee/certifications/file/${cert.id}`, "_blank", "noopener,noreferrer");
-      return;
-    }
-    if (cert.file_path && cert.file_path.startsWith("data:")) {
-      try {
-        const parts = cert.file_path.split(",");
-        const byteString = atob(parts[1]);
-        const mimeString = parts[0].split(":")[1].split(";")[0];
-        const ab = new ArrayBuffer(byteString.length);
-        const ia = new Uint8Array(ab);
-        for (let i = 0; i < byteString.length; i++) ia[i] = byteString.charCodeAt(i);
-        const blob = new Blob([ab], { type: mimeString });
-        const blobUrl = URL.createObjectURL(blob);
-        window.open(blobUrl, "_blank", "noopener,noreferrer");
-        return;
-      } catch (e) {
-        console.error("Failed to open certificate:", e);
-      }
-    }
-    const targetUrl = cert.file_path && (cert.file_path.startsWith("http") || cert.file_path.startsWith("/"))
-      ? cert.file_path
-      : `${API_BASE}/uploads/certifications/${encodeURIComponent(cert.file_path)}`;
-    window.open(targetUrl, "_blank", "noopener,noreferrer");
+    setSelectedCert(cert);
+    setIsCertDetailsOpen(true);
   };
   const [isCertDetailsOpen, setIsCertDetailsOpen] = useState(false);
   const [openCertActionsId, setOpenCertActionsId] = useState(null);
@@ -211,9 +192,9 @@ export default function SkillsCertifications({ currentUser, employeeProfile, emb
           </div>
 
           <div className="esc-cert-footer">
-            <span className="esc-cert-verified" style={verified ? undefined : { color: "#f59a42" }}>
+            <span className="esc-cert-verified" style={verified ? undefined : { color: "#f59a42" }} title={verified ? "Verified by HR" : "Awaiting HR approval"}>
               <i className={`bi ${verified ? "bi-patch-check-fill" : "bi-clock-fill"}`}></i>
-              {verified ? "Verified" : "Pending"}
+              {verified ? "Verified" : "Pending (Awaiting HR approval)"}
             </span>
 
             {(cert.file_path || cert.id) && (
@@ -223,7 +204,7 @@ export default function SkillsCertifications({ currentUser, employeeProfile, emb
                 onClick={() => handleOpenCertificate(cert)}
               >
                 View Certificate
-                <i className="bi bi-arrow-up-right ms-1"></i>
+                <i className="bi bi-eye ms-1"></i>
               </button>
             )}
           </div>
@@ -334,8 +315,13 @@ export default function SkillsCertifications({ currentUser, employeeProfile, emb
       });
       const data = await readApiResponse(response);
       if (!response.ok) throw new Error(data.message || "Failed to save certification");
+      const isEdit = certMode === "edit";
       closeCert();
       await loadCerts();
+      setGlobalToast({
+        type: "success",
+        message: isEdit ? "Certification updated successfully" : "Certification added successfully"
+      });
     } catch (err) {
       setCertFeedback({ type: "danger", text: err.message || "Failed to save certification" });
     } finally {
@@ -353,6 +339,10 @@ export default function SkillsCertifications({ currentUser, employeeProfile, emb
       if (!response.ok) throw new Error(data.message || "Failed to delete certification");
       setCertDeleteTarget(null);
       await loadCerts();
+      setGlobalToast({
+        type: "success",
+        message: "Certification deleted successfully"
+      });
     } catch (err) {
       setCertDeleteError(err.message || "Failed to delete certification");
     } finally {
@@ -463,6 +453,10 @@ export default function SkillsCertifications({ currentUser, employeeProfile, emb
       if (!response.ok) throw new Error(data.message || "Failed to delete skill");
       setSkillDeleteTarget(null);
       await loadSkills();
+      setGlobalToast({
+        type: "success",
+        message: "Skill deleted successfully"
+      });
     } catch (err) {
       setSkillDeleteError(err.message || "Failed to delete skill");
     } finally {
@@ -523,9 +517,9 @@ export default function SkillsCertifications({ currentUser, employeeProfile, emb
           <span>Experience</span>
         </div>
 
-        <div className="esc-skill-verified" style={verified ? undefined : { color: "#f59a42" }}>
+        <div className="esc-skill-verified" style={verified ? undefined : { color: "#f59a42" }} title={verified ? "Verified by HR" : "Awaiting HR approval"}>
           <i className={`bi ${verified ? "bi-patch-check-fill" : "bi-clock-fill"}`}></i>
-          {verified ? "Verified" : "Pending"}
+          {verified ? "Verified" : "Pending (Awaiting HR approval)"}
         </div>
 
         <div className="dropdown esc-skill-actions">
@@ -594,22 +588,30 @@ export default function SkillsCertifications({ currentUser, employeeProfile, emb
       });
       const data = await readApiResponse(response);
       if (!response.ok) throw new Error(data.message || "Failed to save skill");
+      const isEdit = skillMode === "edit";
       setSkillForm(EMPTY_SKILL_FORM);
-      setSkillFeedback({ type: "success", text: data.message });
       await loadSkills();
       closeSkill();
+      setGlobalToast({
+        type: "success",
+        message: isEdit ? "Skill updated successfully" : "Skill added successfully"
+      });
     } catch (err) {
       setSkillFeedback({ type: "danger", text: err.message || "Failed to save skill" });
     } finally {
       setSkillSubmitting(false);
     }
   };
-  return (
+  const content = (
     <>
-      <main className="dashboard-wrapper">
-        <div className="dashboard-container">
-          <div className="px-0 px-md-5 employee-dashboard">
-            <div className="esc-page">
+      <div className="esc-page w-100" style={{ width: "100%", maxWidth: "100%" }}>
+            {globalToast && (
+              <div className="alert alert-success alert-dismissible fade show d-flex align-items-center mb-3" role="alert" style={{ borderRadius: 10, fontSize: "14px" }}>
+                <i className="bi bi-check-circle-fill text-success me-2 fs-5"></i>
+                <div className="flex-grow-1">{globalToast.message}</div>
+                <button type="button" className="btn-close" aria-label="Close" onClick={() => setGlobalToast(null)}></button>
+              </div>
+            )}
 
             <div className={`esc-page-header${embedded ? " d-none" : ""}`}>
                 <div>
@@ -663,7 +665,7 @@ export default function SkillsCertifications({ currentUser, employeeProfile, emb
                                         </span>
                                         <span>
                                             <i className="bi bi-briefcase"></i>
-                                            {employeeProfile?.designation || employeeProfile?.role_name || "Senior Software Engineer"}
+                                            {employeeProfile?.designation || employeeProfile?.role_name || currentUser?.designation || currentUser?.role || "Software Engineer"}
                                         </span>
                                         <span>
                                             <i className="bi bi-diagram-3"></i>
@@ -1403,7 +1405,7 @@ export default function SkillsCertifications({ currentUser, employeeProfile, emb
                           </div>
                           <div className="modal-body">
                             <p className="mb-0">
-                              Delete <strong>{skillDeleteTarget?.skill_category === "Others" && skillDeleteTarget?.other_skill ? skillDeleteTarget.other_skill : skillDeleteTarget?.skill_name}</strong>? This cannot be undone.
+                              Are you sure you want to delete <strong>{skillDeleteTarget?.skill_category === "Others" && skillDeleteTarget?.other_skill ? skillDeleteTarget.other_skill : skillDeleteTarget?.skill_name}</strong>?
                             </p>
                             {skillDeleteError && <p className="text-danger mt-3 mb-0" role="alert">{skillDeleteError}</p>}
                           </div>
@@ -1732,7 +1734,7 @@ export default function SkillsCertifications({ currentUser, employeeProfile, emb
                                                           <div className="esc-skill-detail-item"><span>Certificate Number</span><strong>{selectedCert.certificate_number || "—"}</strong></div>
                                                           <div className="esc-skill-detail-item"><span>Issue Date</span><strong>{formatCertDate(selectedCert.issue_date)}</strong></div>
                                                           <div className="esc-skill-detail-item"><span>Expiry Date</span><strong>{formatCertDate(selectedCert.expiry_date)}</strong></div>
-                                                          <div className="esc-skill-detail-item"><span>Verification</span><strong className={selectedCert.verification_status === "Verified" ? "esc-skill-detail-verified" : ""}>{selectedCert.verification_status || "Pending"}</strong></div>
+                                                          <div className="esc-skill-detail-item"><span>Verification</span><strong className={selectedCert.verification_status === "Verified" ? "esc-skill-detail-verified" : ""}>{selectedCert.verification_status === "Verified" ? "Verified" : "Pending (Awaiting HR approval)"}</strong></div>
                                                         </div>
                                                       </div>
                                                       <div className="modal-footer esc-modal-footer">
@@ -1766,7 +1768,7 @@ export default function SkillsCertifications({ currentUser, employeeProfile, emb
                                                     <button type="button" className="btn-close" aria-label="Close" onClick={closeDeleteCertification} disabled={certDeleteSubmitting}></button>
                                                   </div>
                                                   <div className="modal-body">
-                                                    <p className="mb-0">Delete <strong>{certDeleteTarget?.certification_name}</strong>? This cannot be undone.</p>
+                                                    <p className="mb-0">Are you sure you want to delete <strong>{certDeleteTarget?.certification_name}</strong>?</p>
                                                     {certDeleteError && <p className="text-danger mt-3 mb-0" role="alert">{certDeleteError}</p>}
                                                   </div>
                                                   <div className="modal-footer esc-modal-footer">
@@ -1795,10 +1797,21 @@ export default function SkillsCertifications({ currentUser, employeeProfile, emb
                         </div>
                     </div>
 
-                </div>
-          </div>
-        </main>
     </>
+  );
+
+  return embedded ? (
+    <div className="w-100 mt-2" style={{ width: "100%" }}>
+      {content}
+    </div>
+  ) : (
+    <main className="dashboard-wrapper">
+      <div className="dashboard-container">
+        <div className="px-0 px-md-5 employee-dashboard">
+          {content}
+        </div>
+      </div>
+    </main>
   );
 }
 
