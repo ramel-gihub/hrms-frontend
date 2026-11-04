@@ -2364,6 +2364,8 @@ export default function EmployeeRequests({ employeeProfile, currentUser }) {
           </button>
         </div>
       )}
+        </div>
+      </div>
     </>
   );
 }
