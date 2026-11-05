@@ -25,7 +25,7 @@ const statusKind = (status) => {
   if (status === "Verified") return { cls: "verified", icon: "bi-check-circle-fill", label: "Verified" };
   if (status === "Rejected") return { cls: "rejected", icon: "bi-x-circle-fill", label: "Rejected" };
   if (status === "Re-upload") return { cls: "rejected", icon: "bi-arrow-repeat", label: "Re-upload Required" };
-  return { cls: "pending", icon: "bi-clock-fill", label: "Pending (Awaiting HR verification)" };
+  return { cls: "pending", icon: "bi-clock-fill", label: "Pending" };
 };
 const API_BASE = import.meta.env.VITE_API_URL || "https://hrms-backend-fzef.onrender.com";
 

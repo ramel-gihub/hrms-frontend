@@ -192,9 +192,9 @@ export default function SkillsCertifications({ currentUser, employeeProfile, emb
           </div>
 
           <div className="esc-cert-footer">
-            <span className="esc-cert-verified" style={verified ? undefined : { color: "#f59a42" }} title={verified ? "Verified by HR" : "Awaiting HR approval"}>
+            <span className="esc-cert-verified" style={verified ? undefined : { color: "#f59a42" }} title={verified ? "Verified by HR" : "Pending"}>
               <i className={`bi ${verified ? "bi-patch-check-fill" : "bi-clock-fill"}`}></i>
-              {verified ? "Verified" : "Pending (Awaiting HR approval)"}
+              {verified ? "Verified" : "Pending"}
             </span>
 
             {(cert.file_path || cert.id) && (
@@ -517,9 +517,9 @@ export default function SkillsCertifications({ currentUser, employeeProfile, emb
           <span>Experience</span>
         </div>
 
-        <div className="esc-skill-verified" style={verified ? undefined : { color: "#f59a42" }} title={verified ? "Verified by HR" : "Awaiting HR approval"}>
+        <div className="esc-skill-verified" style={verified ? undefined : { color: "#f59a42" }} title={verified ? "Verified by HR" : "Pending"}>
           <i className={`bi ${verified ? "bi-patch-check-fill" : "bi-clock-fill"}`}></i>
-          {verified ? "Verified" : "Pending (Awaiting HR approval)"}
+          {verified ? "Verified" : "Pending"}
         </div>
 
         <div className="dropdown esc-skill-actions">
@@ -1734,7 +1734,7 @@ export default function SkillsCertifications({ currentUser, employeeProfile, emb
                                                           <div className="esc-skill-detail-item"><span>Certificate Number</span><strong>{selectedCert.certificate_number || "—"}</strong></div>
                                                           <div className="esc-skill-detail-item"><span>Issue Date</span><strong>{formatCertDate(selectedCert.issue_date)}</strong></div>
                                                           <div className="esc-skill-detail-item"><span>Expiry Date</span><strong>{formatCertDate(selectedCert.expiry_date)}</strong></div>
-                                                          <div className="esc-skill-detail-item"><span>Verification</span><strong className={selectedCert.verification_status === "Verified" ? "esc-skill-detail-verified" : ""}>{selectedCert.verification_status === "Verified" ? "Verified" : "Pending (Awaiting HR approval)"}</strong></div>
+                                                          <div className="esc-skill-detail-item"><span>Verification</span><strong className={selectedCert.verification_status === "Verified" ? "esc-skill-detail-verified" : ""}>{selectedCert.verification_status === "Verified" ? "Verified" : "Pending"}</strong></div>
                                                         </div>
                                                       </div>
                                                       <div className="modal-footer esc-modal-footer">
