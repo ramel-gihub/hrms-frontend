@@ -7,7 +7,7 @@ export default function DataReset({
   fetchEmployees,
   onNavigate
 }) {
-  const API_URL = import.meta.env.VITE_API_URL || (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') ? 'http://localhost:5002' : 'https://hrms-backend-f2ef.onrender.com');
+  const API_URL = import.meta.env.VITE_API_URL || (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') ? 'http://localhost:5002' : 'https://hrms-backend-fzef.onrender.com');
   const orgId = currentTenantId || currentUser?.organization_id || 1;
 
   // Filter out superadmins and organization admins so only actual non-admin employees are shown in dropdown and counted

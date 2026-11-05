@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import EmptyState from '../components/EmptyState';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'https://hrms-backend-f2ef.onrender.com';
+const API_BASE = import.meta.env.VITE_API_URL || 'https://hrms-backend-fzef.onrender.com';
 
 const CATEGORIES = [
   'Company News',

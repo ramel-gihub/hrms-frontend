@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import EmptyState from "../components/EmptyState";
 
-const API_BASE = import.meta.env.VITE_API_URL || "https://hrms-backend-f2ef.onrender.com";
+const API_BASE = import.meta.env.VITE_API_URL || "https://hrms-backend-fzef.onrender.com";
 
 const CATEGORY_STYLE = {
   Programming: { avatar: "esc-java", icon: "bi-code-slash" },
@@ -640,7 +640,7 @@ export default function SkillsCertifications({ currentUser, employeeProfile, emb
                                         <img
                                             src={/^(https?:\/\/|data:|blob:)/i.test(employeeProfile?.profile_pic || employeeProfile?.avatar_url)
                                                 ? (employeeProfile?.profile_pic || employeeProfile?.avatar_url)
-                                                : `${import.meta.env.VITE_API_URL || 'https://hrms-backend-f2ef.onrender.com'}/${(employeeProfile?.profile_pic || employeeProfile?.avatar_url).replace(/^\/+/, '')}`}
+                                                : `${import.meta.env.VITE_API_URL || 'https://hrms-backend-fzef.onrender.com'}/${(employeeProfile?.profile_pic || employeeProfile?.avatar_url).replace(/^\/+/, '')}`}
                                             alt={employeeName}
                                             style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: "17px" }}
                                         />

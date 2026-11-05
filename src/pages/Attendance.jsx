@@ -34,7 +34,7 @@ export default function Attendance({ currentUser, employeeProfile, onNavigate, e
     if (!editingCorrection || !currentUser) return;
     setSavingCorrection(true);
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL || "https://hrms-backend-f2ef.onrender.com"}/api/attendance/correction/${currentUser.id}/${editingCorrection.id || editingCorrection.request_code}`, {
+      const res = await fetch(`${import.meta.env.VITE_API_URL || "https://hrms-backend-fzef.onrender.com"}/api/attendance/correction/${currentUser.id}/${editingCorrection.id || editingCorrection.request_code}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(editForm)
@@ -42,7 +42,7 @@ export default function Attendance({ currentUser, employeeProfile, onNavigate, e
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to update attendance request");
 
-      const cRes = await fetch(`${import.meta.env.VITE_API_URL || "https://hrms-backend-f2ef.onrender.com"}/api/attendance/corrections/${currentUser.id}`);
+      const cRes = await fetch(`${import.meta.env.VITE_API_URL || "https://hrms-backend-fzef.onrender.com"}/api/attendance/corrections/${currentUser.id}`);
       const cData = await cRes.json();
       if (cData && cData.corrections) setCorrections(cData.corrections);
 
@@ -65,11 +65,11 @@ export default function Attendance({ currentUser, employeeProfile, onNavigate, e
     const fetchReport = async () => {
       try {
         setLoading(true);
-        const res = await fetch(`${import.meta.env.VITE_API_URL || "https://hrms-backend-f2ef.onrender.com"}/api/attendance/page/${currentUser.id}?month=${month}`);
+        const res = await fetch(`${import.meta.env.VITE_API_URL || "https://hrms-backend-fzef.onrender.com"}/api/attendance/page/${currentUser.id}?month=${month}`);
         const data = await res.json();
         setReport(data);
         // Fetch attendance corrections
-        fetch(`${import.meta.env.VITE_API_URL || "https://hrms-backend-f2ef.onrender.com"}/api/attendance/corrections/${currentUser.id}`)
+        fetch(`${import.meta.env.VITE_API_URL || "https://hrms-backend-fzef.onrender.com"}/api/attendance/corrections/${currentUser.id}`)
           .then(r => r.json())
           .then(cData => { if (cData && cData.corrections) setCorrections(cData.corrections); })
           .catch(console.error);
@@ -303,7 +303,7 @@ export default function Attendance({ currentUser, employeeProfile, onNavigate, e
       <img
         src={/^(https?:\/\/|data:|blob:)/i.test(employeeProfile?.profile_pic || employeeProfile?.avatar_url)
           ? (employeeProfile?.profile_pic || employeeProfile?.avatar_url)
-          : `${import.meta.env.VITE_API_URL || 'https://hrms-backend-f2ef.onrender.com'}/${(employeeProfile?.profile_pic || employeeProfile?.avatar_url).replace(/^\/+/, '')}`}
+          : `${import.meta.env.VITE_API_URL || 'https://hrms-backend-fzef.onrender.com'}/${(employeeProfile?.profile_pic || employeeProfile?.avatar_url).replace(/^\/+/, '')}`}
         alt="Employee"
         style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: "17px" }}
       />

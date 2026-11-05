@@ -9,7 +9,7 @@ export default function AdminLeaves({
   employees = [],
   fetchEmployees
 }) {
-  const API_URL = import.meta.env.VITE_API_URL || 'https://hrms-backend-f2ef.onrender.com';
+  const API_URL = import.meta.env.VITE_API_URL || 'https://hrms-backend-fzef.onrender.com';
   const orgId = currentTenantId || currentUser?.organization_id || 1;
 
   // Leaves and Leave types state

@@ -467,7 +467,7 @@ export default function EmployeeTemplate({
   const [sendingWishId, setSendingWishId] = useState(null);
   const [latestAnnouncement, setLatestAnnouncement] = useState(null);
 
-  const API_BASE = import.meta.env.VITE_API_URL || "https://hrms-backend-f2ef.onrender.com";
+  const API_BASE = import.meta.env.VITE_API_URL || "https://hrms-backend-fzef.onrender.com";
 
   const isHR = useMemo(() => {
     const roleStr = (currentUser?.role || currentUser?.roleName || '').toLowerCase();
@@ -762,7 +762,7 @@ export default function EmployeeTemplate({
   useEffect(() => {
     const uid = currentUser?.id || employeeProfile?.user_id;
     if (!uid) return;
-    fetch(`${import.meta.env.VITE_API_URL || "https://hrms-backend-f2ef.onrender.com"}/api/employee/my-teams/${uid}`)
+    fetch(`${import.meta.env.VITE_API_URL || "https://hrms-backend-fzef.onrender.com"}/api/employee/my-teams/${uid}`)
       .then(res => res.json())
       .then(data => {
         if (data && data.success) {

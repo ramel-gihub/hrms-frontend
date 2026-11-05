@@ -84,7 +84,7 @@ export default function Leaves({ currentUser, employeeProfile, embedded = false 
 
   const handleCancelLeave = async (leaveId) => {
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL || "https://hrms-backend-f2ef.onrender.com"}/api/leaves/cancel/${leaveId}`, {
+      const res = await fetch(`${import.meta.env.VITE_API_URL || "https://hrms-backend-fzef.onrender.com"}/api/leaves/cancel/${leaveId}`, {
         method: 'PUT'
       });
       const result = await res.json();
@@ -111,7 +111,7 @@ export default function Leaves({ currentUser, employeeProfile, embedded = false 
 
   const handleOpenLeaveDocument = (leaveId, docUrl, docName) => {
     if (leaveId) {
-      const fullUrl = `${import.meta.env.VITE_API_URL || "https://hrms-backend-f2ef.onrender.com"}/api/leaves/file/${leaveId}`;
+      const fullUrl = `${import.meta.env.VITE_API_URL || "https://hrms-backend-fzef.onrender.com"}/api/leaves/file/${leaveId}`;
       window.open(fullUrl, '_blank', 'noopener,noreferrer');
       return;
     }
@@ -134,7 +134,7 @@ export default function Leaves({ currentUser, employeeProfile, embedded = false 
     if (docUrl) {
       const fullUrl = docUrl.startsWith('http')
         ? docUrl
-        : `${import.meta.env.VITE_API_URL || "https://hrms-backend-f2ef.onrender.com"}${docUrl.startsWith('/') ? '' : '/'}${docUrl}`;
+        : `${import.meta.env.VITE_API_URL || "https://hrms-backend-fzef.onrender.com"}${docUrl.startsWith('/') ? '' : '/'}${docUrl}`;
       window.open(fullUrl, '_blank', 'noopener,noreferrer');
     }
   };
@@ -143,7 +143,7 @@ export default function Leaves({ currentUser, employeeProfile, embedded = false 
     if (!currentUser) return;
     try {
       setLoading(true);
-      const res = await fetch(`${import.meta.env.VITE_API_URL || "https://hrms-backend-f2ef.onrender.com"}/api/leaves/data/${currentUser.id}`);
+      const res = await fetch(`${import.meta.env.VITE_API_URL || "https://hrms-backend-fzef.onrender.com"}/api/leaves/data/${currentUser.id}`);
       const result = await res.json();
       if (result.error) {
           console.error(result.error);
@@ -286,7 +286,7 @@ export default function Leaves({ currentUser, employeeProfile, embedded = false 
         dataPayload.append('file', formData.documentFile);
       }
 
-      const response = await fetch(`${import.meta.env.VITE_API_URL || "https://hrms-backend-f2ef.onrender.com"}/api/leaves/apply`, {
+      const response = await fetch(`${import.meta.env.VITE_API_URL || "https://hrms-backend-fzef.onrender.com"}/api/leaves/apply`, {
         method: 'POST',
         body: dataPayload
       });
@@ -495,7 +495,7 @@ export default function Leaves({ currentUser, employeeProfile, embedded = false 
           <img
             src={/^(https?:\/\/|data:|blob:)/i.test(employeeProfile?.profile_pic || employeeProfile?.avatar_url)
               ? (employeeProfile?.profile_pic || employeeProfile?.avatar_url)
-              : `${import.meta.env.VITE_API_URL || 'https://hrms-backend-f2ef.onrender.com'}/${(employeeProfile?.profile_pic || employeeProfile?.avatar_url).replace(/^\/+/, '')}`}
+              : `${import.meta.env.VITE_API_URL || 'https://hrms-backend-fzef.onrender.com'}/${(employeeProfile?.profile_pic || employeeProfile?.avatar_url).replace(/^\/+/, '')}`}
             alt="Employee"
             style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: "17px" }}
           />
@@ -1801,7 +1801,7 @@ export default function Leaves({ currentUser, employeeProfile, embedded = false 
                                       updatePayload.append('file', editDocFile);
                                   }
 
-                                  const res = await fetch(`${import.meta.env.VITE_API_URL || "https://hrms-backend-f2ef.onrender.com"}/api/leaves/update/${viewLeave.id}`, {
+                                  const res = await fetch(`${import.meta.env.VITE_API_URL || "https://hrms-backend-fzef.onrender.com"}/api/leaves/update/${viewLeave.id}`, {
                                       method: 'PUT',
                                       body: updatePayload
                                   });

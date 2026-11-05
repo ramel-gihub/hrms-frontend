@@ -48,7 +48,7 @@ export default function HrmsAdminTemplate({
   const [unmappedCount, setUnmappedCount] = useState(0);
 
   const isSuperAdmin = (currentUser?.role || '').toLowerCase() === 'super_admin' || currentUser?.email === 'admin@ramel.co.in';
-  const API_URL = import.meta.env.VITE_API_URL || 'https://hrms-backend-f2ef.onrender.com';
+  const API_URL = import.meta.env.VITE_API_URL || 'https://hrms-backend-fzef.onrender.com';
 
   // Fetch pending leaves count
   useEffect(() => {
