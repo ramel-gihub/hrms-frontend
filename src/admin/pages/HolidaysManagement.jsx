@@ -23,7 +23,7 @@ export default function HolidaysManagement({
 
   const paginatedHolidays = holidays.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
-  const API_URL = import.meta.env.VITE_API_URL || 'https://hrms-backend-5xo8.onrender.com';
+  const API_URL = import.meta.env.VITE_API_URL || 'https://hrms-backend-f2ef.onrender.com';
 
   const fetchHolidays = async () => {
     setLoading(true);

@@ -5,7 +5,7 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
   const apiUrl = (env.VITE_API_URL && !env.VITE_API_URL.includes('f2ef'))
     ? env.VITE_API_URL
-    : 'https://hrms-backend-5xo8.onrender.com';
+    : 'https://hrms-backend-f2ef.onrender.com';
 
   return {
     plugins: [react()],

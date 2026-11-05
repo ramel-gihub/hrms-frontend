@@ -67,7 +67,7 @@ const calculateWorkingDays = (startRaw, endRaw, isHalfDay = false) => {
 };
 
 export default function EmployeeProfile({ currentUser, employeeProfile, onProfileUpdate, onNavigate }) {
-    const API_BASE = import.meta.env.VITE_API_URL || "https://hrms-backend-5xo8.onrender.com";
+    const API_BASE = import.meta.env.VITE_API_URL || "https://hrms-backend-f2ef.onrender.com";
     const [activeProfileTab, setActiveProfileTab] = useState("overview");
     const [skillsList, setSkillsList] = useState([]);
     const [skillsLoading, setSkillsLoading] = useState(false);

@@ -4,7 +4,7 @@ import EmptyState from "../components/EmptyState";
 const API_BASE = import.meta.env.VITE_API_URL || (
   ["localhost", "127.0.0.1"].includes(window.location.hostname)
     ? "http://localhost:5002"
-    : "https://hrms-backend-5xo8.onrender.com"
+    : "https://hrms-backend-f2ef.onrender.com"
 );
 const FILTERS = ["All Notifications", "Unread", "Important", "Archived"];
 const CATEGORIES = ["Leave", "Attendance", "Work From Home (WFH)", "Requests", "Assets", "IT Access", "Documents", "HR Announcement", "Celebrations"];

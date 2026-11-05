@@ -19,7 +19,7 @@ export default function TeamChatModal({
   const inputRef = useRef(null);
   const shouldAutoScrollRef = useRef(true);
 
-  const API_BASE = apiBase || import.meta.env.VITE_API_URL || 'https://hrms-backend-5xo8.onrender.com';
+  const API_BASE = apiBase || import.meta.env.VITE_API_URL || 'https://hrms-backend-f2ef.onrender.com';
 
   const senderId = currentEmployee?.id || employeeProfile?.id || employeeProfile?.employee_id || currentUser?.id;
   const senderName = currentEmployee?.employee_name || 

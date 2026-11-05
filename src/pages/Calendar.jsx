@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from "react";
 import EmptyState from "../components/EmptyState";
 import TeamChatModal from "../components/TeamChatModal";
 
-const API_BASE = import.meta.env.VITE_API_URL || "https://hrms-backend-5xo8.onrender.com";
+const API_BASE = import.meta.env.VITE_API_URL || "https://hrms-backend-f2ef.onrender.com";
 
 export default function Calendar({ employeeProfile, currentUser, initialTab = "calendar" }) {
   const profile = employeeProfile || {};
@@ -168,7 +168,7 @@ export default function Calendar({ employeeProfile, currentUser, initialTab = "c
             .catch(console.error);
 
         // Fetch Leaves using UID (backend expects user_id for /api/leaves/data/)
-        fetch(`${import.meta.env.VITE_API_URL || "https://hrms-backend-5xo8.onrender.com"}/api/leaves/data/${uid}`)
+        fetch(`${import.meta.env.VITE_API_URL || "https://hrms-backend-f2ef.onrender.com"}/api/leaves/data/${uid}`)
             .then(res => res.json())
             .then(data => {
                 if (data.requests) {
@@ -609,7 +609,7 @@ export default function Calendar({ employeeProfile, currentUser, initialTab = "c
                       <img
                         src={/^(https?:\/\/|data:|blob:)/i.test(employeeProfile?.profile_pic || employeeProfile?.avatar_url || profile?.profile_pic)
                           ? (employeeProfile?.profile_pic || employeeProfile?.avatar_url || profile?.profile_pic)
-                          : `${import.meta.env.VITE_API_URL || 'https://hrms-backend-5xo8.onrender.com'}/${(employeeProfile?.profile_pic || employeeProfile?.avatar_url || profile?.profile_pic).replace(/^\/+/, '')}`}
+                          : `${import.meta.env.VITE_API_URL || 'https://hrms-backend-f2ef.onrender.com'}/${(employeeProfile?.profile_pic || employeeProfile?.avatar_url || profile?.profile_pic).replace(/^\/+/, '')}`}
                         alt={profile?.preferred_name || profile?.first_name || "Employee"}
                         style={{ width: "100%", height: "100%", objectFit: "cover" }}
                       />
