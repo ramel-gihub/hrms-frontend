@@ -872,20 +872,26 @@ export default function EmployeeTemplate({
       }];
     }
 
+    const myEmpId = myTeamData.currentEmployee?.id || employeeProfile?.id || currentUser?.id;
+
     // If a specific project is selected
     if (selectedDashboardProjectId !== 'all') {
       const selectedTeam = teams.find(t => String(t.id) === String(selectedDashboardProjectId));
       if (selectedTeam) {
-        return (selectedTeam.members || []).map(m => ({
-          id: m.employee_id,
-          full_name: m.employee_name,
-          designation: m.designation || 'Developer',
-          status: 'Active',
-          role_in_team: m.role_in_team,
-          is_current_user: m.is_current_user,
-          project_badge: selectedTeam.project_code || selectedTeam.project_name,
-          avatar_url: m.avatar_url || m.profile_pic || null
-        }));
+        return (selectedTeam.members || []).map(m => {
+          const isMe = Boolean(m.is_current_user || (myEmpId && String(m.employee_id) === String(myEmpId)));
+          const avatar = m.avatar_url || m.profile_pic || (isMe ? (employeeProfile?.profile_pic || employeeProfile?.avatar_url) : null);
+          return {
+            id: m.employee_id,
+            full_name: m.employee_name,
+            designation: m.designation || 'Developer',
+            status: 'Active',
+            role_in_team: m.role_in_team,
+            is_current_user: isMe,
+            project_badge: selectedTeam.project_code || selectedTeam.project_name,
+            avatar_url: avatar || null
+          };
+        });
       }
     }
 
@@ -894,15 +900,17 @@ export default function EmployeeTemplate({
     teams.forEach(t => {
       (t.members || []).forEach(m => {
         if (!memberMap.has(m.employee_id)) {
+          const isMe = Boolean(m.is_current_user || (myEmpId && String(m.employee_id) === String(myEmpId)));
+          const avatar = m.avatar_url || m.profile_pic || (isMe ? (employeeProfile?.profile_pic || employeeProfile?.avatar_url) : null);
           memberMap.set(m.employee_id, {
             id: m.employee_id,
             full_name: m.employee_name,
             designation: m.designation || 'Developer',
             status: 'Active',
             role_in_team: m.role_in_team,
-            is_current_user: m.is_current_user,
+            is_current_user: isMe,
             project_badge: t.project_code || t.project_name,
-            avatar_url: m.avatar_url || m.profile_pic || null
+            avatar_url: avatar || null
           });
         }
       });
