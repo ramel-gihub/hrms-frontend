@@ -1851,17 +1851,10 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
             if (!response.ok) {
                 throw new Error(data.message || "Unable to save commute details.");
             }
-            setCommuteForm({
-                mode: "",
-                distance: "",
-                transportType: "",
-                routeDetails: "",
-                vehicleType: "",
-                vehicleMakeModel: "",
-                vehicleMileage: "",
-                fuelType: "",
+            setCommuteForm((prev) => ({
+                ...prev,
                 status: data.status || "Pending"
-            });
+            }));
             setCommuteFeedback("Travel details submitted (Status: Pending admin approval).");
         } catch (error) {
             setCommuteFeedback(error.message || "Unable to save commute details.");

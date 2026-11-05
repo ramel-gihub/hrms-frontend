@@ -480,6 +480,24 @@ export default function EmployeeTemplate({
     } catch (_) {}
   }, [sentWishes]);
 
+  // Synchronize sent wishes from server database so reload retains 'Wish Sent'
+  useEffect(() => {
+    if (widgetsData?.sentWishesToday && Array.isArray(widgetsData.sentWishesToday)) {
+      setSentWishes(prev => {
+        const next = { ...prev };
+        widgetsData.sentWishesToday.forEach(w => {
+          let meta = {};
+          try { meta = typeof w.metadata === "string" ? JSON.parse(w.metadata) : (w.metadata || {}); } catch(_) {}
+          const type = meta.type || (w.title?.includes("Birthday") ? "birthday" : w.title?.includes("Welcome") ? "welcome" : "anniversary");
+          if (w.employee_id) next[`${type}-${w.employee_id}`] = true;
+          if (w.recipient_user_id) next[`${type}-${w.recipient_user_id}`] = true;
+          if (meta.recipientName) next[`${type}-${meta.recipientName}`] = true;
+        });
+        return next;
+      });
+    }
+  }, [widgetsData]);
+
   const [sendingWishId, setSendingWishId] = useState(null);
   const [latestAnnouncement, setLatestAnnouncement] = useState(null);
 
@@ -1179,6 +1197,8 @@ export default function EmployeeTemplate({
       .map(u => {
         const day = parseInt(String(u.doj).slice(8, 10), 10) || 1;
         const joinDate = new Date(curYear, curMonth, day);
+        joinDate.setHours(0, 0, 0, 0);
+        const daysUntil = Math.ceil((joinDate - today) / (1000 * 60 * 60 * 24));
         return {
           id: u.id,
           employeeId: u.employeeId || u.id,
@@ -1187,9 +1207,11 @@ export default function EmployeeTemplate({
           profilePic: u.profilePic || u.profile_pic,
           date: joinDate,
           type: 'welcome',
-          daysUntil: 0
+          daysUntil
         };
-      });
+      })
+      .filter(u => u.daysUntil >= 0)
+      .sort((a, b) => a.date - b.date);
     return joiners[0] || null;
   }, [widgetsData, today]);
 
@@ -2549,14 +2571,17 @@ export default function EmployeeTemplate({
                             disabled={
                                 sentWishes[`welcome-${activeNewJoiner.id || activeNewJoiner.userId || activeNewJoiner.name}`] || 
                                 sendingWishId === `welcome-${activeNewJoiner.id || activeNewJoiner.userId || activeNewJoiner.name}` ||
-                                (currentUser?.id && activeNewJoiner.userId && Number(currentUser.id) === Number(activeNewJoiner.userId))
+                                (currentUser?.id && activeNewJoiner.userId && Number(currentUser.id) === Number(activeNewJoiner.userId)) ||
+                                activeNewJoiner.daysUntil !== 0
                             }
                             onClick={() => handleSendWish(activeNewJoiner, 'welcome')}
+                            title={activeNewJoiner.daysUntil !== 0 ? "Wishes can only be sent on the celebration date" : undefined}
                             style={{
-                                cursor: (sentWishes[`welcome-${activeNewJoiner.id || activeNewJoiner.userId || activeNewJoiner.name}`] || (currentUser?.id && activeNewJoiner.userId && Number(currentUser.id) === Number(activeNewJoiner.userId))) ? "default" : "pointer",
-                                backgroundColor: sentWishes[`welcome-${activeNewJoiner.id || activeNewJoiner.userId || activeNewJoiner.name}`] ? "#e2e8f0" : "#059669",
+                                cursor: (activeNewJoiner.daysUntil !== 0 || sentWishes[`welcome-${activeNewJoiner.id || activeNewJoiner.userId || activeNewJoiner.name}`] || (currentUser?.id && activeNewJoiner.userId && Number(currentUser.id) === Number(activeNewJoiner.userId))) ? "default" : "pointer",
+                                backgroundColor: sentWishes[`welcome-${activeNewJoiner.id || activeNewJoiner.userId || activeNewJoiner.name}`] ? "#e2e8f0" : activeNewJoiner.daysUntil !== 0 ? "#94a3b8" : "#059669",
                                 color: sentWishes[`welcome-${activeNewJoiner.id || activeNewJoiner.userId || activeNewJoiner.name}`] ? "#64748b" : "#ffffff",
-                                border: "none"
+                                border: "none",
+                                opacity: activeNewJoiner.daysUntil !== 0 ? 0.75 : 1
                             }}
                         >
                             {sendingWishId === `welcome-${activeNewJoiner.id || activeNewJoiner.userId || activeNewJoiner.name}` ? (
@@ -2573,6 +2598,11 @@ export default function EmployeeTemplate({
                                 <>
                                     <i className="bi bi-person-badge me-1"></i>
                                     You Joined! 👋
+                                </>
+                            ) : activeNewJoiner.daysUntil !== 0 ? (
+                                <>
+                                    <i className="bi bi-clock me-1"></i>
+                                    Send on {new Date(activeNewJoiner.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
                                 </>
                             ) : (
                                 <>
