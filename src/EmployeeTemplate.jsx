@@ -70,7 +70,7 @@ const SEARCH_DIRECTORY = [
   { id: "notifications-main", label: "Notifications & Alerts", category: "System", description: "View announcements, approvals, and reminders", icon: "bi-bell", page: "notifications", keywords: ["notifications", "alerts", "messages", "reminders", "inbox"] },
 
   // Settings & Security
-  { id: "settings-main", label: "Account Settings", category: "Settings", description: "Manage application preferences, password, and security", icon: "bi-gear", page: "settings", keywords: ["settings", "preferences", "account"] },
+  { id: "settings-main", label: "Settings", category: "Settings", description: "Manage application preferences, password, and security", icon: "bi-gear", page: "settings", keywords: ["settings", "preferences", "system settings"] },
   { id: "account-security", label: "Account & Security", category: "Settings", description: "Change password, setup security questions, session management", icon: "bi-shield-lock", page: "settings", keywords: ["security", "password", "change password", "security questions", "authentication"] },
   { id: "preferences", label: "Display & Notifications Preferences", category: "Settings", description: "Email notifications, language, theme preferences", icon: "bi-sliders", page: "settings", keywords: ["preferences", "theme", "notification settings", "email alerts"] },
 
@@ -78,7 +78,7 @@ const SEARCH_DIRECTORY = [
   { id: "exit-main", label: "Resignation & Exit Management", category: "Exit", description: "Submit resignation, handover tasks, and exit clearance", icon: "bi-box-arrow-right", page: "exit-management", keywords: ["exit", "resignation", "resign", "notice period", "clearance", "offboarding"] },
 
   // Accounts
-  { id: "accounts-main", label: "Access & Accounts", category: "Accounts", description: "Work email, SSO credentials, and system access", icon: "bi-shield-lock", page: "access-accounts", keywords: ["accounts", "access", "login", "credentials", "sso"] },
+  // { id: "accounts-main", label: "Access & Accounts", category: "Accounts", description: "Work email, SSO credentials, and system access", icon: "bi-shield-lock", page: "access-accounts", keywords: ["accounts", "access", "login", "credentials", "sso"] },
 
   // HR Announcements
   { id: "announcements-main", label: "HR Announcements", category: "HR Management", description: "Create and broadcast company, project, or employee announcements", icon: "bi-megaphone", page: "announcements", keywords: ["announcement", "announcements", "broadcast", "news", "notice", "hr"] }
@@ -100,7 +100,7 @@ const SHORTCUT_CONFIG = {
   "notifications": { id: "notifications", label: "Notifications", description: "View your updates", icon: "bi-bell", color: "pink", page: "notifications" },
   "settings": { id: "settings", label: "Settings", description: "Manage your preferences", icon: "bi-gear", color: "dark", page: "settings" },
   "exit-management": { id: "exit-management", label: "Resignation & Exit", description: "View exit information", icon: "bi-box-arrow-right", color: "orange", page: "exit-management" },
-  "access-accounts": { id: "access-accounts", label: "Access & Accounts", description: "View accounts", icon: "bi-shield-lock", color: "blue", page: "access-accounts" }
+  // "access-accounts": { id: "access-accounts", label: "Access & Accounts", description: "View accounts", icon: "bi-shield-lock", color: "blue", page: "access-accounts" }
 };
 
 export default function EmployeeTemplate({
@@ -1398,10 +1398,6 @@ export default function EmployeeTemplate({
                       <i className="bi bi-bell"></i>
                       <span>Notifications</span>
                   </span>
-                  <span onClick={() => navigateTo("settings")} className={`menu-item${activePage === "settings" ? " active" : ""}`} style={{cursor:"pointer"}}>
-                      <i className="bi bi-gear"></i>
-                      <span>Settings</span>
-                  </span>
 
                   <span className="menu-label" style={{ fontSize: '11px', fontWeight: 700, color: '#8a90a2', marginLeft: '22px', marginBottom: '8px', display: 'block', marginTop: '24px', letterSpacing: '0.5px' }}>EMPLOYEE EXIT</span>
                   <span onClick={() => navigateTo("exit-management")} className={`menu-item${activePage === "exit-management" ? " active" : ""}`} style={{cursor:"pointer"}}>
@@ -1411,6 +1407,10 @@ export default function EmployeeTemplate({
 
 
                   <span className="menu-label" style={{ fontSize: '11px', fontWeight: 700, color: '#8a90a2', marginLeft: '22px', marginBottom: '8px', display: 'block', marginTop: '24px', letterSpacing: '0.5px' }}>ACCOUNT</span>
+                  <span onClick={() => navigateTo("settings")} className={`menu-item${activePage === "settings" ? " active" : ""}`} style={{cursor:"pointer"}}>
+                      <i className="bi bi-gear"></i>
+                      <span>Settings</span>
+                  </span>
                   <a href="#!" className="menu-item text-danger" onClick={(e) => { e.preventDefault(); handleLogout(); }}>
                       <i className="bi bi-box-arrow-left"></i>
                       <span>Logout</span>

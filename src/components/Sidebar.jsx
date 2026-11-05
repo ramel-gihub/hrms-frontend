@@ -28,8 +28,13 @@ export default function Sidebar({ isOpen, toggleSidebar, activeMenu, setActiveMe
         { name: 'Assets', icon: 'bi-laptop', page: 'assets' },
         // { name: 'Access & Accounts', icon: 'bi-shield-lock', page: 'access-accounts' },
         { name: 'Notifications', icon: 'bi-bell', page: 'notifications' },
-        { name: 'Settings', icon: 'bi-gear', page: 'settings' },
         { name: 'Resignation & Exit', icon: 'bi-box-arrow-right', page: 'exit-management' },
+      ]
+    },
+    {
+      label: 'ACCOUNT',
+      menus: [
+        { name: 'Settings', icon: 'bi-gear', page: 'settings' },
       ]
     }
   ];

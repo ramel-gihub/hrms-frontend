@@ -1556,6 +1556,7 @@ export default function EmployeeProfile({ currentUser, employeeProfile, onProfil
                                         </div>
 
                                         {/* Export to CSV Button */}
+                                        {/*
                                         <button
                                             type="button"
                                             onClick={handleExportCommuteCSV}
@@ -1580,6 +1581,7 @@ export default function EmployeeProfile({ currentUser, employeeProfile, onProfil
                                             <i className="bi bi-file-earmark-spreadsheet text-success"></i>
                                             Export CSV
                                         </button>
+                                        */}
 
                                         {/* Export / Print Button */}
                                         <button
