@@ -84,7 +84,7 @@ export default function Leaves({ currentUser, employeeProfile, embedded = false 
 
   const handleCancelLeave = async (leaveId) => {
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL || "https://hrms-backend-fzef.onrender.com"}/api/leaves/cancel/${leaveId}`, {
+      const res = await fetch(`${(typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') ? 'http://localhost:5002' : (import.meta.env.VITE_API_URL || 'https://hrms-backend-fzef.onrender.com'))}/api/leaves/cancel/${leaveId}`, {
         method: 'PUT'
       });
       const result = await res.json();
@@ -111,7 +111,7 @@ export default function Leaves({ currentUser, employeeProfile, embedded = false 
 
   const handleOpenLeaveDocument = (leaveId, docUrl, docName) => {
     if (leaveId) {
-      const fullUrl = `${import.meta.env.VITE_API_URL || "https://hrms-backend-fzef.onrender.com"}/api/leaves/file/${leaveId}`;
+      const fullUrl = `${(typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') ? 'http://localhost:5002' : (import.meta.env.VITE_API_URL || 'https://hrms-backend-fzef.onrender.com'))}/api/leaves/file/${leaveId}`;
       window.open(fullUrl, '_blank', 'noopener,noreferrer');
       return;
     }
@@ -134,7 +134,7 @@ export default function Leaves({ currentUser, employeeProfile, embedded = false 
     if (docUrl) {
       const fullUrl = docUrl.startsWith('http')
         ? docUrl
-        : `${import.meta.env.VITE_API_URL || "https://hrms-backend-fzef.onrender.com"}${docUrl.startsWith('/') ? '' : '/'}${docUrl}`;
+        : `${(typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') ? 'http://localhost:5002' : (import.meta.env.VITE_API_URL || 'https://hrms-backend-fzef.onrender.com'))}${docUrl.startsWith('/') ? '' : '/'}${docUrl}`;
       window.open(fullUrl, '_blank', 'noopener,noreferrer');
     }
   };
@@ -143,7 +143,7 @@ export default function Leaves({ currentUser, employeeProfile, embedded = false 
     if (!currentUser) return;
     try {
       setLoading(true);
-      const res = await fetch(`${import.meta.env.VITE_API_URL || "https://hrms-backend-fzef.onrender.com"}/api/leaves/data/${currentUser.id}`);
+      const res = await fetch(`${(typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') ? 'http://localhost:5002' : (import.meta.env.VITE_API_URL || 'https://hrms-backend-fzef.onrender.com'))}/api/leaves/data/${currentUser.id}`);
       const result = await res.json();
       if (result.error) {
           console.error(result.error);
@@ -286,7 +286,7 @@ export default function Leaves({ currentUser, employeeProfile, embedded = false 
         dataPayload.append('file', formData.documentFile);
       }
 
-      const response = await fetch(`${import.meta.env.VITE_API_URL || "https://hrms-backend-fzef.onrender.com"}/api/leaves/apply`, {
+      const response = await fetch(`${(typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') ? 'http://localhost:5002' : (import.meta.env.VITE_API_URL || 'https://hrms-backend-fzef.onrender.com'))}/api/leaves/apply`, {
         method: 'POST',
         body: dataPayload
       });
@@ -450,10 +450,19 @@ export default function Leaves({ currentUser, employeeProfile, embedded = false 
 
   if (!currentUser) return <div>Loading...</div>;
 
-  const pageBody = (
+  return (
     <>
-    <div id="profileLeave" className="w-100" style={{ width: "100%" }}>
-      <div className="epl-page w-100" style={{ width: "100%", maxWidth: "100%" }}>
+      <div className={embedded ? "" : "dashboard-wrapper"}>
+        <div className={embedded ? "" : "dashboard-container"}>
+
+            
+            
+
+            <div className={embedded ? "" : "px-0 px-md-5 employee-dashboard"}>
+
+                <div id="profileLeave">
+
+                    <div className="epl-page">
 
                         
 {alertBanner && (
@@ -495,7 +504,7 @@ export default function Leaves({ currentUser, employeeProfile, embedded = false 
           <img
             src={/^(https?:\/\/|data:|blob:)/i.test(employeeProfile?.profile_pic || employeeProfile?.avatar_url)
               ? (employeeProfile?.profile_pic || employeeProfile?.avatar_url)
-              : `${import.meta.env.VITE_API_URL || 'https://hrms-backend-fzef.onrender.com'}/${(employeeProfile?.profile_pic || employeeProfile?.avatar_url).replace(/^\/+/, '')}`}
+              : `${(typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') ? 'http://localhost:5002' : (import.meta.env.VITE_API_URL || 'https://hrms-backend-fzef.onrender.com'))}/${(employeeProfile?.profile_pic || employeeProfile?.avatar_url).replace(/^\/+/, '')}`}
             alt="Employee"
             style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: "17px" }}
           />
@@ -509,28 +518,17 @@ export default function Leaves({ currentUser, employeeProfile, embedded = false 
 
                                 <div className="esc-employee-info">
                                     <div className="esc-name-row">
-        <h3>{employeeProfile?.preferred_name || (employeeProfile?.first_name ? `${employeeProfile.first_name} ${employeeProfile.last_name || ''}`.trim() : (currentUser?.email ? currentUser.email.split('@')[0] : 'Employee'))}</h3>
+        <h3>{employeeProfile?.first_name ? `${employeeProfile.first_name} ${employeeProfile.last_name || ''}` : currentUser?.email}</h3>
         <span className="esc-status-badge"><span></span>Active</span>
     </div>
 
+                                    <p className="esc-role">{employeeProfile?.designation || "Senior Software Engineer"}</p>
+
                                     <div className="esc-employee-meta">
-                                        <span>
-                                            <i className="bi bi-person-badge"></i>
-                                            {employeeProfile?.employee_code || "EMP-1360"}
-                                        </span>
-                                        <span>
-                                            <i className="bi bi-briefcase"></i>
-                                            {employeeProfile?.designation || "Senior Software Engineer"}
-                                        </span>
-                                        <span>
-                                            <i className="bi bi-diagram-3"></i>
-                                            {employeeProfile?.department ? `${employeeProfile.department}${employeeProfile.team ? ` · ${employeeProfile.team}` : " · Backend"}` : "Engineering · Backend"}
-                                        </span>
-                                        <span>
-                                            <i className="bi bi-geo-alt"></i>
-                                            {employeeProfile?.city || employeeProfile?.location || "Nagpur"}
-                                        </span>
-                                    </div>
+        <span><i className="bi bi-diagram-3"></i> {employeeProfile?.department || "Engineering"}</span>
+        <span><i className="bi bi-geo-alt"></i> {employeeProfile?.city || employeeProfile?.location || "Nagpur"}</span>
+        <span><i className="bi bi-person-badge"></i> {employeeProfile?.employee_code || "EMP-1360"}</span>
+    </div>
                                 </div>
 
                             </div>
@@ -986,9 +984,10 @@ export default function Leaves({ currentUser, employeeProfile, embedded = false 
                                     </div>
                                 )}
                             </div>
-                        </div>
-
-                        <div className="row g-4">
+</div>
+</div>
+</div>
+<div className="row g-4">
 
                             <div className="col-xl-7">
 
@@ -1142,7 +1141,7 @@ export default function Leaves({ currentUser, employeeProfile, embedded = false 
                                     <div className="col-md-6">
 
                                         <label className="form-label">
-                                            Leave Type <span className="text-danger">*</span>
+                                            Leave Type
                                         </label>
 
                                         <select id="eplApplyType" className="form-select">
@@ -1171,7 +1170,7 @@ export default function Leaves({ currentUser, employeeProfile, embedded = false 
                                     <div className="col-md-6">
 
                                         <label className="form-label">
-                                            Approver <span className="text-danger">*</span>
+                                            Approver
                                         </label>
 
                                         <select className="form-select">
@@ -1188,7 +1187,7 @@ export default function Leaves({ currentUser, employeeProfile, embedded = false 
                                     <div className="col-md-6">
 
                                         <label className="form-label">
-                                            From Date <span className="text-danger">*</span>
+                                            From Date
                                         </label>
 
                                         <input
@@ -1210,7 +1209,7 @@ export default function Leaves({ currentUser, employeeProfile, embedded = false 
                                     <div className="col-md-6">
 
                                         <label className="form-label">
-                                            To Date <span className="text-danger">*</span>
+                                            To Date
                                         </label>
 
                                         <input
@@ -1254,7 +1253,7 @@ export default function Leaves({ currentUser, employeeProfile, embedded = false 
                                     <div className="col-12">
 
                                         <label className="form-label">
-                                            Reason <span className="text-danger">*</span>
+                                            Reason
                                         </label>
 
                                         <textarea className="form-control" rows="3"
@@ -1282,25 +1281,8 @@ export default function Leaves({ currentUser, employeeProfile, embedded = false 
                         </div>
 
                     </div>
-                </div>
-    </>
-  );
-
-  return (
-    <>
-      {embedded ? (
-        <div className="w-100 mt-2" style={{ width: "100%" }}>
-          {pageBody}
-        </div>
-      ) : (
-        <main className="dashboard-wrapper">
-          <div className="dashboard-container">
-            <div className="px-0 px-md-5 employee-dashboard">
-              {pageBody}
-            </div>
-          </div>
-        </main>
-      )}
+</div>
+</div>
 
       {/* Dynamic Apply Leave Modal (overriding the bootstrap one in HTML if it was there) */}
       {showApplyModal && (
@@ -1801,7 +1783,7 @@ export default function Leaves({ currentUser, employeeProfile, embedded = false 
                                       updatePayload.append('file', editDocFile);
                                   }
 
-                                  const res = await fetch(`${import.meta.env.VITE_API_URL || "https://hrms-backend-fzef.onrender.com"}/api/leaves/update/${viewLeave.id}`, {
+                                  const res = await fetch(`${(typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') ? 'http://localhost:5002' : (import.meta.env.VITE_API_URL || 'https://hrms-backend-fzef.onrender.com'))}/api/leaves/update/${viewLeave.id}`, {
                                       method: 'PUT',
                                       body: updatePayload
                                   });

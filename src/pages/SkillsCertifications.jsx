@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import EmptyState from "../components/EmptyState";
 
-const API_BASE = import.meta.env.VITE_API_URL || "https://hrms-backend-fzef.onrender.com";
+const API_BASE = (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') ? 'http://localhost:5002' : (import.meta.env.VITE_API_URL || 'https://hrms-backend-fzef.onrender.com'));
 
 const CATEGORY_STYLE = {
   Programming: { avatar: "esc-java", icon: "bi-code-slash" },
@@ -53,9 +53,8 @@ const EMPTY_SKILL_FORM = {
 };
 
 export default function SkillsCertifications({ currentUser, employeeProfile, embedded = false }) {
-  const employeeName = employeeProfile?.preferred_name
-    || [employeeProfile?.first_name, employeeProfile?.last_name].filter(Boolean).join(" ")
-    || (currentUser?.email ? currentUser.email.split('@')[0] : "Employee")
+  const employeeName = [employeeProfile?.first_name, employeeProfile?.last_name].filter(Boolean).join(" ")
+    || currentUser?.email
     || "Employee";
   const employeeInitials = employeeName.split(/\s+/).map((name) => name[0]).slice(0, 2).join("").toUpperCase();
   const [isCertOpen, setIsCertOpen] = useState(false);
@@ -65,26 +64,33 @@ export default function SkillsCertifications({ currentUser, employeeProfile, emb
   const [certFeedback, setCertFeedback] = useState({ type: "", text: "" });
   const [certMode, setCertMode] = useState("add");
   const [selectedCert, setSelectedCert] = useState(null);
-  const [certAlertMessage, setCertAlertMessage] = useState("");
-
-  useEffect(() => {
-    if (!certAlertMessage) return;
-    const t = setTimeout(() => setCertAlertMessage(""), 5000);
-    return () => clearTimeout(t);
-  }, [certAlertMessage]);
-
-  const [globalToast, setGlobalToast] = useState(null);
-
-  useEffect(() => {
-    if (!globalToast) return;
-    const t = setTimeout(() => setGlobalToast(null), 5000);
-    return () => clearTimeout(t);
-  }, [globalToast]);
 
   const handleOpenCertificate = (cert) => {
     if (!cert) return;
-    setSelectedCert(cert);
-    setIsCertDetailsOpen(true);
+    if (cert.id) {
+      window.open(`${API_BASE}/api/employee/certifications/file/${cert.id}`, "_blank", "noopener,noreferrer");
+      return;
+    }
+    if (cert.file_path && cert.file_path.startsWith("data:")) {
+      try {
+        const parts = cert.file_path.split(",");
+        const byteString = atob(parts[1]);
+        const mimeString = parts[0].split(":")[1].split(";")[0];
+        const ab = new ArrayBuffer(byteString.length);
+        const ia = new Uint8Array(ab);
+        for (let i = 0; i < byteString.length; i++) ia[i] = byteString.charCodeAt(i);
+        const blob = new Blob([ab], { type: mimeString });
+        const blobUrl = URL.createObjectURL(blob);
+        window.open(blobUrl, "_blank", "noopener,noreferrer");
+        return;
+      } catch (e) {
+        console.error("Failed to open certificate:", e);
+      }
+    }
+    const targetUrl = cert.file_path && (cert.file_path.startsWith("http") || cert.file_path.startsWith("/"))
+      ? cert.file_path
+      : `${API_BASE}/uploads/certifications/${encodeURIComponent(cert.file_path)}`;
+    window.open(targetUrl, "_blank", "noopener,noreferrer");
   };
   const [isCertDetailsOpen, setIsCertDetailsOpen] = useState(false);
   const [openCertActionsId, setOpenCertActionsId] = useState(null);
@@ -192,7 +198,7 @@ export default function SkillsCertifications({ currentUser, employeeProfile, emb
           </div>
 
           <div className="esc-cert-footer">
-            <span className="esc-cert-verified" style={verified ? undefined : { color: "#f59a42" }} title={verified ? "Verified by HR" : "Pending"}>
+            <span className="esc-cert-verified" style={verified ? undefined : { color: "#f59a42" }}>
               <i className={`bi ${verified ? "bi-patch-check-fill" : "bi-clock-fill"}`}></i>
               {verified ? "Verified" : "Pending"}
             </span>
@@ -204,7 +210,7 @@ export default function SkillsCertifications({ currentUser, employeeProfile, emb
                 onClick={() => handleOpenCertificate(cert)}
               >
                 View Certificate
-                <i className="bi bi-eye ms-1"></i>
+                <i className="bi bi-arrow-up-right ms-1"></i>
               </button>
             )}
           </div>
@@ -315,13 +321,8 @@ export default function SkillsCertifications({ currentUser, employeeProfile, emb
       });
       const data = await readApiResponse(response);
       if (!response.ok) throw new Error(data.message || "Failed to save certification");
-      const isEdit = certMode === "edit";
       closeCert();
       await loadCerts();
-      setGlobalToast({
-        type: "success",
-        message: isEdit ? "Certification updated successfully" : "Certification added successfully"
-      });
     } catch (err) {
       setCertFeedback({ type: "danger", text: err.message || "Failed to save certification" });
     } finally {
@@ -339,10 +340,6 @@ export default function SkillsCertifications({ currentUser, employeeProfile, emb
       if (!response.ok) throw new Error(data.message || "Failed to delete certification");
       setCertDeleteTarget(null);
       await loadCerts();
-      setGlobalToast({
-        type: "success",
-        message: "Certification deleted successfully"
-      });
     } catch (err) {
       setCertDeleteError(err.message || "Failed to delete certification");
     } finally {
@@ -415,7 +412,7 @@ export default function SkillsCertifications({ currentUser, employeeProfile, emb
       skillCategory: skill.skill_category || "",
       otherSkill: skill.other_skill || "",
       proficiency: skill.proficiency || "Beginner",
-      yearsOfExperience: skill.years_of_experience !== null && skill.years_of_experience !== undefined && skill.years_of_experience !== "" ? (Number(skill.years_of_experience) % 1 === 0 ? Number(skill.years_of_experience).toFixed(0) : String(skill.years_of_experience)) : "",
+      yearsOfExperience: skill.years_of_experience ?? "",
       lastUsed: skill.last_used || "",
     });
     setSkillFeedback({ type: "", text: "" });
@@ -453,10 +450,6 @@ export default function SkillsCertifications({ currentUser, employeeProfile, emb
       if (!response.ok) throw new Error(data.message || "Failed to delete skill");
       setSkillDeleteTarget(null);
       await loadSkills();
-      setGlobalToast({
-        type: "success",
-        message: "Skill deleted successfully"
-      });
     } catch (err) {
       setSkillDeleteError(err.message || "Failed to delete skill");
     } finally {
@@ -483,8 +476,7 @@ export default function SkillsCertifications({ currentUser, employeeProfile, emb
 
   const skillRows = paginatedSkills.map((skill) => {
     const style = CATEGORY_STYLE[skill.skill_category] || CATEGORY_STYLE.Others;
-    const rawYears = (skill.years_of_experience === null || skill.years_of_experience === undefined || skill.years_of_experience === "") ? null : Number(skill.years_of_experience);
-    const years = rawYears === null || isNaN(rawYears) ? null : (rawYears % 1 === 0 ? rawYears.toFixed(0) : rawYears.toString());
+    const years = skill.years_of_experience === null ? null : Number(skill.years_of_experience);
     const verified = skill.verification_status === "Verified";
     const highLevel = skill.proficiency === "Advanced" || skill.proficiency === "Expert";
     return (
@@ -513,11 +505,11 @@ export default function SkillsCertifications({ currentUser, employeeProfile, emb
         </div>
 
         <div className="esc-skill-experience">
-          <strong>{years === null ? "—" : `${years} ${Number(years) === 1 ? "Year" : "Years"}`}</strong>
+          <strong>{years === null ? "—" : `${years} ${years === 1 ? "year" : "years"}`}</strong>
           <span>Experience</span>
         </div>
 
-        <div className="esc-skill-verified" style={verified ? undefined : { color: "#f59a42" }} title={verified ? "Verified by HR" : "Pending"}>
+        <div className="esc-skill-verified" style={verified ? undefined : { color: "#f59a42" }}>
           <i className={`bi ${verified ? "bi-patch-check-fill" : "bi-clock-fill"}`}></i>
           {verified ? "Verified" : "Pending"}
         </div>
@@ -588,30 +580,22 @@ export default function SkillsCertifications({ currentUser, employeeProfile, emb
       });
       const data = await readApiResponse(response);
       if (!response.ok) throw new Error(data.message || "Failed to save skill");
-      const isEdit = skillMode === "edit";
       setSkillForm(EMPTY_SKILL_FORM);
+      setSkillFeedback({ type: "success", text: data.message });
       await loadSkills();
       closeSkill();
-      setGlobalToast({
-        type: "success",
-        message: isEdit ? "Skill updated successfully" : "Skill added successfully"
-      });
     } catch (err) {
       setSkillFeedback({ type: "danger", text: err.message || "Failed to save skill" });
     } finally {
       setSkillSubmitting(false);
     }
   };
-  const content = (
+  return (
     <>
-      <div className="esc-page w-100" style={{ width: "100%", maxWidth: "100%" }}>
-            {globalToast && (
-              <div className="alert alert-success alert-dismissible fade show d-flex align-items-center mb-3" role="alert" style={{ borderRadius: 10, fontSize: "14px" }}>
-                <i className="bi bi-check-circle-fill text-success me-2 fs-5"></i>
-                <div className="flex-grow-1">{globalToast.message}</div>
-                <button type="button" className="btn-close" aria-label="Close" onClick={() => setGlobalToast(null)}></button>
-              </div>
-            )}
+      <div className={embedded ? "" : "dashboard-wrapper"}>
+        <div className={embedded ? "" : "dashboard-container"}>
+          <div className={embedded ? "" : "px-0 px-md-5 employee-dashboard"}>
+            <div className="esc-page">
 
             <div className={`esc-page-header${embedded ? " d-none" : ""}`}>
                 <div>
@@ -640,7 +624,7 @@ export default function SkillsCertifications({ currentUser, employeeProfile, emb
                                         <img
                                             src={/^(https?:\/\/|data:|blob:)/i.test(employeeProfile?.profile_pic || employeeProfile?.avatar_url)
                                                 ? (employeeProfile?.profile_pic || employeeProfile?.avatar_url)
-                                                : `${import.meta.env.VITE_API_URL || 'https://hrms-backend-fzef.onrender.com'}/${(employeeProfile?.profile_pic || employeeProfile?.avatar_url).replace(/^\/+/, '')}`}
+                                                : `${(typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') ? 'http://localhost:5002' : (import.meta.env.VITE_API_URL || 'https://hrms-backend-fzef.onrender.com'))}/${(employeeProfile?.profile_pic || employeeProfile?.avatar_url).replace(/^\/+/, '')}`}
                                             alt={employeeName}
                                             style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: "17px" }}
                                         />
@@ -658,22 +642,22 @@ export default function SkillsCertifications({ currentUser, employeeProfile, emb
                                         </span>
                                     </div>
 
+                                    <p>{employeeProfile?.designation || employeeProfile?.role_name || "—"}</p>
+
                                     <div className="esc-employee-meta">
                                         <span>
-                                            <i className="bi bi-person-badge"></i>
-                                            {employeeProfile?.employee_code || "EMP-1360"}
-                                        </span>
-                                        <span>
-                                            <i className="bi bi-briefcase"></i>
-                                            {employeeProfile?.designation || employeeProfile?.role_name || currentUser?.designation || currentUser?.role || "Software Engineer"}
-                                        </span>
-                                        <span>
                                             <i className="bi bi-diagram-3"></i>
-                                            {employeeProfile?.department ? `${employeeProfile.department}${employeeProfile.team ? ` · ${employeeProfile.team}` : " · Backend"}` : "Engineering · Backend"}
+                                            {employeeProfile?.department || "—"}
                                         </span>
+
                                         <span>
-                                            <i className="bi bi-geo-alt"></i>
-                                            {employeeProfile?.city || employeeProfile?.location || "Nagpur"}
+                                            <i className="bi bi-code-slash"></i>
+                                            {employeeProfile?.location || employeeProfile?.city || "—"}
+                                        </span>
+
+                                        <span>
+                                            <i className="bi bi-person-badge"></i>
+                                            {employeeProfile?.employee_code || "—"}
                                         </span>
                                     </div>
                                 </div>
@@ -687,17 +671,8 @@ export default function SkillsCertifications({ currentUser, employeeProfile, emb
 
                         </div>
 
-                        {certAlertMessage && (
-                            <div 
-                                className="alert alert-warning alert-dismissible fade show d-flex align-items-center gap-2 mb-4 shadow-sm" 
-                                role="alert"
-                                style={{ borderRadius: "10px", fontWeight: 500, fontSize: "0.92rem", border: "1px solid #fed7aa", background: "#fff7ed", color: "#9a3412" }}
-                            >
-                                <i className="bi bi-exclamation-triangle-fill fs-5 text-warning"></i>
-                                <div className="flex-grow-1">{certAlertMessage}</div>
-                                <button type="button" className="btn-close" onClick={() => setCertAlertMessage("")} aria-label="Close"></button>
-                            </div>
-                        )}
+
+                        
 
                         <div className="row g-3 esc-summary-row">
 
@@ -1161,7 +1136,7 @@ export default function SkillsCertifications({ currentUser, employeeProfile, emb
                                     <div className="row g-3">
 
                                         <div className="col-md-6">
-                                            <label className="form-label">Skill <span className="text-danger">*</span></label>
+                                            <label className="form-label">Skill</label>
                                             <input
                                                 type="text"
                                                 className="form-control"
@@ -1174,7 +1149,7 @@ export default function SkillsCertifications({ currentUser, employeeProfile, emb
                                         </div>
 
                                         <div className="col-md-6">
-                                            <label className="form-label">Skill Category <span className="text-danger">*</span></label>
+                                            <label className="form-label">Skill Category</label>
                                             <select className="form-select" id="escSkillCategoryInput" name="skillCategory" value={skillCategory} onChange={updateSkillField}>
                                                 <option value="">Select category</option>
                                                 <option>Programming</option>
@@ -1192,7 +1167,7 @@ export default function SkillsCertifications({ currentUser, employeeProfile, emb
                                         </div>
 
                                         <div className="col-md-6">
-                                            <label className="form-label">Other Skill {skillCategory === "Others" && <span className="text-danger">*</span>}</label>
+                                            <label className="form-label">Other Skill</label>
 
                                             <input className="form-control" placeholder="...." name="otherSkill" value={skillForm.otherSkill} onChange={updateSkillField} disabled={skillCategory !== "Others"} />
                                         </div>
@@ -1351,7 +1326,7 @@ export default function SkillsCertifications({ currentUser, employeeProfile, emb
                                   </div>
                                   <div className="esc-skill-detail-item">
                                     <span>Experience</span>
-                                    <strong>{selectedSkill.years_of_experience == null || selectedSkill.years_of_experience === "" ? "—" : `${Number(selectedSkill.years_of_experience) % 1 === 0 ? Number(selectedSkill.years_of_experience).toFixed(0) : selectedSkill.years_of_experience} ${Number(selectedSkill.years_of_experience) === 1 ? "Year" : "Years"}`}</strong>
+                                    <strong>{selectedSkill.years_of_experience == null ? "—" : `${selectedSkill.years_of_experience} ${Number(selectedSkill.years_of_experience) === 1 ? "year" : "years"}`}</strong>
                                   </div>
                                   <div className="esc-skill-detail-item">
                                     <span>Verification</span>
@@ -1405,7 +1380,7 @@ export default function SkillsCertifications({ currentUser, employeeProfile, emb
                           </div>
                           <div className="modal-body">
                             <p className="mb-0">
-                              Are you sure you want to delete <strong>{skillDeleteTarget?.skill_category === "Others" && skillDeleteTarget?.other_skill ? skillDeleteTarget.other_skill : skillDeleteTarget?.skill_name}</strong>?
+                              Delete <strong>{skillDeleteTarget?.skill_category === "Others" && skillDeleteTarget?.other_skill ? skillDeleteTarget.other_skill : skillDeleteTarget?.skill_name}</strong>? This cannot be undone.
                             </p>
                             {skillDeleteError && <p className="text-danger mt-3 mb-0" role="alert">{skillDeleteError}</p>}
                           </div>
@@ -1459,7 +1434,7 @@ export default function SkillsCertifications({ currentUser, employeeProfile, emb
                                     <div className="row g-3">
 
                                         <div className="col-md-6">
-                                            <label className="form-label">Skill Category <span className="text-danger">*</span></label>
+                                            <label className="form-label">Skill Category</label>
                                             <select className="form-select" id="escSkillCategoryInput" name="skillCategory" value={certForm.skillCategory} onChange={updateCertField}>
                                                 <option value="">Select category</option>
                                                 <option>Programming</option>
@@ -1478,7 +1453,7 @@ export default function SkillsCertifications({ currentUser, employeeProfile, emb
 
                                         <div className="col-md-6">
                                             <label className="form-label">
-                                                Certification Name <span className="text-danger">*</span>
+                                                Certification Name
                                             </label>
 
                                             <input
@@ -1734,7 +1709,7 @@ export default function SkillsCertifications({ currentUser, employeeProfile, emb
                                                           <div className="esc-skill-detail-item"><span>Certificate Number</span><strong>{selectedCert.certificate_number || "—"}</strong></div>
                                                           <div className="esc-skill-detail-item"><span>Issue Date</span><strong>{formatCertDate(selectedCert.issue_date)}</strong></div>
                                                           <div className="esc-skill-detail-item"><span>Expiry Date</span><strong>{formatCertDate(selectedCert.expiry_date)}</strong></div>
-                                                          <div className="esc-skill-detail-item"><span>Verification</span><strong className={selectedCert.verification_status === "Verified" ? "esc-skill-detail-verified" : ""}>{selectedCert.verification_status === "Verified" ? "Verified" : "Pending"}</strong></div>
+                                                          <div className="esc-skill-detail-item"><span>Verification</span><strong className={selectedCert.verification_status === "Verified" ? "esc-skill-detail-verified" : ""}>{selectedCert.verification_status || "Pending"}</strong></div>
                                                         </div>
                                                       </div>
                                                       <div className="modal-footer esc-modal-footer">
@@ -1768,7 +1743,7 @@ export default function SkillsCertifications({ currentUser, employeeProfile, emb
                                                     <button type="button" className="btn-close" aria-label="Close" onClick={closeDeleteCertification} disabled={certDeleteSubmitting}></button>
                                                   </div>
                                                   <div className="modal-body">
-                                                    <p className="mb-0">Are you sure you want to delete <strong>{certDeleteTarget?.certification_name}</strong>?</p>
+                                                    <p className="mb-0">Delete <strong>{certDeleteTarget?.certification_name}</strong>? This cannot be undone.</p>
                                                     {certDeleteError && <p className="text-danger mt-3 mb-0" role="alert">{certDeleteError}</p>}
                                                   </div>
                                                   <div className="modal-footer esc-modal-footer">
@@ -1797,21 +1772,10 @@ export default function SkillsCertifications({ currentUser, employeeProfile, emb
                         </div>
                     </div>
 
-    </>
-  );
-
-  return embedded ? (
-    <div className="w-100 mt-2" style={{ width: "100%" }}>
-      {content}
-    </div>
-  ) : (
-    <main className="dashboard-wrapper">
-      <div className="dashboard-container">
-        <div className="px-0 px-md-5 employee-dashboard">
-          {content}
+                </div>
+          </div>
         </div>
-      </div>
-    </main>
+    </>
   );
 }
 

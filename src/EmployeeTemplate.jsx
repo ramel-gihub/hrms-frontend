@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from "react";
+import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import Chart from "react-apexcharts";
 import EmployeeProfile from "./pages/EmployeeProfile";
 import EmploymentDetails from "./pages/EmploymentDetails";
@@ -439,6 +439,22 @@ export default function EmployeeTemplate({
     return `${Math.floor(diff / 86400)} days ago`;
   };
   const [activePage, setActivePage] = useState("index");
+  // Ensure document and body scroll is fully restored on mount and page transition
+  useEffect(() => {
+    const restoreScroll = () => {
+      document.querySelectorAll(".offcanvas-backdrop, .modal-backdrop").forEach(el => el.remove());
+      document.body.classList.remove("modal-open");
+      document.body.style.removeProperty("overflow");
+      document.body.style.removeProperty("padding-right");
+      document.body.style.overflowY = "auto";
+      document.documentElement.style.removeProperty("overflow");
+      document.documentElement.style.overflowY = "auto";
+    };
+    restoreScroll();
+    const t = setTimeout(restoreScroll, 120);
+    return () => clearTimeout(t);
+  }, [activePage]);
+
   const [calendarTab, setCalendarTab] = useState("calendar");
   const [statsPeriod, setStatsPeriod] = useState("week");
   const [leavesData, setLeavesData] = useState({ balances: [], requests: [] });
@@ -467,7 +483,7 @@ export default function EmployeeTemplate({
   const [sendingWishId, setSendingWishId] = useState(null);
   const [latestAnnouncement, setLatestAnnouncement] = useState(null);
 
-  const API_BASE = import.meta.env.VITE_API_URL || "https://hrms-backend-fzef.onrender.com";
+  const API_BASE = (typeof window !== "undefined" && (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1") ? (import.meta.env.VITE_API_URL || "http://localhost:5002") : (import.meta.env.VITE_API_URL || "https://hrms-backend-fzef.onrender.com"));
 
   const isHR = useMemo(() => {
     const roleStr = (currentUser?.role || currentUser?.roleName || '').toLowerCase();
@@ -537,6 +553,10 @@ export default function EmployeeTemplate({
     } finally {
       setSendingWishId(null);
     }
+  };
+  const formatAvatarUrl = (url) => {
+    if (!url) return "";
+    return /^(https?:\/\/|data:|blob:)/i.test(url) ? url : `${API_BASE}/${url.replace(/^\/+/, "")}`;
   };
   const rawAvatar = employeeProfile?.profile_pic || employeeProfile?.avatar_url || "";
   const dynamicAvatarUrl = rawAvatar
@@ -758,6 +778,61 @@ export default function EmployeeTemplate({
   const [myTeamData, setMyTeamData] = useState({ teams: [], currentEmployee: null });
   const [selectedDashboardProjectId, setSelectedDashboardProjectId] = useState('all');
   const [activeChatUser, setActiveChatUser] = useState(null);
+  const [chatUnreadMap, setChatUnreadMap] = useState({});
+  const [chatTotalUnread, setChatTotalUnread] = useState(0);
+  const [chatToast, setChatToast] = useState(null);
+  const [headerChatOpen, setHeaderChatOpen] = useState(false);
+  const headerChatRef = useRef(null);
+
+  useEffect(() => {
+    const handleOutsideClick = (e) => {
+      if (headerChatRef.current && !headerChatRef.current.contains(e.target)) {
+        setHeaderChatOpen(false);
+      }
+    };
+    if (headerChatOpen) {
+      document.addEventListener("mousedown", handleOutsideClick);
+    }
+    return () => document.removeEventListener("mousedown", handleOutsideClick);
+  }, [headerChatOpen]);
+
+  const lastChatToastMsgIdRef = useRef(null);
+
+  // Poll for team chat unread counts and new incoming messages
+  const fetchChatUnread = useCallback(async () => {
+    const uid = myTeamData.currentEmployee?.id || employeeProfile?.id || currentUser?.id;
+    if (!uid) return;
+    const orgId = myTeamData.currentEmployee?.organization_id || employeeProfile?.organization_id || currentUser?.organization_id || 1;
+    try {
+      const res = await fetch(`${API_BASE}/api/chat/unread?userId=${uid}&orgId=${orgId}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.success) {
+          setChatUnreadMap(data.unreadBySender || {});
+          setChatTotalUnread(data.totalUnread || 0);
+
+          if (data.latestMessage) {
+            const isFromCurrentOpenChat = activeChatUser && (
+              String(activeChatUser.id) === String(data.latestMessage.sender_id) ||
+              String(activeChatUser.employee_id) === String(data.latestMessage.sender_id)
+            );
+            if (!isFromCurrentOpenChat) {
+              if (lastChatToastMsgIdRef.current !== null && lastChatToastMsgIdRef.current !== data.latestMessage.id) {
+                setChatToast(data.latestMessage);
+              }
+              lastChatToastMsgIdRef.current = data.latestMessage.id;
+            }
+          }
+        }
+      }
+    } catch (_) {}
+  }, [currentUser?.id, employeeProfile?.id, myTeamData.currentEmployee?.id, activeChatUser]);
+
+  useEffect(() => {
+    fetchChatUnread();
+    const interval = setInterval(fetchChatUnread, 3500);
+    return () => clearInterval(interval);
+  }, [fetchChatUnread]);
 
   useEffect(() => {
     const uid = currentUser?.id || employeeProfile?.user_id;
@@ -792,7 +867,8 @@ export default function EmployeeTemplate({
         status: 'Active',
         role_in_team: 'Member',
         is_current_user: true,
-        project_badge: 'No Team Mapped'
+        project_badge: 'No Team Mapped',
+        avatar_url: emp?.avatar_url || emp?.profile_pic || null
       }];
     }
 
@@ -807,7 +883,8 @@ export default function EmployeeTemplate({
           status: 'Active',
           role_in_team: m.role_in_team,
           is_current_user: m.is_current_user,
-          project_badge: selectedTeam.project_code || selectedTeam.project_name
+          project_badge: selectedTeam.project_code || selectedTeam.project_name,
+          avatar_url: m.avatar_url || m.profile_pic || null
         }));
       }
     }
@@ -824,7 +901,8 @@ export default function EmployeeTemplate({
             status: 'Active',
             role_in_team: m.role_in_team,
             is_current_user: m.is_current_user,
-            project_badge: t.project_code || t.project_name
+            project_badge: t.project_code || t.project_name,
+            avatar_url: m.avatar_url || m.profile_pic || null
           });
         }
       });
@@ -1167,18 +1245,18 @@ export default function EmployeeTemplate({
     }
   };
 
-  const fullLocationStr = attendanceLocation || todayAttendance?.check_in_location || employeeProfile?.city || 'Nagpur, Maharashtra';
+  const fullLocationStr = attendanceLocation || todayAttendance?.check_in_location || employeeProfile?.city || 'NA, Maharashtra';
   const isOffice = isOfficeLoc(fullLocationStr);
   const effectiveWorkMode = todayAttendance?.work_mode || todayWorkMode || (isOffice ? 'Office' : 'Remote');
   const locParts = (fullLocationStr || '').split(',').map(s => s.trim()).filter(Boolean);
   const effectiveArea = todayAttendance?.check_in_area || attendanceArea || locParts[0] || '';
-  const effectiveCity = todayAttendance?.check_in_city || attendanceCity || (locParts.length > 1 ? locParts[1] : employeeProfile?.city || 'Nagpur');
+  const effectiveCity = todayAttendance?.check_in_city || attendanceCity || (locParts.length > 1 ? locParts[1] : employeeProfile?.city || 'NA');
   const effectiveState = todayAttendance?.check_in_state || attendanceState || (isOffice ? 'Tamil Nadu' : 'Maharashtra');
   const effectiveLocationLabel = isOffice 
     ? 'Chennai' 
     : (effectiveArea && effectiveCity && effectiveArea.toLowerCase() !== effectiveCity.toLowerCase()
         ? `${effectiveArea}, ${effectiveCity}`
-        : (effectiveArea || effectiveCity || 'Nagpur'));
+        : (effectiveArea || effectiveCity || 'NA'));
   const savedDev = (() => {
     try {
       const s = localStorage.getItem('hrms_device_name');
@@ -1372,6 +1450,116 @@ export default function EmployeeTemplate({
                             <i className="bi bi-search"></i>
                         </button>
 
+
+                        {/* Dedicated Team Chat Quick Access in Top Header */}
+                        <div className="position-relative" ref={headerChatRef}>
+                            <button 
+                                className="header-action position-relative" 
+                                onClick={() => setHeaderChatOpen(!headerChatOpen)}
+                                title="Team Chat"
+                                type="button"
+                            >
+                                <i className="bi bi-chat-dots"></i>
+                                {chatTotalUnread > 0 && (
+                                    <span 
+                                        className="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger"
+                                        style={{ fontSize: "10px", padding: "3px 6px" }}
+                                    >
+                                        {chatTotalUnread > 9 ? "9+" : chatTotalUnread}
+                                    </span>
+                                )}
+                            </button>
+
+                            {headerChatOpen && (
+                                <div 
+                                    className="position-absolute end-0 mt-2 card border-0 shadow-lg rounded-4 overflow-hidden"
+                                    style={{ width: "360px", maxWidth: "90vw", zIndex: 1050 }}
+                                >
+                                    <div className="card-header bg-white border-bottom p-3 d-flex align-items-center justify-content-between">
+                                        <div className="d-flex align-items-center gap-2">
+                                            <i className="bi bi-chat-dots-fill text-primary fs-5"></i>
+                                            <h6 className="mb-0 fw-bold">Team Chat</h6>
+                                        </div>
+                                        {chatTotalUnread > 0 ? (
+                                            <span className="badge bg-danger text-white rounded-pill">
+                                                {chatTotalUnread} Unread
+                                            </span>
+                                        ) : (
+                                            <span className="badge bg-light text-muted border rounded-pill">
+                                                Active
+                                            </span>
+                                        )}
+                                    </div>
+                                    <div className="p-2" style={{ maxHeight: "360px", overflowY: "auto" }}>
+                                        {dashboardDisplayedMembers.filter(m => !m.is_current_user).length === 0 ? (
+                                            <div className="p-3 text-center text-muted" style={{ fontSize: "13px" }}>
+                                                No other team members found.
+                                            </div>
+                                        ) : (
+                                            dashboardDisplayedMembers
+                                                .filter(m => !m.is_current_user)
+                                                .map((member, i) => {
+                                                    const unreadCount = (chatUnreadMap && (chatUnreadMap[member.id] || chatUnreadMap[member.user_id])) || 0;
+                                                    return (
+                                                        <div
+                                                            key={member.id || i}
+                                                            className="d-flex align-items-center justify-content-between p-2 rounded-3"
+                                                            style={{ cursor: "pointer", transition: "background 0.2s" }}
+                                                            onClick={() => {
+                                                                setActiveChatUser(member);
+                                                                setHeaderChatOpen(false);
+                                                                setChatUnreadMap(prev => ({ ...prev, [member.id]: 0 }));
+                                                            }}
+                                                            onMouseEnter={(e) => e.currentTarget.style.background = "#f1f5f9"}
+                                                            onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
+                                                        >
+                                                            <div className="d-flex align-items-center gap-2.5 overflow-hidden">
+                                                                {member.avatar_url ? (
+                                                                    <img
+                                                                        src={formatAvatarUrl(member.avatar_url)}
+                                                                        alt={member.full_name || "Team Member"}
+                                                                        style={{ width: 36, height: 36, minWidth: 36, borderRadius: "50%", objectFit: "cover", display: "block" }}
+                                                                        onError={(e) => {
+                                                                            e.currentTarget.style.display = "none";
+                                                                            if (e.currentTarget.nextElementSibling) {
+                                                                                e.currentTarget.nextElementSibling.style.display = "flex";
+                                                                            }
+                                                                        }}
+                                                                    />
+                                                                ) : null}
+                                                                <div style={{ width: 36, height: 36, minWidth: 36, borderRadius: "50%", backgroundColor: ["#ede9fe", "#e0f2fe", "#fef3c7", "#dcfce7"][i % 4], color: ["#6366f1", "#0284c7", "#d97706", "#16a34a"][i % 4], display: member.avatar_url ? "none" : "flex", alignItems: "center", justifyContent: "center", fontWeight: "700", fontSize: "13px" }}>
+                                                                    {(member.full_name || "EM").split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase()}
+                                                                </div>
+                                                                <div className="overflow-hidden">
+                                                                    <div className="d-flex align-items-center gap-1.5">
+                                                                        <strong className="text-dark text-truncate" style={{ fontSize: "13px" }}>{member.full_name}</strong>
+                                                                        {unreadCount > 0 && (
+                                                                            <span className="badge bg-danger rounded-pill px-1.5 py-0" style={{ fontSize: "9px" }}>
+                                                                                {unreadCount}
+                                                                            </span>
+                                                                        )}
+                                                                    </div>
+                                                                    <div className="text-muted text-truncate" style={{ fontSize: "11.5px" }}>
+                                                                        {member.designation || "Colleague"} {member.project_badge ? `· ${member.project_badge}` : ''}
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                            <button
+                                                                type="button"
+                                                                className="btn btn-sm btn-outline-primary rounded-pill px-2.5 py-1"
+                                                                style={{ fontSize: "11px", fontWeight: 600, whiteSpace: "nowrap" }}
+                                                            >
+                                                                <i className="bi bi-chat-dots-fill me-1"></i>
+                                                                Chat
+                                                            </button>
+                                                        </div>
+                                                    );
+                                                })
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
 
                         <div className="position-relative" ref={headerNotifRef}>
                             <button 
@@ -1656,7 +1844,7 @@ export default function EmployeeTemplate({
 
                                     <span>
                                         <i className="bi bi-geo-alt"></i>
-                                        {employeeProfile?.city || employeeProfile?.location || "Nagpur"}
+                                        {employeeProfile?.city || employeeProfile?.location || "NA"}
                                     </span>
                                 </div>
                             </div>
@@ -2650,7 +2838,20 @@ export default function EmployeeTemplate({
                                         {dashboardDisplayedMembers.map((member, idx) => (
                                             <div className="ed-team-member" key={member.id || idx}>
                                                 <div className="ed-team-avatar">
-                                                    <div style={{ width: 40, height: 40, borderRadius: "50%", backgroundColor: ["#ede9fe", "#e0f2fe", "#fef3c7", "#dcfce7"][idx % 4], color: ["#6366f1", "#0284c7", "#d97706", "#16a34a"][idx % 4], display: "flex", alignItems: "center", justifyContent: "center", fontWeight: "700", fontSize: "14px" }}>
+                                                    {member.avatar_url ? (
+                                                        <img
+                                                            src={formatAvatarUrl(member.avatar_url)}
+                                                            alt={member.full_name || "Team Member"}
+                                                            style={{ width: 40, height: 40, minWidth: 40, borderRadius: "50%", objectFit: "cover", display: "block" }}
+                                                            onError={(e) => {
+                                                                e.currentTarget.style.display = "none";
+                                                                if (e.currentTarget.nextElementSibling) {
+                                                                    e.currentTarget.nextElementSibling.style.display = "flex";
+                                                                }
+                                                            }}
+                                                        />
+                                                    ) : null}
+                                                    <div style={{ width: 40, height: 40, minWidth: 40, borderRadius: "50%", backgroundColor: ["#ede9fe", "#e0f2fe", "#fef3c7", "#dcfce7"][idx % 4], color: ["#6366f1", "#0284c7", "#d97706", "#16a34a"][idx % 4], display: member.avatar_url ? "none" : "flex", alignItems: "center", justifyContent: "center", fontWeight: "700", fontSize: "14px" }}>
                                                         {(member.full_name || "EM").split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase()}
                                                     </div>
                                                     <span></span>
@@ -2671,17 +2872,37 @@ export default function EmployeeTemplate({
 
                                                 <div className="ed-team-status d-flex align-items-center gap-2">
                                                     <span className="ed-status-present">{member.status || "Active"}</span>
-                                                    {!member.is_current_user && (
-                                                        <button
-                                                            type="button"
-                                                            className="btn btn-sm btn-outline-primary rounded-pill px-2.5 py-1 d-inline-flex align-items-center gap-1 shadow-xs"
-                                                            title={`Chat with ${member.full_name || member.email}`}
-                                                            onClick={() => setActiveChatUser(member)}
-                                                            style={{ fontSize: "11.5px", fontWeight: 600, whiteSpace: "nowrap" }}
-                                                        >
-                                                            <i className="bi bi-chat-dots-fill"></i> Chat
-                                                        </button>
-                                                    )}
+                                                    {!member.is_current_user && (() => {
+                                                        const unreadCount = (chatUnreadMap && (chatUnreadMap[member.id] || chatUnreadMap[member.user_id])) || 0;
+                                                        return (
+                                                            <button
+                                                                type="button"
+                                                                className={`btn btn-sm rounded-pill px-2.5 py-1 d-inline-flex align-items-center gap-1 shadow-xs position-relative ${
+                                                                    unreadCount > 0 ? "btn-primary text-white shadow-sm" : "btn-outline-primary"
+                                                                }`}
+                                                                title={`Chat with ${member.full_name || member.email}${unreadCount > 0 ? ` (${unreadCount} new)` : ""}`}
+                                                                onClick={() => {
+                                                                    setActiveChatUser(member);
+                                                                    setChatUnreadMap(prev => ({ ...prev, [member.id]: 0 }));
+                                                                    if (chatToast && String(chatToast.sender_id) === String(member.id)) {
+                                                                        setChatToast(null);
+                                                                    }
+                                                                }}
+                                                                style={{ fontSize: "11.5px", fontWeight: 600, whiteSpace: "nowrap" }}
+                                                            >
+                                                                <i className="bi bi-chat-dots-fill"></i>
+                                                                Chat
+                                                                {unreadCount > 0 && (
+                                                                    <span
+                                                                        className="badge bg-danger text-white rounded-pill ms-1"
+                                                                        style={{ fontSize: "10px", padding: "2px 6px", lineHeight: "1" }}
+                                                                    >
+                                                                        {unreadCount}
+                                                                    </span>
+                                                                )}
+                                                            </button>
+                                                        );
+                                                    })()}
                                                 </div>
                                             </div>
                                         ))}
@@ -3393,14 +3614,63 @@ export default function EmployeeTemplate({
       </div>
     )}
 
+    {/* Dedicated Team Chat Floating Toast Notification */}
+    {chatToast && (
+      <div
+        className="position-fixed bottom-0 end-0 m-4 p-3 bg-white shadow-lg border rounded-4 d-flex align-items-center gap-3"
+        style={{ zIndex: 1090, maxWidth: "380px", borderLeft: "5px solid #4f46e5", animation: "slideInRight 0.3s ease" }}
+      >
+        <div style={{ width: 42, height: 42, minWidth: 42, borderRadius: "50%", background: "#ede9fe", color: "#6366f1", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: "700" }}>
+          <i className="bi bi-chat-dots-fill fs-5"></i>
+        </div>
+        <div className="flex-grow-1 overflow-hidden">
+          <div className="d-flex align-items-center justify-content-between gap-2">
+            <strong className="text-dark text-truncate" style={{ fontSize: "13px" }}>
+              {chatToast.sender_name}
+            </strong>
+            <span className="badge bg-danger rounded-pill px-2 py-0" style={{ fontSize: "10px" }}>New Chat</span>
+          </div>
+          <p className="text-muted mb-0 text-truncate" style={{ fontSize: "12px", marginTop: "2px" }}>
+            {chatToast.message}
+          </p>
+        </div>
+        <button
+          type="button"
+          className="btn btn-sm btn-primary rounded-pill px-3 py-1"
+          style={{ fontSize: "12px", whiteSpace: "nowrap" }}
+          onClick={() => {
+            const targetMember = dashboardDisplayedMembers.find(m => String(m.id) === String(chatToast.sender_id)) || {
+              id: chatToast.sender_id,
+              full_name: chatToast.sender_name
+            };
+            setActiveChatUser(targetMember);
+            setChatToast(null);
+          }}
+        >
+          Reply
+        </button>
+        <button
+          type="button"
+          className="btn-close"
+          style={{ fontSize: "10px" }}
+          aria-label="Close"
+          onClick={() => setChatToast(null)}
+        ></button>
+      </div>
+    )}
+
     {/* Team Colleague Chat Modal */}
     <TeamChatModal
       isOpen={!!activeChatUser}
-      onClose={() => setActiveChatUser(null)}
+      onClose={() => {
+        setActiveChatUser(null);
+        fetchChatUnread();
+      }}
       targetUser={activeChatUser}
       currentUser={currentUser}
       currentEmployee={myTeamData.currentEmployee}
       employeeProfile={employeeProfile}
+      onMessagesRead={fetchChatUnread}
     />
 
     </div>

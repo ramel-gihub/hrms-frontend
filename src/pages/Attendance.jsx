@@ -34,7 +34,7 @@ export default function Attendance({ currentUser, employeeProfile, onNavigate, e
     if (!editingCorrection || !currentUser) return;
     setSavingCorrection(true);
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL || "https://hrms-backend-fzef.onrender.com"}/api/attendance/correction/${currentUser.id}/${editingCorrection.id || editingCorrection.request_code}`, {
+      const res = await fetch(`${(typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') ? 'http://localhost:5002' : (import.meta.env.VITE_API_URL || 'https://hrms-backend-fzef.onrender.com'))}/api/attendance/correction/${currentUser.id}/${editingCorrection.id || editingCorrection.request_code}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(editForm)
@@ -42,7 +42,7 @@ export default function Attendance({ currentUser, employeeProfile, onNavigate, e
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to update attendance request");
 
-      const cRes = await fetch(`${import.meta.env.VITE_API_URL || "https://hrms-backend-fzef.onrender.com"}/api/attendance/corrections/${currentUser.id}`);
+      const cRes = await fetch(`${(typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') ? 'http://localhost:5002' : (import.meta.env.VITE_API_URL || 'https://hrms-backend-fzef.onrender.com'))}/api/attendance/corrections/${currentUser.id}`);
       const cData = await cRes.json();
       if (cData && cData.corrections) setCorrections(cData.corrections);
 
@@ -65,11 +65,11 @@ export default function Attendance({ currentUser, employeeProfile, onNavigate, e
     const fetchReport = async () => {
       try {
         setLoading(true);
-        const res = await fetch(`${import.meta.env.VITE_API_URL || "https://hrms-backend-fzef.onrender.com"}/api/attendance/page/${currentUser.id}?month=${month}`);
+        const res = await fetch(`${(typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') ? 'http://localhost:5002' : (import.meta.env.VITE_API_URL || 'https://hrms-backend-fzef.onrender.com'))}/api/attendance/page/${currentUser.id}?month=${month}`);
         const data = await res.json();
         setReport(data);
         // Fetch attendance corrections
-        fetch(`${import.meta.env.VITE_API_URL || "https://hrms-backend-fzef.onrender.com"}/api/attendance/corrections/${currentUser.id}`)
+        fetch(`${(typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') ? 'http://localhost:5002' : (import.meta.env.VITE_API_URL || 'https://hrms-backend-fzef.onrender.com'))}/api/attendance/corrections/${currentUser.id}`)
           .then(r => r.json())
           .then(cData => { if (cData && cData.corrections) setCorrections(cData.corrections); })
           .catch(console.error);
@@ -269,8 +269,12 @@ export default function Attendance({ currentUser, employeeProfile, onNavigate, e
     return true;
   }).reverse(); // Show latest first within active week
 
-  const pageBody = (
-    <div className="epa-page w-100" style={{ width: "100%", maxWidth: "100%" }}>
+  return (
+    <>
+      <div className={embedded ? "" : "dashboard-wrapper"}>
+        <div className={embedded ? "" : "dashboard-container"}>
+          <div className={embedded ? "" : "px-0 px-md-5 employee-dashboard"}>
+            <div className="epa-page">
 
                         
                         <div className={`esc-page-header${embedded ? " d-none" : ""}`}>
@@ -303,7 +307,7 @@ export default function Attendance({ currentUser, employeeProfile, onNavigate, e
       <img
         src={/^(https?:\/\/|data:|blob:)/i.test(employeeProfile?.profile_pic || employeeProfile?.avatar_url)
           ? (employeeProfile?.profile_pic || employeeProfile?.avatar_url)
-          : `${import.meta.env.VITE_API_URL || 'https://hrms-backend-fzef.onrender.com'}/${(employeeProfile?.profile_pic || employeeProfile?.avatar_url).replace(/^\/+/, '')}`}
+          : `${(typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') ? 'http://localhost:5002' : (import.meta.env.VITE_API_URL || 'https://hrms-backend-fzef.onrender.com'))}/${(employeeProfile?.profile_pic || employeeProfile?.avatar_url).replace(/^\/+/, '')}`}
         alt="Employee"
         style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: "17px" }}
       />
@@ -317,29 +321,27 @@ export default function Attendance({ currentUser, employeeProfile, onNavigate, e
 
                                 <div className="esc-employee-info">
                                     <div className="esc-name-row">
-                                        <h3>{employeeProfile?.preferred_name || (employeeProfile?.first_name ? `${employeeProfile.first_name} ${employeeProfile.last_name || ''}`.trim() : (currentUser?.email ? currentUser.email.split('@')[0] : 'Employee'))}</h3>
+                                        <h3>{employeeProfile?.first_name ? `${employeeProfile.first_name} ${employeeProfile.last_name || ''}` : currentUser?.email}</h3>
                                         <span className="esc-status-badge">
                                             <span></span>
                                             Active
                                         </span>
                                     </div>
 
+                                    <p>{employeeProfile?.designation || "Senior Software Engineer"}</p>
+
                                     <div className="esc-employee-meta">
                                         <span>
-                                            <i className="bi bi-person-badge"></i>
-                                            {employeeProfile?.employee_code || "EMP-1360"}
-                                        </span>
-                                        <span>
-                                            <i className="bi bi-briefcase"></i>
-                                            {employeeProfile?.designation || "Senior Software Engineer"}
-                                        </span>
-                                        <span>
                                             <i className="bi bi-diagram-3"></i>
-                                            {employeeProfile?.department ? `${employeeProfile.department}${employeeProfile.team ? ` · ${employeeProfile.team}` : " · Backend"}` : "Engineering · Backend"}
+                                            {employeeProfile?.department || "Engineering"}
                                         </span>
                                         <span>
                                             <i className="bi bi-geo-alt"></i>
                                             {employeeProfile?.city || employeeProfile?.location || "Nagpur"}
+                                        </span>
+                                        <span>
+                                            <i className="bi bi-person-badge"></i>
+                                            {employeeProfile?.employee_code || "EMP-1360"}
                                         </span>
                                     </div>
                                 </div>
@@ -1120,24 +1122,10 @@ export default function Attendance({ currentUser, employeeProfile, onNavigate, e
                         </div>
 
                     </div>
-  );
-
-  return (
-    <>
-      {embedded ? (
-        <div className="w-100 mt-2" style={{ width: "100%" }}>
-          {pageBody}
-        </div>
-      ) : (
-        <main className="dashboard-wrapper">
-          <div className="dashboard-container">
-            <div className="px-0 px-md-5 employee-dashboard">
-              {pageBody}
+                </div>
+              </div>
             </div>
-          </div>
-        </main>
-      )}
-    </>
+        </>
   );
 }
 

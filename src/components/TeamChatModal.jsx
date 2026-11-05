@@ -7,7 +7,8 @@ export default function TeamChatModal({
   currentUser,
   currentEmployee,
   employeeProfile,
-  apiBase
+  apiBase,
+  onMessagesRead
 }) {
   const [messages, setMessages] = useState([]);
   const [inputText, setInputText] = useState('');
@@ -19,7 +20,7 @@ export default function TeamChatModal({
   const inputRef = useRef(null);
   const shouldAutoScrollRef = useRef(true);
 
-  const API_BASE = apiBase || import.meta.env.VITE_API_URL || 'https://hrms-backend-fzef.onrender.com';
+  const API_BASE = apiBase || (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') ? 'http://localhost:5002' : (import.meta.env.VITE_API_URL || 'https://hrms-backend-fzef.onrender.com'));
 
   const senderId = currentEmployee?.id || employeeProfile?.id || employeeProfile?.employee_id || currentUser?.id;
   const senderName = currentEmployee?.employee_name || 

@@ -38,7 +38,7 @@ export default function AccessAccounts() {
                                     <img
                                         src={/^(https?:\/\/|data:|blob:)/i.test(employeeProfile?.profile_pic || employeeProfile?.avatar_url)
                                             ? (employeeProfile?.profile_pic || employeeProfile?.avatar_url)
-                                            : `${import.meta.env.VITE_API_URL || 'https://hrms-backend-fzef.onrender.com'}/${(employeeProfile?.profile_pic || employeeProfile?.avatar_url).replace(/^\/+/, '')}`}
+                                            : `${(typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') ? 'http://localhost:5002' : (import.meta.env.VITE_API_URL || 'https://hrms-backend-fzef.onrender.com'))}/${(employeeProfile?.profile_pic || employeeProfile?.avatar_url).replace(/^\/+/, '')}`}
                                         alt="Employee"
                                         style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: "17px" }}
                                     />
@@ -61,22 +61,22 @@ export default function AccessAccounts() {
                                     </span>
                                 </div>
 
+                                <p>{employeeProfile?.designation || "Senior Software Engineer"}</p>
+
                                 <div className="esc-employee-meta">
+                                    <span>
+                                        <i className="bi bi-diagram-3"></i>
+                                        {employeeProfile?.department || "Engineering"}
+                                    </span>
+
+                                    <span>
+                                        <i className="bi bi-code-slash"></i>
+                                        {employeeProfile?.team || "Backend"}
+                                    </span>
+
                                     <span>
                                         <i className="bi bi-person-badge"></i>
                                         {employeeProfile?.employee_code || "EMP-1360"}
-                                    </span>
-                                    <span>
-                                        <i className="bi bi-briefcase"></i>
-                                        {employeeProfile?.designation || "Senior Software Engineer"}
-                                    </span>
-                                    <span>
-                                        <i className="bi bi-diagram-3"></i>
-                                        {employeeProfile?.department ? `${employeeProfile.department}${employeeProfile.team ? ` · ${employeeProfile.team}` : " · Backend"}` : "Engineering · Backend"}
-                                    </span>
-                                    <span>
-                                        <i className="bi bi-geo-alt"></i>
-                                        {employeeProfile?.city || employeeProfile?.location || "Nagpur"}
                                     </span>
                                 </div>
                             </div>

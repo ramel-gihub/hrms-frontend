@@ -74,7 +74,7 @@ export default function AdminTemplate({
   const [currentTenantId, setCurrentTenantId] = useState(currentUser?.tenant?.id || currentUser?.organization_id || 1);
   const [loadingTenants, setLoadingTenants] = useState(false);
 
-  const API_URL = import.meta.env.VITE_API_URL || 'https://hrms-backend-fzef.onrender.com';
+  const API_URL = (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') ? 'http://localhost:5002' : (import.meta.env.VITE_API_URL || 'https://hrms-backend-fzef.onrender.com'));
 
   // Fetch Leave Requests with employee-wise leave balances
   const fetchLeaveRequests = async () => {

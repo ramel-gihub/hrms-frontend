@@ -39,6 +39,29 @@ const parseDateParts = (dateVal) => {
     return isNaN(d.getTime()) ? null : new Date(d.getFullYear(), d.getMonth(), d.getDate());
 };
 
+// Calculates WFH days between start and end date inclusive, counting all days (including Saturday, Sunday and holidays)
+const calculateWfhDays = (startRaw, endRaw, isHalfDay = false) => {
+    if (!startRaw) return 0;
+    if (isHalfDay) return 0.5;
+
+    const sDate = parseDateParts(startRaw);
+    const eDate = parseDateParts(endRaw || startRaw);
+
+    if (!sDate || !eDate) return 1;
+
+    let cur = new Date(sDate.getTime());
+    const finish = new Date(eDate.getTime());
+
+    if (cur > finish) return 0;
+
+    let count = 0;
+    while (cur <= finish) {
+        count += 1;
+        cur.setDate(cur.getDate() + 1);
+    }
+    return count;
+};
+
 // Calculates working days between start and end date inclusive, skipping Saturday and Sunday as per company weekend policy
 const calculateWorkingDays = (startRaw, endRaw, isHalfDay = false) => {
     if (!startRaw) return 0;
@@ -67,7 +90,7 @@ const calculateWorkingDays = (startRaw, endRaw, isHalfDay = false) => {
 };
 
 export default function EmployeeProfile({ currentUser, employeeProfile, onProfileUpdate, onNavigate }) {
-    const API_BASE = import.meta.env.VITE_API_URL || "https://hrms-backend-fzef.onrender.com";
+    const API_BASE = (typeof window !== "undefined" && (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1") ? (import.meta.env.VITE_API_URL || "http://localhost:5002") : (import.meta.env.VITE_API_URL || "https://hrms-backend-fzef.onrender.com"));
     const [activeProfileTab, setActiveProfileTab] = useState("overview");
     const [skillsList, setSkillsList] = useState([]);
     const [skillsLoading, setSkillsLoading] = useState(false);
@@ -79,14 +102,14 @@ export default function EmployeeProfile({ currentUser, employeeProfile, onProfil
     const [wfhLoading, setWfhLoading] = useState(false);
     const [wfhPage, setWfhPage] = useState(1);
 
-    // Calculate dynamic total approved WFH days excluding Saturday and Sunday
+    // Calculate dynamic total approved WFH days including weekends and holidays
     const totalApprovedWfhDays = useMemo(() => {
         return (wfhRequests || [])
             .filter((r) => (r.status || "").toLowerCase() === "approved")
             .reduce((sum, r) => {
                 const start = r.wfh_start_date || r.start_date || r.startDate;
                 const end = r.wfh_end_date || r.end_date || r.endDate || start;
-                return sum + calculateWorkingDays(start, end, r.is_half_day);
+                return sum + calculateWfhDays(start, end, r.is_half_day);
             }, 0);
     }, [wfhRequests]);
     const [commuteRecords, setCommuteRecords] = useState([]);
@@ -1012,36 +1035,48 @@ export default function EmployeeProfile({ currentUser, employeeProfile, onProfil
 
                     
                     {activeProfileTab === "employment" && (
-                        <EmploymentDetails
-                            employeeProfile={employeeProfile}
-                            currentUser={currentUser}
-                            onProfileUpdate={onProfileUpdate}
-                            embedded
-                        />
+                        <div className="ep-tab-content-wrapper mt-3">
+                            <EmploymentDetails
+                                employeeProfile={employeeProfile}
+                                currentUser={currentUser}
+                                onProfileUpdate={onProfileUpdate}
+                                embedded
+                            />
+                        </div>
                     )}
 
                     {activeProfileTab === "documents" && (
-                        <Documents
-                            employeeProfile={employeeProfile}
-                            currentUser={currentUser}
-                            embedded
-                        />
+                        <div className="ep-tab-content-wrapper mt-3">
+                            <Documents
+                                employeeProfile={employeeProfile}
+                                currentUser={currentUser}
+                                embedded
+                            />
+                        </div>
                     )}
 
                     {activeProfileTab === "skills" && (
-                        <SkillsCertifications employeeProfile={employeeProfile} currentUser={currentUser} embedded />
+                        <div className="ep-tab-content-wrapper mt-3">
+                            <SkillsCertifications employeeProfile={employeeProfile} currentUser={currentUser} embedded />
+                        </div>
                     )}
 
                     {activeProfileTab === "attendance" && (
-                        <Attendance employeeProfile={employeeProfile} currentUser={currentUser} embedded />
+                        <div className="ep-tab-content-wrapper mt-3">
+                            <Attendance employeeProfile={employeeProfile} currentUser={currentUser} embedded />
+                        </div>
                     )}
 
                     {activeProfileTab === "leave" && (
-                        <Leaves employeeProfile={employeeProfile} currentUser={currentUser} embedded />
+                        <div className="ep-tab-content-wrapper mt-3">
+                            <Leaves employeeProfile={employeeProfile} currentUser={currentUser} embedded />
+                        </div>
                     )}
 
                     {activeProfileTab === "assets" && (
-                        <Assets employeeProfile={employeeProfile} currentUser={currentUser} embedded />
+                        <div className="ep-tab-content-wrapper mt-3">
+                            <Assets employeeProfile={employeeProfile} currentUser={currentUser} embedded />
+                        </div>
                     )}
 
                     {activeProfileTab === "wfh" && (
@@ -1165,7 +1200,7 @@ export default function EmployeeProfile({ currentUser, employeeProfile, onProfil
                                                 {totalApprovedWfhDays} <span style={{ fontSize: "14px", fontWeight: 600, color: "#0d9488" }}>{totalApprovedWfhDays === 1 ? "Day" : "Days"}</span>
                                             </div>
                                             <div style={{ fontSize: "12px", color: "#94a3b8", marginTop: "2px" }}>
-                                                Excl. weekends (Sat &amp; Sun)
+                                                Incl. weekends &amp; holidays
                                             </div>
                                         </div>
                                     </div>
@@ -1318,7 +1353,7 @@ export default function EmployeeProfile({ currentUser, employeeProfile, onProfil
                                                                     {sDate !== "-" && (
                                                                         <span style={{ fontSize: "11px", color: "#64748b" }}>
                                                                             {(() => {
-                                                                                const dCount = calculateWorkingDays(req.wfh_start_date || req.start_date, req.wfh_end_date || req.end_date, req.is_half_day);
+                                                                                const dCount = calculateWfhDays(req.wfh_start_date || req.start_date, req.wfh_end_date || req.end_date, req.is_half_day);
                                                                                 return `${dCount} ${dCount === 1 ? "working day" : "working days"} (excl. weekends)`;
                                                                             })()}
                                                                         </span>

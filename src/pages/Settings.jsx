@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import CharacterOnlyInput from "../utils/CharacterOnlyInput";
 import IntegerOnlyInput from "../utils/IntegerOnlyInput";
 
-const API_BASE = import.meta.env.VITE_API_URL || "https://hrms-backend-fzef.onrender.com";
+const API_BASE = (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') ? 'http://localhost:5002' : (import.meta.env.VITE_API_URL || 'https://hrms-backend-fzef.onrender.com'));
 const EDIT_TRIGGER_STYLE = {
     display: "inline-flex",
     alignItems: "center",
@@ -211,7 +211,7 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
 
     const firstName = employeeProfile?.first_name || "";
     const lastName = employeeProfile?.last_name || "";
-    const employeeName = employeeProfile?.preferred_name || `${firstName} ${lastName}`.trim() || (currentUser?.email ? currentUser.email.split('@')[0] : "Employee");
+    const employeeName = `${firstName} ${lastName}`.trim() || currentUser?.email || "Employee";
     const employeeInitials = `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase()
         || currentUser?.email?.slice(0, 2).toUpperCase()
         || "EM";
@@ -274,6 +274,8 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
     const [isBankEditOpen, setIsBankEditOpen] = useState(false);
     const [bankEditSubmitting, setBankEditSubmitting] = useState(false);
     const [bankEditFeedback, setBankEditFeedback] = useState("");
+    const [bankFieldErrors, setBankFieldErrors] = useState({});
+    const [bankEditTouched, setBankEditTouched] = useState({});
     const [bankEditForm, setBankEditForm] = useState({
         bankName: "",
         accountHolderName: "",
@@ -292,6 +294,7 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
     const [identityEditSubmitting, setIdentityEditSubmitting] = useState(false);
     const [identityEditFeedback, setIdentityEditFeedback] = useState("");
     const [identityEditTouched, setIdentityEditTouched] = useState({});
+    const [identityFieldErrors, setIdentityFieldErrors] = useState({});
     const [identityEditForm, setIdentityEditForm] = useState({
         aadhaarNumber: "",
         panNumber: "",
@@ -308,10 +311,12 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
     const [emergencyEditForm, setEmergencyEditForm] = useState({
         contactName: "",
         relationship: "",
+        otherRelationship: "",
         phoneNumber: "",
         address: "",
         secondContactName: "",
         secondRelationship: "",
+        secondOtherRelationship: "",
         secondPhoneNumber: "",
         secondAddress: "",
     });
@@ -333,51 +338,6 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
     const [shortcutSelectionsLoading, setShortcutSelectionsLoading] = useState(true);
     const [shortcutSelectionsSaving, setShortcutSelectionsSaving] = useState(false);
     const [shortcutSelectionError, setShortcutSelectionError] = useState("");
-    // Active Sessions States
-    const [isSessionsModalOpen, setIsSessionsModalOpen] = useState(false);
-    const [otherSessionsRevoked, setOtherSessionsRevoked] = useState(false);
-    const [sessionsToast, setSessionsToast] = useState("");
-    useEffect(() => {
-        if (!sessionsToast) return;
-        const t = setTimeout(() => setSessionsToast(""), 5000);
-        return () => clearTimeout(t);
-    }, [sessionsToast]);
-
-    useEffect(() => {
-        if (!commuteFeedback) return;
-        const t = setTimeout(() => setCommuteFeedback(""), 5000);
-        return () => clearTimeout(t);
-    }, [commuteFeedback]);
-
-    useEffect(() => {
-        if (!identityEditFeedback) return;
-        const t = setTimeout(() => setIdentityEditFeedback(""), 5000);
-        return () => clearTimeout(t);
-    }, [identityEditFeedback]);
-
-    useEffect(() => {
-        if (!emergencyEditFeedback) return;
-        const t = setTimeout(() => setEmergencyEditFeedback(""), 5000);
-        return () => clearTimeout(t);
-    }, [emergencyEditFeedback]);
-
-    useEffect(() => {
-        if (!personalEditFeedback) return;
-        const t = setTimeout(() => setPersonalEditFeedback(""), 5000);
-        return () => clearTimeout(t);
-    }, [personalEditFeedback]);
-
-    useEffect(() => {
-        if (!contactEditFeedback) return;
-        const t = setTimeout(() => setContactEditFeedback(""), 5000);
-        return () => clearTimeout(t);
-    }, [contactEditFeedback]);
-
-    useEffect(() => {
-        if (!bankEditFeedback) return;
-        const t = setTimeout(() => setBankEditFeedback(""), 5000);
-        return () => clearTimeout(t);
-    }, [bankEditFeedback]);
 
     // Change Password States
     const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
@@ -403,6 +363,7 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
     const [securityModalFeedback, setSecurityModalFeedback] = useState("");
     const [securityModalSuccess, setSecurityModalSuccess] = useState("");
     const [securityModalSubmitting, setSecurityModalSubmitting] = useState(false);
+    const [loginNotificationsEnabled, setLoginNotificationsEnabled] = useState(true);
 
     // Preferences States
     const [preferencesForm, setPreferencesForm] = useState({
@@ -421,48 +382,6 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
     // Shortcut Limit Toast
     const [shortcutLimitToast, setShortcutLimitToast] = useState(false);
     const shortcutToastTimerRef = useRef(null);
-
-    useEffect(() => {
-        if (!passwordFeedback) return;
-        const t = setTimeout(() => setPasswordFeedback(""), 5000);
-        return () => clearTimeout(t);
-    }, [passwordFeedback]);
-
-    useEffect(() => {
-        if (!passwordSuccess) return;
-        const t = setTimeout(() => setPasswordSuccess(""), 5000);
-        return () => clearTimeout(t);
-    }, [passwordSuccess]);
-
-    useEffect(() => {
-        if (!preferencesFeedback) return;
-        const t = setTimeout(() => setPreferencesFeedback(""), 5000);
-        return () => clearTimeout(t);
-    }, [preferencesFeedback]);
-
-    useEffect(() => {
-        if (!preferencesSuccess) return;
-        const t = setTimeout(() => setPreferencesSuccess(""), 5000);
-        return () => clearTimeout(t);
-    }, [preferencesSuccess]);
-
-    useEffect(() => {
-        if (!securityModalFeedback) return;
-        const t = setTimeout(() => setSecurityModalFeedback(""), 5000);
-        return () => clearTimeout(t);
-    }, [securityModalFeedback]);
-
-    useEffect(() => {
-        if (!securityModalSuccess) return;
-        const t = setTimeout(() => setSecurityModalSuccess(""), 5000);
-        return () => clearTimeout(t);
-    }, [securityModalSuccess]);
-
-    useEffect(() => {
-        if (!shortcutLimitToast) return;
-        const t = setTimeout(() => setShortcutLimitToast(false), 5000);
-        return () => clearTimeout(t);
-    }, [shortcutLimitToast]);
 
     // Load preferences
     useEffect(() => {
@@ -1044,22 +963,106 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
         : emergencyContact ? [emergencyContact] : [];
     const primaryEmergencyContact = emergencyContacts[0] || null;
     const secondaryEmergencyContact = emergencyContacts[1] || null;
-    const standardRelationships = ["Father", "Mother", "Spouse", "Brother", "Sister", "Friend"];
-    const openEmergencyEdit = () => {
-        const pRel = primaryEmergencyContact?.relationship || "";
-        const isPOther = pRel && !standardRelationships.includes(pRel);
-        const sRel = secondaryEmergencyContact?.relationship || "";
-        const isSOther = sRel && !standardRelationships.includes(sRel);
 
+    const isFieldValuePresent = (val) => {
+        if (val === null || val === undefined) return false;
+        if (typeof val === "string") {
+            const trimmed = val.trim();
+            return trimmed !== "" && trimmed !== "\u2014" && trimmed !== "\u2013" && trimmed !== "-";
+        }
+        return Boolean(val);
+    };
+
+    const hasPersonalInfo = Boolean(
+        personalInfo && [
+            personalInfo.first_name,
+            personalInfo.middle_name,
+            personalInfo.last_name,
+            personalInfo.date_of_birth,
+            personalInfo.gender,
+            personalInfo.marital_status,
+            personalInfo.nationality,
+            personalInfo.blood_group,
+        ].some(isFieldValuePresent)
+    );
+
+    const hasContactInfo = Boolean(
+        contactInfo && [
+            contactInfo.personal_email,
+            contactInfo.work_email,
+            contactInfo.phone_number,
+            contactInfo.alternate_phone,
+            contactInfo.current_address_line,
+            contactInfo.current_city,
+            contactInfo.current_state,
+            contactInfo.current_postal_code,
+            contactInfo.current_country,
+            contactInfo.permanent_address_line,
+            contactInfo.permanent_city,
+            contactInfo.permanent_state,
+            contactInfo.permanent_postal_code,
+            contactInfo.permanent_country,
+        ].some(isFieldValuePresent)
+    );
+
+    const hasEmergencyContact = Boolean(
+        (primaryEmergencyContact && [
+            primaryEmergencyContact.contact_name,
+            primaryEmergencyContact.relationship,
+            primaryEmergencyContact.phone_number,
+            primaryEmergencyContact.address,
+        ].some(isFieldValuePresent)) ||
+        (secondaryEmergencyContact && [
+            secondaryEmergencyContact.contact_name,
+            secondaryEmergencyContact.relationship,
+            secondaryEmergencyContact.phone_number,
+            secondaryEmergencyContact.address,
+        ].some(isFieldValuePresent))
+    );
+
+    const hasBankInfo = Boolean(
+        bankInfo && [
+            bankInfo.bank_name,
+            bankInfo.account_holder_name,
+            bankInfo.account_number,
+            bankInfo.ifsc_code,
+            bankInfo.branch_name,
+        ].some(isFieldValuePresent)
+    );
+
+    const hasIdentityInfo = Boolean(
+        identityInfo && [
+            identityInfo.aadhaar_number,
+            identityInfo.aadhaar_last_four,
+            identityInfo.pan_number,
+            identityInfo.pan_number_masked,
+            identityInfo.passport_number,
+            identityInfo.passport_number_masked,
+            identityInfo.uan_number,
+            identityInfo.uan_last_four,
+        ].some(isFieldValuePresent)
+    );
+    const STANDARD_EMERGENCY_RELATIONSHIPS = ["Father", "Mother", "Spouse", "Brother", "Sister", "Friend"];
+    const parseEmergencyRelationship = (rel) => {
+        if (!rel) return { relationship: "", otherRelationship: "" };
+        if (STANDARD_EMERGENCY_RELATIONSHIPS.includes(rel)) {
+            return { relationship: rel, otherRelationship: "" };
+        }
+        return { relationship: "Other", otherRelationship: rel === "Other" ? "" : rel };
+    };
+
+    const openEmergencyEdit = () => {
+        const prim = parseEmergencyRelationship(primaryEmergencyContact?.relationship);
+        const sec = parseEmergencyRelationship(secondaryEmergencyContact?.relationship);
         setEmergencyEditForm({
             contactName: primaryEmergencyContact?.contact_name || "",
-            relationship: isPOther ? "Other" : pRel,
-            relationshipOther: isPOther ? pRel : "",
+            relationship: prim.relationship,
+            otherRelationship: prim.otherRelationship,
             phoneNumber: primaryEmergencyContact?.phone_number || "",
             address: primaryEmergencyContact?.address || "",
             secondContactName: secondaryEmergencyContact?.contact_name || "",
-            secondRelationship: isSOther ? "Other" : sRel,
-            secondRelationshipOther: isSOther ? sRel : "",
+            secondRelationship: sec.relationship,
+            secondOtherRelationship: sec.otherRelationship,
             secondPhoneNumber: secondaryEmergencyContact?.phone_number || "",
             secondAddress: secondaryEmergencyContact?.address || "",
         });
@@ -1068,7 +1071,16 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
     };
     const updateEmergencyEditField = (event) => {
         const { name, value } = event.target;
-        setEmergencyEditForm((current) => ({ ...current, [name]: value }));
+        setEmergencyEditForm((current) => {
+            const next = { ...current, [name]: value };
+            if (name === "relationship" && value !== "Other") {
+                next.otherRelationship = "";
+            }
+            if (name === "secondRelationship" && value !== "Other") {
+                next.secondOtherRelationship = "";
+            }
+            return next;
+        });
     };
     const handleEmergencyEditSubmit = async (event) => {
         event.preventDefault();
@@ -1077,19 +1089,29 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
             return;
         }
 
-        const effectiveRel = emergencyEditForm.relationship === "Other"
-            ? (emergencyEditForm.relationshipOther?.trim() || "Other")
+        const effectiveRelationship = emergencyEditForm.relationship === "Other"
+            ? (emergencyEditForm.otherRelationship || "").trim()
             : emergencyEditForm.relationship;
-        const effectiveSecondRel = emergencyEditForm.secondRelationship === "Other"
-            ? (emergencyEditForm.secondRelationshipOther?.trim() || "Other")
-            : emergencyEditForm.secondRelationship;
 
-        if (emergencyEditForm.relationship === "Other" && !emergencyEditForm.relationshipOther?.trim()) {
-            setEmergencyEditFeedback("Please specify the relationship for primary emergency contact.");
+        if (emergencyEditForm.relationship === "Other" && !effectiveRelationship) {
+            setEmergencyEditFeedback("Please enter the relationship for the primary emergency contact.");
             return;
         }
-        if (emergencyEditForm.secondRelationship === "Other" && emergencyEditForm.secondContactName?.trim() && !emergencyEditForm.secondRelationshipOther?.trim()) {
-            setEmergencyEditFeedback("Please specify the relationship for second emergency contact.");
+
+        const hasSecondContact = Boolean(
+            (emergencyEditForm.secondContactName || "").trim() ||
+            (emergencyEditForm.secondPhoneNumber || "").trim() ||
+            (emergencyEditForm.secondRelationship || "").trim() ||
+            (emergencyEditForm.secondOtherRelationship || "").trim() ||
+            (emergencyEditForm.secondAddress || "").trim()
+        );
+
+        const effectiveSecondRelationship = emergencyEditForm.secondRelationship === "Other"
+            ? (emergencyEditForm.secondOtherRelationship || "").trim()
+            : emergencyEditForm.secondRelationship;
+
+        if (hasSecondContact && emergencyEditForm.secondRelationship === "Other" && !effectiveSecondRelationship) {
+            setEmergencyEditFeedback("Please enter the relationship for the second emergency contact.");
             return;
         }
 
@@ -1103,11 +1125,11 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
                         contactName: emergencyEditForm.contactName,
-                        relationship: effectiveRel,
+                        relationship: effectiveRelationship,
                         phoneNumber: emergencyEditForm.phoneNumber,
                         address: emergencyEditForm.address,
                         secondContactName: emergencyEditForm.secondContactName,
-                        secondRelationship: effectiveSecondRel,
+                        secondRelationship: hasSecondContact ? effectiveSecondRelationship : "",
                         secondPhoneNumber: emergencyEditForm.secondPhoneNumber,
                         secondAddress: emergencyEditForm.secondAddress,
                     }),
@@ -1372,6 +1394,25 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
             setContactEditSubmitting(false);
         }
     };
+    const validateBankField = (name, value, allValues = bankEditForm) => {
+        if (name === "accountNumber") {
+            if (!value) return "Account number is required.";
+            if (!/^\d+$/.test(value)) return "Only numbers are allowed.";
+            if (value.length < 9 || value.length > 18) return "Account number must be between 9 and 18 digits.";
+        }
+        if (name === "confirmAccountNumber") {
+            if (!value) return "Confirm account number is required.";
+            if (!/^\d+$/.test(value)) return "Only numbers are allowed.";
+            if (value.length < 9 || value.length > 18) return "Account number must be between 9 and 18 digits.";
+            if (allValues.accountNumber && value !== allValues.accountNumber) return "Account numbers do not match.";
+        }
+        if (name === "ifscCode") {
+            if (!value) return "IFSC code is required.";
+            if (!/^[A-Z]{4}0[A-Z0-9]{6}$/.test(value)) return "Invalid IFSC Code format (e.g. SBIN0001234).";
+        }
+        return "";
+    };
+
     const openBankEdit = () => {
         const info = bankInfo || {};
 
@@ -1385,12 +1426,16 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
             accountType: info.account_type || "Savings",
             reason: "",
         });
+        setBankFieldErrors({});
+        setBankEditTouched({});
         setBankEditFeedback("");
         setIsBankEditOpen(true);
     };
     const closeBankEdit = () => {
         setIsBankEditOpen(false);
         setFullAccountNumber("");
+        setBankFieldErrors({});
+        setBankEditTouched({});
         setBankEditForm((current) => ({
             ...current,
             accountNumber: "",
@@ -1399,7 +1444,56 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
     };
     const updateBankEditField = (event) => {
         const { name, value } = event.target;
-        setBankEditForm((current) => ({ ...current, [name]: value }));
+        let nextValue = value;
+        if (name === "accountNumber" || name === "confirmAccountNumber") {
+            nextValue = IntegerOnlyInput.sanitize(value).slice(0, 18);
+        } else if (name === "ifscCode") {
+            nextValue = value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 11);
+        }
+
+        const nextForm = { ...bankEditForm, [name]: nextValue };
+        setBankEditForm(nextForm);
+
+        setBankFieldErrors((prev) => {
+            const nextErrors = { ...prev };
+            if (prev[name] || bankEditTouched[name]) {
+                const err = validateBankField(name, nextValue, nextForm);
+                if (err) nextErrors[name] = err;
+                else delete nextErrors[name];
+            }
+            if (name === "confirmAccountNumber") {
+                if (nextValue && nextForm.accountNumber && nextValue !== nextForm.accountNumber) {
+                    nextErrors.confirmAccountNumber = "Account numbers do not match.";
+                } else if (nextValue && nextValue.length >= 9 && nextValue === nextForm.accountNumber) {
+                    delete nextErrors.confirmAccountNumber;
+                }
+            } else if (name === "accountNumber") {
+                if (nextForm.confirmAccountNumber && (prev.confirmAccountNumber || bankEditTouched.confirmAccountNumber)) {
+                    if (nextForm.confirmAccountNumber !== nextValue) {
+                        nextErrors.confirmAccountNumber = "Account numbers do not match.";
+                    } else if (/^\d{9,18}$/.test(nextForm.confirmAccountNumber)) {
+                        delete nextErrors.confirmAccountNumber;
+                    }
+                }
+            }
+            return nextErrors;
+        });
+    };
+    const handleBankBlur = (event) => {
+        const { name, value } = event.target;
+        setBankEditTouched((prev) => ({ ...prev, [name]: true }));
+        const error = validateBankField(name, value, bankEditForm);
+        setBankFieldErrors((prev) => {
+            const next = { ...prev };
+            if (error) next[name] = error;
+            else delete next[name];
+            if (name === "accountNumber" && bankEditForm.confirmAccountNumber) {
+                const confirmErr = validateBankField("confirmAccountNumber", bankEditForm.confirmAccountNumber, bankEditForm);
+                if (confirmErr) next.confirmAccountNumber = confirmErr;
+                else delete next.confirmAccountNumber;
+            }
+            return next;
+        });
     };
     const submitBankEdit = async (event) => {
         event.preventDefault();
@@ -1419,12 +1513,22 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
             return;
         }
 
-        if (!currentUser?.id) {
-            setBankEditFeedback("Unable to identify the current employee.");
+        const accErr = validateBankField("accountNumber", bankEditForm.accountNumber, bankEditForm);
+        const confirmErr = validateBankField("confirmAccountNumber", bankEditForm.confirmAccountNumber, bankEditForm);
+        const ifscErr = validateBankField("ifscCode", bankEditForm.ifscCode, bankEditForm);
+
+        if (accErr || confirmErr || ifscErr) {
+            setBankFieldErrors({
+                ...(accErr ? { accountNumber: accErr } : {}),
+                ...(confirmErr ? { confirmAccountNumber: confirmErr } : {}),
+                ...(ifscErr ? { ifscCode: ifscErr } : {}),
+            });
+            setBankEditFeedback(accErr || confirmErr || ifscErr);
             return;
         }
-        if (bankEditForm.accountNumber !== bankEditForm.confirmAccountNumber) {
-            setBankEditFeedback("Account numbers do not match.");
+
+        if (!currentUser?.id) {
+            setBankEditFeedback("Unable to identify the current employee.");
             return;
         }
 
@@ -1462,6 +1566,52 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
             setBankEditSubmitting(false);
         }
     };
+    const formatAadhaarNumber = (value) => {
+        const digits = (value || "").replace(/\D/g, "").slice(0, 12);
+        return digits.replace(/(\d{4})(?=\d)/g, "$1 ").trim();
+    };
+
+    const formatPanNumber = (value) => {
+        return (value || "").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 10);
+    };
+
+    const formatPassportNumber = (value) => {
+        return (value || "").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 8);
+    };
+
+    const formatUanNumber = (value) => {
+        return (value || "").replace(/\D/g, "").slice(0, 12);
+    };
+
+    const validateIdentityField = (name, value, isTouched) => {
+        if (!isTouched && !value) return "";
+        const trimmed = (value || "").trim();
+        if (!trimmed) return "";
+
+        if (name === "aadhaarNumber") {
+            const rawDigits = trimmed.replace(/\D/g, "");
+            if (rawDigits.length !== 12) {
+                return "Aadhaar number must be exactly 12 digits (format: XXXX XXXX XXXX).";
+            }
+        } else if (name === "panNumber") {
+            const panRegex = /^[A-Z]{5}[0-9]{4}[A-Z]$/;
+            if (!panRegex.test(trimmed)) {
+                return "PAN number must be 5 letters, 4 digits, followed by 1 letter (e.g. ABCDE1234F).";
+            }
+        } else if (name === "passportNumber") {
+            const passportRegex = /^[A-Z][0-9]{7}$/;
+            if (!passportRegex.test(trimmed)) {
+                return "Passport number must be 1 letter followed by 7 digits (e.g. A1234567).";
+            }
+        } else if (name === "uanNumber") {
+            const uanRegex = /^\d{12}$/;
+            if (!uanRegex.test(trimmed)) {
+                return "UAN number must be exactly 12 digits.";
+            }
+        }
+        return "";
+    };
+
     const openIdentityEdit = () => {
         setIdentityEditForm({
             aadhaarNumber: identityInfo?.aadhaar_last_four ? `XXXX XXXX ${identityInfo.aadhaar_last_four}` : "",
@@ -1470,59 +1620,110 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
             uanNumber: identityInfo?.uan_last_four ? `•••• •••• ${identityInfo.uan_last_four}` : "",
             reason: "",
         });
+        setIdentityFieldErrors({});
         setIdentityEditTouched({});
         setIdentityEditFeedback("");
         setIsIdentityEditOpen(true);
     };
+
     const updateIdentityEditField = (event) => {
         const { name, value } = event.target;
-        let nextValue = value;
+        let formattedValue = value;
         if (name === "aadhaarNumber") {
-            nextValue = value.replace(/\D/g, "").slice(0, 12);
+            formattedValue = formatAadhaarNumber(value);
         } else if (name === "panNumber") {
-            nextValue = value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 10);
+            formattedValue = formatPanNumber(value);
+        } else if (name === "passportNumber") {
+            formattedValue = formatPassportNumber(value);
         } else if (name === "uanNumber") {
-            nextValue = IntegerOnlyInput.sanitize(value).slice(0, 12);
+            formattedValue = formatUanNumber(value);
         }
-        setIdentityEditForm((current) => ({ ...current, [name]: nextValue }));
+
+        setIdentityEditForm((current) => ({ ...current, [name]: formattedValue }));
         setIdentityEditTouched((current) => ({ ...current, [name]: true }));
+
+        if (identityFieldErrors[name]) {
+            const err = validateIdentityField(name, formattedValue, true);
+            setIdentityFieldErrors((current) => {
+                const next = { ...current };
+                if (err) {
+                    next[name] = err;
+                } else {
+                    delete next[name];
+                }
+                return next;
+            });
+        }
     };
+
     const focusIdentityNumberField = (event) => {
         const { name } = event.target;
         if (!identityEditTouched[name]) {
             setIdentityEditForm((current) => ({ ...current, [name]: "" }));
             setIdentityEditTouched((current) => ({ ...current, [name]: true }));
+            setIdentityFieldErrors((current) => {
+                const next = { ...current };
+                delete next[name];
+                return next;
+            });
         }
     };
+
+    const handleIdentityBlur = (event) => {
+        const { name, value } = event.target;
+        if (!identityEditTouched[name]) return;
+        const err = validateIdentityField(name, value, true);
+        setIdentityFieldErrors((current) => {
+            const next = { ...current };
+            if (err) {
+                next[name] = err;
+            } else {
+                delete next[name];
+            }
+            return next;
+        });
+    };
+
     const submitIdentityEdit = async (event) => {
         event.preventDefault();
-        const aadhaarNumber = identityEditTouched.aadhaarNumber
-            ? identityEditForm.aadhaarNumber.replace(/\D/g, "")
-            : "";
-        const panNumber = identityEditTouched.panNumber
-            ? identityEditForm.panNumber.trim().toUpperCase()
-            : "";
-        const passportNumber = identityEditTouched.passportNumber
-            ? identityEditForm.passportNumber.trim()
-            : "";
-        const uanNumber = identityEditTouched.uanNumber
-            ? identityEditForm.uanNumber.replace(/\D/g, "")
-            : "";
+        const isAadhaarTouched = Boolean(identityEditTouched.aadhaarNumber);
+        const isPanTouched = Boolean(identityEditTouched.panNumber);
+        const isPassportTouched = Boolean(identityEditTouched.passportNumber);
+        const isUanTouched = Boolean(identityEditTouched.uanNumber);
 
-        const hasAnyInput = aadhaarNumber || panNumber || passportNumber || uanNumber;
-        if (!hasAnyInput) {
+        const aadhaarRaw = isAadhaarTouched ? identityEditForm.aadhaarNumber.replace(/\D/g, "") : "";
+        const panRaw = isPanTouched ? identityEditForm.panNumber.trim().toUpperCase() : "";
+        const passportRaw = isPassportTouched ? identityEditForm.passportNumber.trim().toUpperCase() : "";
+        const uanRaw = isUanTouched ? identityEditForm.uanNumber.replace(/\D/g, "") : "";
+
+        // Validate any fields that have values entered
+        const newFieldErrors = {};
+        if (isAadhaarTouched && identityEditForm.aadhaarNumber.trim()) {
+            const err = validateIdentityField("aadhaarNumber", identityEditForm.aadhaarNumber, true);
+            if (err) newFieldErrors.aadhaarNumber = err;
+        }
+        if (isPanTouched && identityEditForm.panNumber.trim()) {
+            const err = validateIdentityField("panNumber", identityEditForm.panNumber, true);
+            if (err) newFieldErrors.panNumber = err;
+        }
+        if (isPassportTouched && identityEditForm.passportNumber.trim()) {
+            const err = validateIdentityField("passportNumber", identityEditForm.passportNumber, true);
+            if (err) newFieldErrors.passportNumber = err;
+        }
+        if (isUanTouched && identityEditForm.uanNumber.trim()) {
+            const err = validateIdentityField("uanNumber", identityEditForm.uanNumber, true);
+            if (err) newFieldErrors.uanNumber = err;
+        }
+
+        if (Object.keys(newFieldErrors).length > 0) {
+            setIdentityFieldErrors(newFieldErrors);
+            setIdentityEditFeedback("Please correct the invalid field(s) below.");
+            return;
+        }
+
+        const hasAnyInput = aadhaarRaw || panRaw || passportRaw || uanRaw;
+        if (!hasAnyInput && !hasIdentityInfo) {
             setIdentityEditFeedback("Please enter at least one identity number (Aadhaar, PAN, Passport, or UAN).");
-            return;
-        }
-
-        if (aadhaarNumber && aadhaarNumber.length !== 12) {
-            setIdentityEditFeedback("Aadhaar Number must be exactly 12 digits.");
-            return;
-        }
-
-        const panRegex = /^[A-Z]{5}[0-9]{4}[A-Z]{1}$/;
-        if (panNumber && !panRegex.test(panNumber)) {
-            setIdentityEditFeedback("PAN Number must be 10 characters in valid format (e.g., ABCDE1234F).");
             return;
         }
 
@@ -1540,19 +1741,29 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
                     method: "PATCH",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
-                        aadhaarNumber,
-                        panNumber,
-                        passportNumber,
-                        uanNumber,
+                        aadhaarNumber: aadhaarRaw,
+                        panNumber: panRaw,
+                        passportNumber: passportRaw,
+                        uanNumber: uanRaw,
+                        reason: identityEditForm.reason || "",
                     }),
                 }
             );
             const data = await readApiResponse(response);
             if (!response.ok) {
+                if (data.fieldErrors) {
+                    setIdentityFieldErrors(data.fieldErrors);
+                }
                 throw new Error(data.message || "Unable to update identity information.");
             }
             setIdentityInfo(data);
             setIsIdentityEditOpen(false);
+            if (typeof onProfileUpdate === "function") {
+                onProfileUpdate();
+            }
+            window.dispatchEvent(
+                new CustomEvent("profileUpdated", { detail: { userId: currentUser.id } })
+            );
         } catch (error) {
             setIdentityEditFeedback(error.message || "Unable to update identity information.");
         } finally {
@@ -1640,25 +1851,18 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
             if (!response.ok) {
                 throw new Error(data.message || "Unable to save commute details.");
             }
-            setCommuteForm((prev) => ({
-                ...prev,
-                mode: data.mode || prev.mode,
-                distance: data.distance != null ? String(data.distance) : prev.distance,
-                transportType: isPublic ? (data.transport_type || prev.transportType) : "",
-                routeDetails: isPublic ? (data.route_details || prev.routeDetails) : "",
-                vehicleType: isPersonal ? (data.vehicle_type || prev.vehicleType) : "",
-                vehicleMakeModel: isPersonal ? (data.vehicle_make_model || prev.vehicleMakeModel) : "",
-                vehicleMileage: isPersonal && data.vehicle_mileage != null ? String(data.vehicle_mileage) : prev.vehicleMileage,
-                fuelType: isPersonal ? (data.fuel_type || prev.fuelType) : "",
+            setCommuteForm({
+                mode: "",
+                distance: "",
+                transportType: "",
+                routeDetails: "",
+                vehicleType: "",
+                vehicleMakeModel: "",
+                vehicleMileage: "",
+                fuelType: "",
                 status: data.status || "Pending"
-            }));
-            setCommuteFeedback("Travel details saved successfully (Status: Pending admin approval).");
-            if (typeof onProfileUpdate === "function") {
-                onProfileUpdate();
-            }
-            if (typeof window !== "undefined") {
-                window.dispatchEvent(new CustomEvent("commuteUpdated", { detail: data }));
-            }
+            });
+            setCommuteFeedback("Travel details submitted (Status: Pending admin approval).");
         } catch (error) {
             setCommuteFeedback(error.message || "Unable to save commute details.");
         } finally {
@@ -1789,7 +1993,7 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
                         </div>
                     </div>
                     <button className="btn" type="button" style={EDIT_TRIGGER_STYLE} onMouseEnter={(event) => setEditTriggerHover(event, true)} onMouseLeave={(event) => setEditTriggerHover(event, false)} onClick={openPersonalEdit}>
-                        <i className="bi bi-pencil"></i> Edit
+                        <i className={`bi ${hasPersonalInfo ? "bi-pencil" : "bi-plus-lg"}`}></i> {hasPersonalInfo ? "Edit" : "Add"}
                     </button>
                 </div>
 
@@ -1819,7 +2023,7 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
                         </div>
                     </div>
                     <button className="btn" type="button" style={EDIT_TRIGGER_STYLE} onMouseEnter={(event) => setEditTriggerHover(event, true)} onMouseLeave={(event) => setEditTriggerHover(event, false)} onClick={openContactEdit}>
-                        <i className="bi bi-pencil"></i> Edit
+                        <i className={`bi ${hasContactInfo ? "bi-pencil" : "bi-plus-lg"}`}></i> {hasContactInfo ? "Edit" : "Add"}
                     </button>
                 </div>
 
@@ -1980,11 +2184,12 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
                                                     setCommuteForm((form) => ({ ...form, transportType: event.target.value }));
                                                     setCommuteFeedback("");
                                                 }}
+                                                required
                                             >
-                                                <option value="">Select transport type</option>
+                                                <option value="" disabled>Select a transport type</option>
                                                 <option value="Bus">Bus</option>
                                                 <option value="Train / Metro">Train / Metro</option>
-                                                <option value="Shared Cab / Auto">Shared Cab / Auto</option>
+                                                <option value="Auto rickshaw">Auto rickshaw</option>
                                                 <option value="Other">Other</option>
                                             </select>
                                         </label>
@@ -2096,7 +2301,7 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
                         </div>
                     </div>
                     <button className="btn" type="button" style={EDIT_TRIGGER_STYLE} onMouseEnter={(event) => setEditTriggerHover(event, true)} onMouseLeave={(event) => setEditTriggerHover(event, false)} onClick={openBankEdit}>
-                        <i className="bi bi-pencil"></i> Request Update
+                        <i className={`bi ${hasBankInfo ? "bi-pencil" : "bi-plus-lg"}`}></i> {hasBankInfo ? "Edit" : "Add"}
                     </button>
                 </div>
 
@@ -2177,9 +2382,16 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
                             <p>Government-issued identity details</p>
                         </div>
                     </div>
-                    <button className="btn" type="button" style={EDIT_TRIGGER_STYLE} onMouseEnter={(event) => setEditTriggerHover(event, true)} onMouseLeave={(event) => setEditTriggerHover(event, false)} onClick={openIdentityEdit}>
-                        <i className={`bi ${Boolean(identityInfo?.aadhaar_last_four || identityInfo?.pan_number_masked || identityInfo?.passport_number_masked || identityInfo?.uan_last_four) ? "bi-pencil" : "bi-plus-lg"}`}></i> {Boolean(identityInfo?.aadhaar_last_four || identityInfo?.pan_number_masked || identityInfo?.passport_number_masked || identityInfo?.uan_last_four) ? "Request Update" : "Add Details"}
-                    </button>
+                    <div className="d-flex align-items-center gap-2">
+                        {hasIdentityInfo && identityInfo?.verification_status && (
+                            <span className={`es-verified-badge${identityInfo.verification_status.toLowerCase() === "pending" ? " es-pending-badge" : ""}`}>
+                                <i className={`bi ${identityInfo.verification_status.toLowerCase() === "pending" ? "bi-clock-history" : "bi-patch-check-fill"}`}></i> {identityInfo.verification_status}
+                            </span>
+                        )}
+                        <button className="btn" type="button" style={EDIT_TRIGGER_STYLE} onMouseEnter={(event) => setEditTriggerHover(event, true)} onMouseLeave={(event) => setEditTriggerHover(event, false)} onClick={openIdentityEdit}>
+                            <i className={`bi ${hasIdentityInfo ? "bi-pencil" : "bi-plus-lg"}`}></i> {hasIdentityInfo ? "Edit" : "Add"}
+                        </button>
+                    </div>
                 </div>
 
                 <div className="es-info-grid">
@@ -2198,6 +2410,16 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
                     <div className="es-info-item">
                         <span>UAN Number</span>
                         <strong>{identityInfo?.uan_last_four ? `•••• •••• ${identityInfo.uan_last_four}` : "—"}</strong>
+                    </div>
+                    <div className="es-info-item">
+                        <span>Verification Status</span>
+                        <strong>
+                            {identityInfo?.verification_status?.toLowerCase() === "verified" ? (
+                                <span className="es-status-active"><i className="bi bi-patch-check-fill me-1"></i>Verified</span>
+                            ) : hasIdentityInfo ? (
+                                <span className="es-status-pending"><i className="bi bi-clock-history me-1"></i>{identityInfo?.verification_status || "Pending"}</span>
+                            ) : "—"}
+                        </strong>
                     </div>
                 </div>
                 {identityInfoLoading && <p role="status">Loading identity information...</p>}
@@ -2219,7 +2441,7 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
                         </div>
                     </div>
                     <button className="btn" type="button" style={EDIT_TRIGGER_STYLE} onMouseEnter={(event) => setEditTriggerHover(event, true)} onMouseLeave={(event) => setEditTriggerHover(event, false)} onClick={openEmergencyEdit}>
-                        <i className={`bi ${Boolean(primaryEmergencyContact?.contact_name || primaryEmergencyContact?.phone_number || primaryEmergencyContact?.relationship || primaryEmergencyContact?.address) ? "bi-pencil" : "bi-plus-lg"}`}></i> {Boolean(primaryEmergencyContact?.contact_name || primaryEmergencyContact?.phone_number || primaryEmergencyContact?.relationship || primaryEmergencyContact?.address) ? "Edit" : "Add Details"}
+                        <i className={`bi ${hasEmergencyContact ? "bi-pencil" : "bi-plus-lg"}`}></i> {hasEmergencyContact ? "Edit" : "Add"}
                     </button>
                 </div>
 
@@ -2278,7 +2500,7 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
                         <div className="es-security-row-icon"><i className="bi bi-key"></i></div>
                         <div className="es-security-row-content">
                             <strong>Password</strong>
-                            <span>••••••••</span>
+                            <span>Last changed 30 days ago</span>
                         </div>
                         <button 
                             className="btn es-edit-btn"
@@ -2298,17 +2520,30 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
                     </div>
 
                     <div className="es-security-row">
+                        <div className="es-security-row-icon"><i className="bi bi-phone"></i></div>
+                        <div className="es-security-row-content">
+                            <strong>Login Notifications</strong>
+                            <span>Extra protection for your account</span>
+                        </div>
+                        <label className="es-toggle-switch" title="Toggle Login Notifications">
+                            <input
+                                type="checkbox"
+                                checked={loginNotificationsEnabled}
+                                onChange={() => setLoginNotificationsEnabled(prev => !prev)}
+                            />
+                            <span className="es-toggle-slider"></span>
+                        </label>
+                    </div>
+
+                    <div className="es-security-row">
                         <div className="es-security-row-icon"><i className="bi bi-display"></i></div>
                         <div className="es-security-row-content">
                             <strong>Security Questions</strong>
                             <span>Adding security questions to help verify your identity.</span>
                         </div>
-                        <button 
+                        <button
                             className="btn es-edit-btn"
                             type="button"
-                            style={EDIT_TRIGGER_STYLE}
-                            onMouseEnter={(event) => setEditTriggerHover(event, true)}
-                            onMouseLeave={(event) => setEditTriggerHover(event, false)}
                             onClick={() => {
                                 setIsSecurityModalOpen(true);
                                 setSecurityModalFeedback("");
@@ -2316,33 +2551,6 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
                             }}
                         >
                             {hasSecurityQuestions ? "Change" : "Set up"}
-                        </button>
-                    </div>
-
-                    <div className="es-security-row">
-                        <div className="es-security-row-icon"><i className="bi bi-phone"></i></div>
-                        <div className="es-security-row-content">
-                            <strong>Multi-Factor Authentication</strong>
-                            <span>Extra protection for your account</span>
-                        </div>
-                        <span className="es-status-active">Enabled</span>
-                    </div>
-
-                    <div className="es-security-row">
-                        <div className="es-security-row-icon"><i className="bi bi-laptop"></i></div>
-                        <div className="es-security-row-content">
-                            <strong>Active Sessions</strong>
-                            <span>Current browser · Windows · Active Session</span>
-                        </div>
-                        <button
-                            className="btn es-edit-btn"
-                            type="button"
-                            style={EDIT_TRIGGER_STYLE}
-                            onClick={() => setIsSessionsModalOpen(true)}
-                            onMouseEnter={(event) => setEditTriggerHover(event, true)}
-                            onMouseLeave={(event) => setEditTriggerHover(event, false)}
-                        >
-                            Manage
                         </button>
                     </div>
                 </div>
@@ -2570,7 +2778,7 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
         <form id="esEditForm" className="modal-content es-modal-content" onSubmit={submitPersonalEditRequest}>
             <div className="modal-header">
                 <div>
-                    <h5 className="modal-title" id="esEditTitle">Update Personal Information</h5>
+                    <h5 className="modal-title" id="esEditTitle">{hasPersonalInfo ? "Update Personal Information" : "Add Personal Information"}</h5>
                     <p className="es-modal-subtitle" id="esEditSubtitle">Submit changes to your personal information for review.</p>
                 </div>
                 <button type="button" className="btn-close" aria-label="Close" onClick={() => setIsPersonalEditOpen(false)}></button>
@@ -2578,7 +2786,7 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
             <div className="modal-body">
                 <div className="row g-3" id="esEditFields">
                     <div className="col-12 col-md-6 es-edit-field">
-                        <label htmlFor="personalEditFirstName">First Name <span className="text-danger">*</span></label>
+                        <label htmlFor="personalEditFirstName">First Name</label>
                         <input id="personalEditFirstName" className="form-control" name="firstName" value={personalEditForm.firstName} onChange={updatePersonalEditField} required />
                     </div>
                     <div className="col-12 col-md-6 es-edit-field">
@@ -2586,7 +2794,7 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
                         <input id="personalEditMiddleName" className="form-control" name="middleName" value={personalEditForm.middleName} onChange={updatePersonalEditField} placeholder="Enter middle name" />
                     </div>
                     <div className="col-12 col-md-6 es-edit-field">
-                        <label htmlFor="personalEditLastName">Last Name <span className="text-danger">*</span></label>
+                        <label htmlFor="personalEditLastName">Last Name</label>
                         <input id="personalEditLastName" className="form-control" name="lastName" value={personalEditForm.lastName} onChange={updatePersonalEditField} required />
                     </div>
                     <div className="col-12 col-md-6 es-edit-field">
@@ -2730,7 +2938,7 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
         <form className="modal-content es-modal-content" onSubmit={submitBankEdit} noValidate>
             <div className="modal-header">
                 <div>
-                    <h5 className="modal-title">Request Bank Details Update</h5>
+                    <h5 className="modal-title">{hasBankInfo ? "Request Bank Details Update" : "Add Bank Details"}</h5>
                     <p className="es-modal-subtitle">Submit your new bank details for HR and payroll verification.</p>
                 </div>
                 <button type="button" className="btn-close" aria-label="Close" onClick={closeBankEdit}></button>
@@ -2738,24 +2946,67 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
             <div className="modal-body">
                 <div className="row g-3">
                     <div className="col-12 col-md-6 es-edit-field">
-                        <label htmlFor="bankEditName">Bank Name <span className="text-danger">*</span></label>
+                        <label htmlFor="bankEditName">Bank Name</label>
                         <input id="bankEditName" className="form-control" name="bankName" value={bankEditForm.bankName} onChange={updateBankEditField} maxLength="150" />
                     </div>
                     <div className="col-12 col-md-6 es-edit-field">
-                        <label htmlFor="bankEditHolder">Account Holder Name <span className="text-danger">*</span></label>
+                        <label htmlFor="bankEditHolder">Account Holder Name</label>
                         <input id="bankEditHolder" className="form-control" name="accountHolderName" value={bankEditForm.accountHolderName} onChange={updateBankEditField} maxLength="150" />
                     </div>
                     <div className="col-12 col-md-6 es-edit-field">
-                        <label htmlFor="bankEditAccount">Account Number <span className="text-danger">*</span></label>
-                        <input id="bankEditAccount" type="password" inputMode="numeric" autoComplete="off" className="form-control" name="accountNumber" value={bankEditForm.accountNumber} onChange={updateBankEditField} maxLength="16" placeholder="Enter account number" />
+                        <label htmlFor="bankEditAccount">Account Number</label>
+                        <input
+                            id="bankEditAccount"
+                            type="password"
+                            inputMode="numeric"
+                            autoComplete="off"
+                            className={`form-control ${bankFieldErrors.accountNumber ? "is-invalid border-danger" : ""}`}
+                            name="accountNumber"
+                            value={bankEditForm.accountNumber}
+                            onChange={updateBankEditField}
+                            onBlur={handleBankBlur}
+                            maxLength="18"
+                            placeholder="Enter account number"
+                        />
+                        {bankFieldErrors.accountNumber && (
+                            <div className="text-danger small mt-1">{bankFieldErrors.accountNumber}</div>
+                        )}
                     </div>
                     <div className="col-12 col-md-6 es-edit-field">
-                        <label htmlFor="bankEditConfirmAccount">Confirm Account Number <span className="text-danger">*</span></label>
-                        <input id="bankEditConfirmAccount" type="text" inputMode="numeric" autoComplete="off" className="form-control" name="confirmAccountNumber" value={bankEditForm.confirmAccountNumber} onChange={updateBankEditField} maxLength="16" placeholder="Enter confirm account number" />
+                        <label htmlFor="bankEditConfirmAccount">Confirm Account Number</label>
+                        <input
+                            id="bankEditConfirmAccount"
+                            type="text"
+                            inputMode="numeric"
+                            autoComplete="off"
+                            className={`form-control ${bankFieldErrors.confirmAccountNumber ? "is-invalid border-danger" : ""}`}
+                            name="confirmAccountNumber"
+                            value={bankEditForm.confirmAccountNumber}
+                            onChange={updateBankEditField}
+                            onBlur={handleBankBlur}
+                            maxLength="18"
+                            placeholder="Enter confirm account number"
+                        />
+                        {bankFieldErrors.confirmAccountNumber && (
+                            <div className="text-danger small mt-1">{bankFieldErrors.confirmAccountNumber}</div>
+                        )}
                     </div>
                     <div className="col-12 col-md-6 es-edit-field">
-                        <label htmlFor="bankEditIfsc">IFSC Code <span className="text-danger">*</span></label>
-                        <input id="bankEditIfsc" className="form-control" name="ifscCode" value={bankEditForm.ifscCode} onChange={updateBankEditField} maxLength="20" placeholder="Enter IFSC code" />
+                        <label htmlFor="bankEditIfsc">IFSC Code</label>
+                        <input
+                            id="bankEditIfsc"
+                            className={`form-control ${bankFieldErrors.ifscCode ? "is-invalid border-danger" : ""}`}
+                            name="ifscCode"
+                            value={bankEditForm.ifscCode}
+                            onChange={updateBankEditField}
+                            onBlur={handleBankBlur}
+                            maxLength="11"
+                            placeholder="e.g. SBIN0001234"
+                            style={{ textTransform: "uppercase" }}
+                        />
+                        {bankFieldErrors.ifscCode && (
+                            <div className="text-danger small mt-1">{bankFieldErrors.ifscCode}</div>
+                        )}
                     </div>
                     <div className="col-12 col-md-6 es-edit-field">
                         <label htmlFor="bankEditBranch">Branch Name</label>
@@ -2806,7 +3057,7 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
         <form className="modal-content es-modal-content" onSubmit={submitContactEdit} noValidate>
             <div className="modal-header">
                 <div>
-                    <h5 className="modal-title">Update Contact Information</h5>
+                    <h5 className="modal-title">{hasContactInfo ? "Update Contact Information" : "Add Contact Information"}</h5>
                     <p className="es-modal-subtitle">Keep your contact details and addresses up to date.</p>
                 </div>
                 <button type="button" className="btn-close" aria-label="Close" onClick={() => setIsContactEditOpen(false)}></button>
@@ -2818,31 +3069,31 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
                         <input id="contactEditWorkEmail" type="email" className="form-control" name="workEmail" value={contactEditForm.workEmail} onChange={updateContactEditField} />
                     </div> */}
                     <div className="col-12 col-md-6 es-edit-field">
-                        <label htmlFor="contactEditPersonalEmail">Personal Email <span className="text-danger">*</span></label>
+                        <label htmlFor="contactEditPersonalEmail">Personal Email</label>
                         <input id="contactEditPersonalEmail" type="email" className="form-control" name="personalEmail" value={contactEditForm.personalEmail} onChange={updateContactEditField} placeholder="Enter personal email" />
                     </div>
                     <div className="col-12 col-md-6 es-edit-field">
-                        <label htmlFor="contactEditMobile">Mobile Number <span className="text-danger">*</span></label>
+                        <label htmlFor="contactEditMobile">Mobile Number</label>
                         <input id="contactEditMobile" type="tel" inputMode="numeric" className="form-control" name="mobile" value={contactEditForm.mobile} onChange={updateContactEditField} placeholder="Enter mobile number" maxlength="10" />
                     </div>
                     <div className="col-12 col-md-6 es-edit-field">
-                        <label htmlFor="contactEditAlternatePhone">Alternate Phone <span className="text-danger">*</span></label>
+                        <label htmlFor="contactEditAlternatePhone">Alternate Phone</label>
                         <input id="contactEditAlternatePhone" type="tel" inputMode="numeric" className="form-control" name="alternatePhone" value={contactEditForm.alternatePhone} onChange={updateContactEditField} placeholder="Enter alternate phone" maxlength="10" />
                     </div>
                     <div className="col-12 col-md-6 es-edit-field">
-                        <label htmlFor="contactEditCurrentAddress">Current Address <span className="text-danger">*</span></label>
+                        <label htmlFor="contactEditCurrentAddress">Current Address</label>
                         <input id="contactEditCurrentAddress" className="form-control" name="currentAddress" value={contactEditForm.currentAddress} onChange={updateContactEditField} placeholder="Enter current address" />
                     </div>
                     <div className="col-12 col-md-6 es-edit-field">
-                        <label htmlFor="contactEditCurrentCity">Current City <span className="text-danger">*</span></label>
+                        <label htmlFor="contactEditCurrentCity">Current City</label>
                         <input id="contactEditCurrentCity" className="form-control" name="currentCity" value={contactEditForm.currentCity} onChange={updateContactEditField} placeholder="Enter current city" />
                     </div>
                     <div className="col-12 col-md-6 es-edit-field">
-                        <label htmlFor="contactEditCurrentState">Current State <span className="text-danger">*</span></label>
+                        <label htmlFor="contactEditCurrentState">Current State</label>
                         <input id="contactEditCurrentState" className="form-control" name="currentState" value={contactEditForm.currentState} onChange={updateContactEditField} placeholder="Enter current state" />
                     </div>
                     <div className="col-12 col-md-6 es-edit-field">
-                        <label htmlFor="contactEditCurrentPostalCode">Current Postal Code <span className="text-danger">*</span></label>
+                        <label htmlFor="contactEditCurrentPostalCode">Current Postal Code</label>
                         <input id="contactEditCurrentPostalCode" inputMode="numeric" className="form-control" name="currentPostalCode" value={contactEditForm.currentPostalCode} onChange={updateContactEditField} placeholder="Enter current postal code" maxlength="6" />
                     </div>
                     {/* <div className="col-12 col-md-6 es-edit-field">
@@ -2856,23 +3107,23 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
                         </div>
                     </div>
                     <div className="col-12 col-md-6 es-edit-field">
-                        <label htmlFor="contactEditPermanentAddress">Permanent Address {!contactEditForm.sameAsCurrentAddress && <span className="text-danger">*</span>}</label>
+                        <label htmlFor="contactEditPermanentAddress">Permanent Address</label>
                         <input id="contactEditPermanentAddress" className="form-control" name="permanentAddress" value={contactEditForm.permanentAddress} onChange={updateContactEditField} disabled={contactEditForm.sameAsCurrentAddress} placeholder="Enter permanent address" />
                     </div>
                     <div className="col-12 col-md-6 es-edit-field">
-                        <label htmlFor="contactEditPermanentCity">Permanent City {!contactEditForm.sameAsCurrentAddress && <span className="text-danger">*</span>}</label>
+                        <label htmlFor="contactEditPermanentCity">Permanent City</label>
                         <input id="contactEditPermanentCity" className="form-control" name="permanentCity" value={contactEditForm.permanentCity} onChange={updateContactEditField} disabled={contactEditForm.sameAsCurrentAddress} placeholder="Enter permanent city" />
                     </div>
                     <div className="col-12 col-md-6 es-edit-field">
-                        <label htmlFor="contactEditPermanentState">Permanent State {!contactEditForm.sameAsCurrentAddress && <span className="text-danger">*</span>}</label>
+                        <label htmlFor="contactEditPermanentState">Permanent State</label>
                         <input id="contactEditPermanentState" className="form-control" name="permanentState" value={contactEditForm.permanentState} onChange={updateContactEditField} disabled={contactEditForm.sameAsCurrentAddress} placeholder="Enter permanent state" />
                     </div>
                     <div className="col-12 col-md-6 es-edit-field">
-                        <label htmlFor="contactEditPermanentPostalCode">Permanent Postal Code {!contactEditForm.sameAsCurrentAddress && <span className="text-danger">*</span>}</label>
+                        <label htmlFor="contactEditPermanentPostalCode">Permanent Postal Code</label>
                         <input id="contactEditPermanentPostalCode" className="form-control" name="permanentPostalCode" value={contactEditForm.permanentPostalCode} onChange={updateContactEditField} disabled={contactEditForm.sameAsCurrentAddress} placeholder="Enter permanent postal code" />
                     </div>
                     <div className="col-12 col-md-6 es-edit-field">
-                        <label htmlFor="contactEditPermanentCountry">Permanent Country {!contactEditForm.sameAsCurrentAddress && <span className="text-danger">*</span>}</label>
+                        <label htmlFor="contactEditPermanentCountry">Permanent Country</label>
                         <input id="contactEditPermanentCountry" className="form-control" name="permanentCountry" value={contactEditForm.permanentCountry} onChange={updateContactEditField} disabled={contactEditForm.sameAsCurrentAddress} placeholder="Enter permanent country" />
                     </div>
                 </div>
@@ -2909,7 +3160,7 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
         <form className="modal-content es-modal-content" onSubmit={submitIdentityEdit} noValidate>
             <div className="modal-header">
                 <div>
-                    <h5 className="modal-title">Request Identity Information Update</h5>
+                    <h5 className="modal-title">{hasIdentityInfo ? "Request Identity Information Update" : "Add Identity Information"}</h5>
                     <p className="es-modal-subtitle">Submit identity corrections for HR verification.</p>
                 </div>
                 <button type="button" className="btn-close" aria-label="Close" onClick={() => setIsIdentityEditOpen(false)}></button>
@@ -2918,21 +3169,76 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
                 <div className="row g-3">
                     <div className="col-12 col-md-6 es-edit-field">
                         <label htmlFor="identityEditAadhaar">Aadhaar Number</label>
-                        <input id="identityEditAadhaar" className="form-control" name="aadhaarNumber" value={identityEditForm.aadhaarNumber} onFocus={focusIdentityNumberField} onChange={updateIdentityEditField} inputMode="numeric" maxLength="12" placeholder="Enter 12-digit Aadhaar number" />
+                        <input
+                            id="identityEditAadhaar"
+                            className={`form-control ${identityFieldErrors.aadhaarNumber ? "is-invalid border-danger" : ""}`}
+                            name="aadhaarNumber"
+                            value={identityEditForm.aadhaarNumber}
+                            onFocus={focusIdentityNumberField}
+                            onChange={updateIdentityEditField}
+                            onBlur={handleIdentityBlur}
+                            inputMode="numeric"
+                            maxLength="14"
+                            placeholder="XXXX XXXX XXXX"
+                        />
+                        {identityFieldErrors.aadhaarNumber && (
+                            <div className="text-danger small mt-1">{identityFieldErrors.aadhaarNumber}</div>
+                        )}
                     </div>
                     <div className="col-12 col-md-6 es-edit-field">
                         <label htmlFor="identityEditPan">PAN Number</label>
-                        <input id="identityEditPan" className="form-control" name="panNumber" value={identityEditForm.panNumber} onFocus={focusIdentityNumberField} onChange={updateIdentityEditField} maxLength="10" placeholder="Enter 10-character PAN (e.g. ABCDE1234F)" style={{ textTransform: "uppercase" }} />
+                        <input
+                            id="identityEditPan"
+                            className={`form-control ${identityFieldErrors.panNumber ? "is-invalid border-danger" : ""}`}
+                            name="panNumber"
+                            value={identityEditForm.panNumber}
+                            onFocus={focusIdentityNumberField}
+                            onChange={updateIdentityEditField}
+                            onBlur={handleIdentityBlur}
+                            maxLength="10"
+                            placeholder="ABCDE1234F"
+                        />
+                        {identityFieldErrors.panNumber && (
+                            <div className="text-danger small mt-1">{identityFieldErrors.panNumber}</div>
+                        )}
                     </div>
                     <div className="col-12 col-md-6 es-edit-field">
                         <label htmlFor="identityEditPassport">Passport Number</label>
-                        <input id="identityEditPassport" className="form-control" name="passportNumber" value={identityEditForm.passportNumber} onFocus={focusIdentityNumberField} onChange={updateIdentityEditField} maxLength="30" placeholder="Enter passport number" />
+                        <input
+                            id="identityEditPassport"
+                            className={`form-control ${identityFieldErrors.passportNumber ? "is-invalid border-danger" : ""}`}
+                            name="passportNumber"
+                            value={identityEditForm.passportNumber}
+                            onFocus={focusIdentityNumberField}
+                            onChange={updateIdentityEditField}
+                            onBlur={handleIdentityBlur}
+                            maxLength="8"
+                            placeholder="A1234567"
+                        />
+                        {identityFieldErrors.passportNumber && (
+                            <div className="text-danger small mt-1">{identityFieldErrors.passportNumber}</div>
+                        )}
                     </div>
                     <div className="col-12 col-md-6 es-edit-field">
                         <label htmlFor="identityEditUan">UAN Number</label>
-                        <input id="identityEditUan" type="text" inputMode="numeric" className="form-control" name="uanNumber" value={identityEditForm.uanNumber} onFocus={focusIdentityNumberField} onChange={updateIdentityEditField} maxLength="12" placeholder="Enter UAN number" />
+                        <input
+                            id="identityEditUan"
+                            type="text"
+                            inputMode="numeric"
+                            className={`form-control ${identityFieldErrors.uanNumber ? "is-invalid border-danger" : ""}`}
+                            name="uanNumber"
+                            value={identityEditForm.uanNumber}
+                            onFocus={focusIdentityNumberField}
+                            onChange={updateIdentityEditField}
+                            onBlur={handleIdentityBlur}
+                            maxLength="12"
+                            placeholder="12-digit UAN"
+                        />
+                        {identityFieldErrors.uanNumber && (
+                            <div className="text-danger small mt-1">{identityFieldErrors.uanNumber}</div>
+                        )}
                     </div>
-                    <div className="col-12 col-md-6 es-edit-field">
+                    <div className="col-12 es-edit-field">
                         <label htmlFor="identityEditReason">Reason for Change</label>
                         <textarea id="identityEditReason" className="form-control" name="reason" value={identityEditForm.reason} onChange={updateIdentityEditField} rows="3" maxLength="2000" placeholder="Enter reason for change"></textarea>
                     </div>
@@ -2969,7 +3275,7 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
         <form className="modal-content es-modal-content" onSubmit={handleEmergencyEditSubmit}>
             <div className="modal-header">
                 <div>
-                    <h5 className="modal-title">Update Emergency Contact</h5>
+                    <h5 className="modal-title">{hasEmergencyContact ? "Update Emergency Contact" : "Add Emergency Contact"}</h5>
                     <p className="es-modal-subtitle">Keep your emergency contact information current.</p>
                 </div>
                 <button type="button" className="btn-close" aria-label="Close" onClick={() => setIsEmergencyEditOpen(false)}></button>
@@ -2980,7 +3286,7 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
                         <h6>Primary Emergency Contact (Mandatory)</h6>
                     </div>
                     <div className="col-12 col-md-6 es-edit-field">
-                        <label htmlFor="emergencyEditName">Contact Name <span className="text-danger">*</span></label>
+                        <label htmlFor="emergencyEditName">Contact Name</label>
                         <input id="emergencyEditName" className="form-control" name="contactName" value={emergencyEditForm.contactName} onChange={updateEmergencyEditField} maxLength="150" placeholder="Enter contact name" required />
                     </div>
                     <div className="col-12 col-md-6 es-edit-field">
@@ -2995,23 +3301,24 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
                             <option value="Friend">Friend</option>
                             <option value="Other">Other</option>
                         </select>
-                        {emergencyEditForm.relationship === "Other" && (
-                            <div className="mt-2">
-                                <label htmlFor="emergencyEditRelationshipOther" className="form-label small text-muted mb-1">Specify Relationship <span className="text-danger">*</span></label>
-                                <input
-                                    id="emergencyEditRelationshipOther"
-                                    className="form-control"
-                                    name="relationshipOther"
-                                    value={emergencyEditForm.relationshipOther || ""}
-                                    onChange={updateEmergencyEditField}
-                                    placeholder="Enter relationship (e.g., Guardian, Uncle)"
-                                    required
-                                />
-                            </div>
-                        )}
                     </div>
+                    {emergencyEditForm.relationship === "Other" && (
+                        <div className="col-12 col-md-6 es-edit-field">
+                            <label htmlFor="emergencyEditOtherRelationship">Specify Relationship <span className="text-danger">*</span></label>
+                            <input
+                                id="emergencyEditOtherRelationship"
+                                className="form-control"
+                                name="otherRelationship"
+                                value={emergencyEditForm.otherRelationship}
+                                onChange={updateEmergencyEditField}
+                                maxLength="50"
+                                placeholder="Enter relationship"
+                                required
+                            />
+                        </div>
+                    )}
                     <div className="col-12 col-md-6 es-edit-field">
-                        <label htmlFor="emergencyEditPhone">Phone Number <span className="text-danger">*</span></label>
+                        <label htmlFor="emergencyEditPhone">Phone Number</label>
                         <input id="emergencyEditPhone" type="tel" className="form-control" name="phoneNumber" value={emergencyEditForm.phoneNumber} onChange={updateEmergencyEditField} maxLength="25" placeholder="Enter phone number" required />
                     </div>
                     <div className="col-12 col-md-6 es-edit-field">
@@ -3037,20 +3344,22 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
                             <option value="Friend">Friend</option>
                             <option value="Other">Other</option>
                         </select>
-                        {emergencyEditForm.secondRelationship === "Other" && (
-                            <div className="mt-2">
-                                <label htmlFor="emergencyEditSecondRelationshipOther" className="form-label small text-muted mb-1">Specify Relationship <span className="text-danger">*</span></label>
-                                <input
-                                    id="emergencyEditSecondRelationshipOther"
-                                    className="form-control"
-                                    name="secondRelationshipOther"
-                                    value={emergencyEditForm.secondRelationshipOther || ""}
-                                    onChange={updateEmergencyEditField}
-                                    placeholder="Enter relationship (e.g., Guardian, Uncle)"
-                                />
-                            </div>
-                        )}
                     </div>
+                    {emergencyEditForm.secondRelationship === "Other" && (
+                        <div className="col-12 col-md-6 es-edit-field">
+                            <label htmlFor="emergencyEditSecondOtherRelationship">Specify Relationship <span className="text-danger">*</span></label>
+                            <input
+                                id="emergencyEditSecondOtherRelationship"
+                                className="form-control"
+                                name="secondOtherRelationship"
+                                value={emergencyEditForm.secondOtherRelationship}
+                                onChange={updateEmergencyEditField}
+                                maxLength="50"
+                                placeholder="Enter relationship"
+                                required
+                            />
+                        </div>
+                    )}
                     <div className="col-12 col-md-6 es-edit-field">
                         <label htmlFor="emergencyEditSecondPhone">Phone Number</label>
                         <input id="emergencyEditSecondPhone" type="tel" className="form-control" name="secondPhoneNumber" value={emergencyEditForm.secondPhoneNumber} onChange={updateEmergencyEditField} maxLength="25" placeholder="Enter phone number" />
@@ -3110,142 +3419,6 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
                 </div>
             )}
 
-            
-            {/* Manage Active Sessions Modal */}
-            {isSessionsModalOpen && (
-                <div className="modal-backdrop fade show" style={{ zIndex: 1050 }} onClick={() => setIsSessionsModalOpen(false)}></div>
-            )}
-            <div
-                className={`modal fade${isSessionsModalOpen ? " show d-block" : ""}`}
-                id="esActiveSessionsModal"
-                tabIndex="-1"
-                aria-hidden={!isSessionsModalOpen}
-                aria-modal={isSessionsModalOpen || undefined}
-                role={isSessionsModalOpen ? "dialog" : undefined}
-                style={{
-                    display: isSessionsModalOpen ? "block" : "none",
-                    zIndex: 1055,
-                    backgroundColor: isSessionsModalOpen ? "rgba(15, 23, 42, 0.45)" : "transparent"
-                }}
-                onClick={(event) => {
-                    if (event.target === event.currentTarget) setIsSessionsModalOpen(false);
-                }}
-            >
-                <div className="modal-dialog modal-dialog-centered modal-dialog-scrollable" style={{ maxWidth: 540 }}>
-                    <div className="modal-content es-modal-content">
-                        <div className="modal-header" style={{ borderBottom: '1px solid #f1f5f9', padding: '20px 24px' }}>
-                            <div>
-                                <h5 className="modal-title" style={{ fontWeight: 700, fontSize: '1.2rem', color: '#1e293b' }}>
-                                    <i className="bi bi-shield-check text-primary me-2"></i>
-                                    Active Login Sessions
-                                </h5>
-                                <p className="es-modal-subtitle" style={{ margin: '4px 0 0', color: '#64748b', fontSize: '0.85rem' }}>
-                                    Review and manage the devices currently authorized to access your account.
-                                </p>
-                            </div>
-                            <button type="button" className="btn-close" aria-label="Close" onClick={() => setIsSessionsModalOpen(false)}></button>
-                        </div>
-
-                        <div className="modal-body" style={{ padding: '20px 24px' }}>
-                            {sessionsToast && (
-                                <div className="alert alert-success d-flex align-items-center gap-2 mb-3 py-2 px-3" style={{ fontSize: '0.85rem', borderRadius: '8px' }}>
-                                    <i className="bi bi-check-circle-fill"></i>
-                                    <span>{sessionsToast}</span>
-                                </div>
-                            )}
-
-                            {/* Current Session */}
-                            <div className="p-3 mb-3 rounded-3" style={{ background: '#f8fafc', border: '1px solid #e2e8f0' }}>
-                                <div className="d-flex align-items-center justify-content-between mb-2">
-                                    <div className="d-flex align-items-center gap-2">
-                                        <div style={{ width: '36px', height: '36px', borderRadius: '8px', background: '#e0e7ff', color: '#4338ca', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px' }}>
-                                            <i className="bi bi-laptop"></i>
-                                        </div>
-                                        <div>
-                                            <strong style={{ fontSize: '0.92rem', color: '#1e293b', display: 'block' }}>
-                                                {typeof navigator !== "undefined" && navigator.userAgent.includes("Windows") ? "Windows PC" : typeof navigator !== "undefined" && navigator.userAgent.includes("Mac") ? "Mac OS" : "Current Device"} · {typeof navigator !== "undefined" && navigator.userAgent.includes("Edg") ? "Edge" : typeof navigator !== "undefined" && navigator.userAgent.includes("Chrome") ? "Chrome" : "Web Browser"}
-                                            </strong>
-                                            <span style={{ fontSize: '0.78rem', color: '#64748b' }}>
-                                                Active Local Session · IP: 127.0.0.1
-                                            </span>
-                                        </div>
-                                    </div>
-                                    <span className="badge rounded-pill" style={{ background: '#dcfce7', color: '#15803d', fontSize: '0.75rem', fontWeight: 600, padding: '5px 10px' }}>
-                                        <i className="bi bi-circle-fill me-1" style={{ fontSize: '6px', verticalAlign: 'middle' }}></i>
-                                        Current Session
-                                    </span>
-                                </div>
-                                <div className="text-muted" style={{ fontSize: '0.78rem' }}>
-                                    Signed in recently · Verified browser session
-                                </div>
-                            </div>
-
-                            {/* Other Sessions */}
-                            <label className="form-label text-muted fw-semibold mb-2" style={{ fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                                Other Active Sessions
-                            </label>
-
-                            {!otherSessionsRevoked ? (
-                                <div className="p-3 rounded-3" style={{ background: '#ffffff', border: '1px solid #e2e8f0' }}>
-                                    <div className="d-flex align-items-center justify-content-between">
-                                        <div className="d-flex align-items-center gap-2">
-                                            <div style={{ width: '36px', height: '36px', borderRadius: '8px', background: '#f1f5f9', color: '#64748b', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px' }}>
-                                                <i className="bi bi-phone"></i>
-                                            </div>
-                                            <div>
-                                                <strong style={{ fontSize: '0.9rem', color: '#1e293b', display: 'block' }}>Mobile Browser · Android / iOS</strong>
-                                                <span style={{ fontSize: '0.78rem', color: '#64748b' }}>Last active today at 10:15 AM</span>
-                                            </div>
-                                        </div>
-                                        <button
-                                            type="button"
-                                            className="btn btn-outline-danger btn-sm"
-                                            style={{ fontSize: '0.78rem', padding: '4px 10px', borderRadius: '6px', fontWeight: 600 }}
-                                            onClick={() => {
-                                                setOtherSessionsRevoked(true);
-                                                setSessionsToast("Mobile session revoked successfully.");
-                                            }}
-                                        >
-                                            Revoke
-                                        </button>
-                                    </div>
-                                </div>
-                            ) : (
-                                <div className="p-3 rounded-3 text-center" style={{ background: '#f8fafc', border: '1px dashed #cbd5e1', color: '#64748b', fontSize: '0.85rem' }}>
-                                    <i className="bi bi-shield-check text-success fs-5 d-block mb-1"></i>
-                                    No other active sessions. Your account is only signed in on this device.
-                                </div>
-                            )}
-                        </div>
-
-                        <div className="modal-footer" style={{ borderTop: '1px solid #f1f5f9', padding: '14px 24px', display: 'flex', justifyContent: 'space-between' }}>
-                            {!otherSessionsRevoked ? (
-                                <button
-                                    type="button"
-                                    className="btn btn-outline-danger btn-sm"
-                                    style={{ borderRadius: '8px', fontWeight: 600, fontSize: '0.82rem', padding: '7px 14px' }}
-                                    onClick={() => {
-                                        setOtherSessionsRevoked(true);
-                                        setSessionsToast("All other sessions logged out successfully.");
-                                    }}
-                                >
-                                    <i className="bi bi-box-arrow-right me-1"></i>
-                                    Sign Out Other Sessions
-                                </button>
-                            ) : <div></div>}
-                            <button
-                                type="button"
-                                className="btn btn-primary btn-sm"
-                                style={{ borderRadius: '8px', fontWeight: 600, fontSize: '0.82rem', padding: '7px 18px', backgroundColor: '#4f46e5', borderColor: '#4f46e5' }}
-                                onClick={() => setIsSessionsModalOpen(false)}
-                            >
-                                Done
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
             {/* Set Up Security Questions Modal */}
             {isSecurityModalOpen && (
                 <div className="modal-backdrop fade show" onClick={() => setIsSecurityModalOpen(false)}></div>
@@ -3288,14 +3461,14 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
 
                             {/* Question 1 */}
                             <div className="mb-3">
-                                <label className="form-label mb-1" style={{ fontSize: '0.85rem', fontWeight: 600, color: '#334155' }}>
-                                    Security Question 1 <span className="text-danger">*</span>
+                                <label className="form-label mb-1" style={{ fontSize: '0.84rem', fontWeight: 400, color: '#64748b' }}>
+                                    Security Question 1
                                 </label>
                                 <select
                                     className="form-select mb-2"
                                     value={securityQuestionsForm.question1}
                                     onChange={(e) => setSecurityQuestionsForm(prev => ({ ...prev, question1: e.target.value }))}
-                                    style={{ borderRadius: 8, borderColor: '#cbd5e1', fontSize: '0.9rem' }}
+                                    style={{ borderRadius: 10, borderColor: '#e2e8f0', fontSize: '0.9rem', boxShadow: 'none' }}
                                 >
                                     <option value="">Select a question</option>
                                     {SECURITY_QUESTIONS_LIST.map((q, idx) => (
@@ -3310,20 +3483,20 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
                                     placeholder="Enter your answer"
                                     value={securityQuestionsForm.answer1}
                                     onChange={(e) => setSecurityQuestionsForm(prev => ({ ...prev, answer1: e.target.value }))}
-                                    style={{ borderRadius: 8, borderColor: '#cbd5e1', fontSize: '0.9rem' }}
+                                    style={{ borderRadius: 10, borderColor: '#e2e8f0', fontSize: '0.9rem', boxShadow: 'none' }}
                                 />
                             </div>
 
                             {/* Question 2 */}
                             <div className="mb-3">
-                                <label className="form-label mb-1" style={{ fontSize: '0.85rem', fontWeight: 600, color: '#334155' }}>
-                                    Security Question 2 <span className="text-danger">*</span>
+                                <label className="form-label mb-1" style={{ fontSize: '0.84rem', fontWeight: 400, color: '#64748b' }}>
+                                    Security Question 2
                                 </label>
                                 <select
                                     className="form-select mb-2"
                                     value={securityQuestionsForm.question2}
                                     onChange={(e) => setSecurityQuestionsForm(prev => ({ ...prev, question2: e.target.value }))}
-                                    style={{ borderRadius: 8, borderColor: '#cbd5e1', fontSize: '0.9rem' }}
+                                    style={{ borderRadius: 10, borderColor: '#e2e8f0', fontSize: '0.9rem', boxShadow: 'none' }}
                                 >
                                     <option value="">Select a question</option>
                                     {SECURITY_QUESTIONS_LIST.map((q, idx) => (
@@ -3338,20 +3511,20 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
                                     placeholder="Enter your answer"
                                     value={securityQuestionsForm.answer2}
                                     onChange={(e) => setSecurityQuestionsForm(prev => ({ ...prev, answer2: e.target.value }))}
-                                    style={{ borderRadius: 8, borderColor: '#cbd5e1', fontSize: '0.9rem' }}
+                                    style={{ borderRadius: 10, borderColor: '#e2e8f0', fontSize: '0.9rem', boxShadow: 'none' }}
                                 />
                             </div>
 
                             {/* Question 3 */}
                             <div className="mb-3">
-                                <label className="form-label mb-1" style={{ fontSize: '0.85rem', fontWeight: 600, color: '#334155' }}>
-                                    Security Question 3 <span className="text-danger">*</span>
+                                <label className="form-label mb-1" style={{ fontSize: '0.84rem', fontWeight: 400, color: '#64748b' }}>
+                                    Security Question 3
                                 </label>
                                 <select
                                     className="form-select mb-2"
                                     value={securityQuestionsForm.question3}
                                     onChange={(e) => setSecurityQuestionsForm(prev => ({ ...prev, question3: e.target.value }))}
-                                    style={{ borderRadius: 8, borderColor: '#cbd5e1', fontSize: '0.9rem' }}
+                                    style={{ borderRadius: 10, borderColor: '#e2e8f0', fontSize: '0.9rem', boxShadow: 'none' }}
                                 >
                                     <option value="">Select a question</option>
                                     {SECURITY_QUESTIONS_LIST.map((q, idx) => (
@@ -3366,7 +3539,7 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
                                     placeholder="Enter your answer"
                                     value={securityQuestionsForm.answer3}
                                     onChange={(e) => setSecurityQuestionsForm(prev => ({ ...prev, answer3: e.target.value }))}
-                                    style={{ borderRadius: 8, borderColor: '#cbd5e1', fontSize: '0.9rem' }}
+                                    style={{ borderRadius: 10, borderColor: '#e2e8f0', fontSize: '0.9rem', boxShadow: 'none' }}
                                 />
                             </div>
                         </div>
@@ -3374,7 +3547,7 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
                             <button
                                 type="button"
                                 className="btn"
-                                style={{ border: '1px solid #cbd5e1', color: '#475569', borderRadius: 8, padding: '8px 18px', fontWeight: 500 }}
+                                style={{ border: '1.5px solid #cbd5e1', color: '#475569', borderRadius: 50, padding: '8px 18px', fontWeight: 500, background: '#fff' }}
                                 onClick={() => setIsSecurityModalOpen(false)}
                             >
                                 Cancel
@@ -3387,7 +3560,7 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
                                     backgroundColor: '#4338ca',
                                     borderColor: '#4338ca',
                                     color: '#ffffff',
-                                    borderRadius: 8,
+                                    borderRadius: 50,
                                     padding: '8px 20px',
                                     fontWeight: 600
                                 }}

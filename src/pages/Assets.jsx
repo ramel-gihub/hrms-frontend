@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import EmptyState from "../components/EmptyState";
 
-const API_BASE = import.meta.env.VITE_API_URL || "https://hrms-backend-fzef.onrender.com";
+const API_BASE = (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') ? 'http://localhost:5002' : (import.meta.env.VITE_API_URL || 'https://hrms-backend-fzef.onrender.com'));
 
 const TYPE_META = {
   laptop: { icon: "bi-laptop", cls: "laptop", label: "Laptop" },
@@ -50,17 +50,9 @@ export default function Assets({ currentUser, employeeProfile, embedded = false 
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleting, setDeleting] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [editingRequest, setEditingRequest] = useState(null);
   const [notice, setNotice] = useState(null);
-  const [modalError, setModalError] = useState("");
   const emptyForm = { assetType: "", priority: "", preferredModel: "", dateNeeded: "", justification: "", workLocation: "", additionalRequirements: "" };
   const [form, setForm] = useState(emptyForm);
-  useEffect(() => {
-    if (!notice) return;
-    const t = setTimeout(() => setNotice(null), 5000);
-    return () => clearTimeout(t);
-  }, [notice]);
-
   const setField = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
 
   useEffect(() => {
@@ -110,100 +102,23 @@ export default function Assets({ currentUser, employeeProfile, embedded = false 
   };
   useEffect(() => { loadRequests(); }, [user?.id]);
 
-    const toIsoDateString = (val) => {
-      if (!val) return "";
-      const s = String(val).trim();
-      if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
-      if (s.includes("T")) return s.split("T")[0];
-      const d = new Date(s);
-      if (!isNaN(d.getTime())) {
-        const y = d.getFullYear();
-        const m = String(d.getMonth() + 1).padStart(2, "0");
-        const day = String(d.getDate()).padStart(2, "0");
-        return `${y}-${m}-${day}`;
-      }
-      return s;
-    };
-
-    const openEditRequest = (req) => {
-    setModalError("");
-    setEditingRequest(req);
-    const rawType = (req.asset_type || "").trim();
-    const typeKey = rawType.toLowerCase().replace(/\s+/g, "-");
-    const validKeys = ["laptop", "monitor", "mobile", "keyboard", "mouse", "headset", "access-card", "security-token", "other"];
-    const matchedType = validKeys.includes(typeKey) ? typeKey : (validKeys.includes(rawType.toLowerCase()) ? rawType.toLowerCase() : rawType);
-
-    setForm({
-      assetType: matchedType,
-      priority: req.priority || "",
-      preferredModel: req.preferred_model || "",
-      dateNeeded: toIsoDateString(req.date_needed),
-      justification: req.justification || "",
-      workLocation: req.work_location || "",
-      additionalRequirements: req.additional_requirements || ""
-    });
-  };
-
   const submitRequest = async (e) => {
     e.preventDefault();
-    setModalError("");
-    const cleanDate = toIsoDateString(form.dateNeeded);
-    if (cleanDate) {
-      const todayStr = new Date().toISOString().split("T")[0];
-      if (cleanDate < todayStr) {
-        setModalError("Date needed cannot be in the past. Please select today or a future date.");
-        return;
-      }
-    }
     setSubmitting(true);
     try {
-      const url = editingRequest
-        ? `${API_BASE}/api/assets/requests/${user?.id || ''}/${editingRequest.id}`
-        : `${API_BASE}/api/assets/request`;
-      const method = editingRequest ? "PUT" : "POST";
-      const payload = {
-        userId: user?.id,
-        ...form,
-        dateNeeded: cleanDate || null
-      };
-      const res = await fetch(url, {
-        method,
+      const res = await fetch(`${API_BASE}/api/assets/request`, {
+        method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({ userId: user?.id, ...form }),
       });
       const result = await res.json();
       if (!res.ok) throw new Error(result.error || "Request failed");
       const modalEl = document.getElementById("eaAssignAssetModal");
-      if (modalEl) {
-        if (window.bootstrap?.Modal) {
-          try {
-            window.bootstrap.Modal.getOrCreateInstance(modalEl)?.hide();
-          } catch (_) {}
-        }
-        modalEl.classList.remove("show");
-        modalEl.style.display = "none";
-        modalEl.setAttribute("aria-hidden", "true");
-        modalEl.removeAttribute("aria-modal");
-        const backdrop = document.querySelector(".modal-backdrop");
-        if (backdrop) backdrop.remove();
-        document.body.classList.remove("modal-open");
-        document.body.style.removeProperty("overflow");
-        document.body.style.removeProperty("padding-right");
-      }
-      const requestCode = editingRequest?.request_code || result.request?.request_code || "";
-      const isEdit = Boolean(editingRequest);
+    window.bootstrap?.Modal.getOrCreateInstance(modalEl)?.hide();
       setForm(emptyForm);
-      setEditingRequest(null);
-      setModalError("");
-      setNotice({
-        type: "success",
-        text: isEdit
-          ? `Request ${requestCode} updated successfully.`
-          : `Request ${requestCode} submitted. It is now pending admin review.`
-      });
+      setNotice({ type: "success", text: `Request ${result.request.request_code} submitted. It is now pending admin review.` });
       loadRequests();
     } catch (err) {
-      setModalError(err.message);
       setNotice({ type: "danger", text: err.message });
     } finally {
       setSubmitting(false);
@@ -237,7 +152,7 @@ export default function Assets({ currentUser, employeeProfile, embedded = false 
   }, [user?.id]);
 
   const { employee, assets } = data;
-  const fullName = employeeProfile?.preferred_name || employee?.preferred_name || (employee ? `${employee.first_name || ""} ${employee.last_name || ""}`.trim() : "") || (user?.email ? user.email.split('@')[0] : "Employee");
+  const fullName = employee ? `${employee.first_name || ""} ${employee.last_name || ""}`.trim() || user?.email : user?.email || "";
   const initials = fullName.split(/[\s@.]+/).filter(Boolean).slice(0, 2).map((p) => p[0].toUpperCase()).join("");
 
   const total = assets.length;
@@ -291,8 +206,12 @@ export default function Assets({ currentUser, employeeProfile, embedded = false 
 
   const conditionClass = (c) => (c || "").toLowerCase();
 
-  const pageBody = (
-    <div className="employee-assets-page w-100" style={{ width: "100%", maxWidth: "100%" }}>
+  return (
+    <>
+      <div className={embedded ? "" : "dashboard-wrapper"}>
+        <div className={embedded ? "" : "dashboard-container"}>
+          <div className={embedded ? "" : "px-0 px-md-5 employee-dashboard"}>
+            <div className="employee-assets-page">
 
                     <div className="esc-page-header">
                         {!embedded && <div>
@@ -308,8 +227,7 @@ export default function Assets({ currentUser, employeeProfile, embedded = false 
                             </button>} */}
 
                             <button className="btn ea-btn-primary" type="button" data-bs-toggle="modal"
-                                data-bs-target="#eaAssignAssetModal"
-                                onClick={() => { setEditingRequest(null); setForm(emptyForm); }}>
+                                data-bs-target="#eaAssignAssetModal">
                                 <i className="bi bi-plus-lg"></i>
                                 New Asset Request
                             </button>
@@ -332,7 +250,7 @@ export default function Assets({ currentUser, employeeProfile, embedded = false 
                                     <img
                                         src={/^(https?:\/\/|data:|blob:)/i.test(employeeProfile?.profile_pic || employeeProfile?.avatar_url)
                                             ? (employeeProfile?.profile_pic || employeeProfile?.avatar_url)
-                                            : `${import.meta.env.VITE_API_URL || 'https://hrms-backend-fzef.onrender.com'}/${(employeeProfile?.profile_pic || employeeProfile?.avatar_url).replace(/^\/+/, '')}`}
+                                            : `${(typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') ? 'http://localhost:5002' : (import.meta.env.VITE_API_URL || 'https://hrms-backend-fzef.onrender.com'))}/${(employeeProfile?.profile_pic || employeeProfile?.avatar_url).replace(/^\/+/, '')}`}
                                         alt={fullName}
                                         style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: "17px" }}
                                     />
@@ -350,22 +268,17 @@ export default function Assets({ currentUser, employeeProfile, embedded = false 
                                     </span>
                                 </div>
 
+                                <p>{employee?.designation || employee?.role_name || ""}</p>
+
                                 <div className="esc-employee-meta">
                                     <span>
-                                        <i className="bi bi-person-badge"></i>
-                                        {employee?.employee_code || "EMP-1360"}
-                                    </span>
-                                    <span>
-                                        <i className="bi bi-briefcase"></i>
-                                        {employee?.designation || employee?.role_name || "Senior Software Engineer"}
-                                    </span>
-                                    <span>
                                         <i className="bi bi-diagram-3"></i>
-                                        {employee?.department ? `${employee.department}${employee.team ? ` · ${employee.team}` : " · Backend"}` : "Engineering · Backend"}
+                                        {employee?.department || "—"}
                                     </span>
+
                                     <span>
-                                        <i className="bi bi-geo-alt"></i>
-                                        {employee?.city || employee?.location || "Nagpur"}
+                                        <i className="bi bi-person-badge"></i>
+                                        {employee?.employee_code || "—"}
                                     </span>
                                 </div>
                             </div>
@@ -577,17 +490,7 @@ export default function Assets({ currentUser, employeeProfile, embedded = false 
                                                         </div>
                                                     </div>
                                                     {r.status === "Pending" && (
-                                                        <div className="ea-asset-actions ms-3 d-flex align-items-center gap-2">
-                                                            <button
-                                                                type="button"
-                                                                className="btn btn-outline-primary btn-sm"
-                                                                style={{ borderRadius: "8px", fontWeight: 600, fontSize: "0.82rem", display: "inline-flex", alignItems: "center", gap: "6px", padding: "6px 12px" }}
-                                                                data-bs-toggle="modal"
-                                                                data-bs-target="#eaAssignAssetModal"
-                                                                onClick={() => openEditRequest(r)}
-                                                            >
-                                                                <i className="bi bi-pencil"></i> Edit
-                                                            </button>
+                                                        <div className="ea-asset-actions ms-3">
                                                             <button
                                                                 type="button"
                                                                 className="btn btn-outline-danger btn-sm"
@@ -719,20 +622,14 @@ export default function Assets({ currentUser, employeeProfile, embedded = false 
                                 <div className="modal-header">
                                     <div>
                                         <span className="ea-section-label">EMPLOYEE REQUEST</span>
-                                        <h4>{editingRequest ? "Edit Asset Request" : "New Asset Request"}</h4>
-                                        <p>{editingRequest ? "Update your requested equipment details." : "Tell us what equipment you need and why."}</p>
+                                        <h4>New Asset Request</h4>
+                                        <p>Tell us what equipment you need and why.</p>
                                     </div>
 
-                                    <button type="button" className="btn-close" data-bs-dismiss="modal" onClick={() => { setEditingRequest(null); setForm(emptyForm); }}></button>
+                                    <button type="button" className="btn-close" data-bs-dismiss="modal"></button>
                                 </div>
 
                                 <div className="modal-body">
-                                    {modalError && (
-                                        <div className="alert alert-danger d-flex align-items-center gap-2 mb-3 py-2 px-3" style={{ fontSize: "0.88rem", borderRadius: "8px" }}>
-                                            <i className="bi bi-exclamation-triangle-fill flex-shrink-0"></i>
-                                            <span>{modalError}</span>
-                                        </div>
-                                    )}
 
                                     <form id="eaNewAssetRequestForm" onSubmit={submitRequest}>
 
@@ -742,7 +639,7 @@ export default function Assets({ currentUser, employeeProfile, embedded = false 
                                             <div className="row g-3">
 
                                                 <div className="col-md-6">
-                                                    <label className="form-label">Asset Type <span className="text-danger">*</span></label>
+                                                    <label className="form-label">Asset Type</label>
                                                     <select className="form-select" required value={form.assetType} onChange={setField("assetType")}>
                                                         <option value="" disabled>Select asset type</option>
                                                         <option value="laptop">Laptop</option>
@@ -758,7 +655,7 @@ export default function Assets({ currentUser, employeeProfile, embedded = false 
                                                 </div>
 
                                                 <div className="col-md-6">
-                                                    <label className="form-label">Priority <span className="text-danger">*</span></label>
+                                                    <label className="form-label">Priority</label>
                                                     <select className="form-select" required value={form.priority} onChange={setField("priority")}>
                                                         <option value="" disabled>Select priority</option>
                                                         <option>Low</option>
@@ -779,7 +676,6 @@ export default function Assets({ currentUser, employeeProfile, embedded = false 
                                                     <input
                                                         type="date"
                                                         className="form-control"
-                                                        min={new Date().toISOString().split("T")[0]}
                                                         value={form.dateNeeded}
                                                         onChange={setField("dateNeeded")}
                                                         onClick={(e) => {
@@ -793,7 +689,7 @@ export default function Assets({ currentUser, employeeProfile, embedded = false 
                                                 </div>
 
                                                 <div className="col-12">
-                                                    <label className="form-label">Business Justification <span className="text-danger">*</span></label>
+                                                    <label className="form-label">Business Justification</label>
                                                     <textarea className="form-control" rows="3" required
                                                         placeholder="Explain how this asset will support your work..."
                                                         value={form.justification} onChange={setField("justification")}></textarea>
@@ -836,13 +732,13 @@ export default function Assets({ currentUser, employeeProfile, embedded = false 
                                 </div>
 
                                 <div className="modal-footer">
-                                    <button type="button" className="btn ea-btn-light" data-bs-dismiss="modal" onClick={() => { setEditingRequest(null); setForm(emptyForm); }}>
+                                    <button type="button" className="btn ea-btn-light" data-bs-dismiss="modal">
                                         Cancel
                                     </button>
 
                                     <button type="submit" form="eaNewAssetRequestForm" className="btn ea-btn-primary" disabled={submitting}>
                                         <i className="bi bi-check2"></i>
-                                        {submitting ? (editingRequest ? "Saving..." : "Submitting...") : (editingRequest ? "Save Changes" : "Submit Request")}
+                                        {submitting ? "Submitting..." : "Submit Request"}
                                     </button>
                                 </div>
 
@@ -1032,23 +928,9 @@ export default function Assets({ currentUser, employeeProfile, embedded = false 
                     </div>
 
                 </div>
-  );
-
-  return (
-    <>
-      {embedded ? (
-        <div className="w-100 mt-2" style={{ width: "100%" }}>
-          {pageBody}
-        </div>
-      ) : (
-        <main className="dashboard-wrapper">
-          <div className="dashboard-container">
-            <div className="px-0 px-md-5 employee-dashboard">
-              {pageBody}
             </div>
           </div>
-        </main>
-      )}
+        </div>
     </>
   );
 }

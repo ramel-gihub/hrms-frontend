@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import EmptyState from '../components/EmptyState';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'https://hrms-backend-fzef.onrender.com';
+const API_BASE = (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') ? 'http://localhost:5002' : (import.meta.env.VITE_API_URL || 'https://hrms-backend-fzef.onrender.com'));
 
 const CATEGORIES = [
   'Company News',
@@ -266,7 +266,11 @@ export default function Announcements({ currentUser, employeeProfile }) {
       item.content?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       item.target_name?.toLowerCase().includes(searchQuery.toLowerCase());
 
-    const matchesScope = filterScope === 'all' || item.target_type === filterScope;
+    const matchesScope = 
+      filterScope === 'all' ||
+      (filterScope === 'company' && (item.target_type === 'all' || item.target_type === 'company')) ||
+      (filterScope === 'project' && item.target_type === 'project') ||
+      (filterScope === 'employee' && item.target_type === 'employee');
     const matchesCategory = filterCategory === 'all' || item.category === filterCategory;
 
     return matchesSearch && matchesScope && matchesCategory;
@@ -417,7 +421,7 @@ export default function Announcements({ currentUser, employeeProfile }) {
               onChange={(e) => setFilterScope(e.target.value)}
             >
               <option value="all">All Scopes (Company, Project, Employee)</option>
-              <option value="all">🏢 Company-wide Only</option>
+              <option value="company">🏢 Company-wide Only</option>
               <option value="project">📁 Project-based Only</option>
               <option value="employee">👤 Individual Employee Only</option>
             </select>

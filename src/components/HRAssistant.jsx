@@ -243,7 +243,7 @@ export default function HRAssistant({ currentUser, employeeProfile, mode = "empl
     try {
       const userRole = isAdmin ? "admin" : (currentUser?.role || employeeProfile?.role || "employee");
       const userId = currentUser?.id || employeeProfile?.user_id || employeeProfile?.id || 1;
-      const res = await fetch(`${import.meta.env.VITE_API_URL || "https://hrms-backend-fzef.onrender.com"}/api/ask-hr`, {
+      const res = await fetch(`${(typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') ? 'http://localhost:5002' : (import.meta.env.VITE_API_URL || 'https://hrms-backend-fzef.onrender.com'))}/api/ask-hr`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

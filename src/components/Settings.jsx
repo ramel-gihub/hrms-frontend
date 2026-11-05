@@ -77,7 +77,7 @@ export default function Settings() {
                   <i className="bi bi-person text-primary me-2"></i> 
                   {activeTab}
                 </h5>
-                <button className="btn btn-outline-primary btn-sm"><i className="bi bi-pencil me-1"></i> Edit</button>
+                <button className="btn btn-outline-primary btn-sm"><i className={`bi ${activeTab === 'Personal Information' ? 'bi-pencil' : 'bi-plus-lg'} me-1`}></i> {activeTab === 'Personal Information' ? 'Edit' : 'Add'}</button>
               </div>
             </div>
             <div className="card-body p-4">

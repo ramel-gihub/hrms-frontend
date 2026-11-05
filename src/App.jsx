@@ -4,7 +4,7 @@ import './ems-styles.css';
 import EmployeeTemplate from './EmployeeTemplate';
 import AdminTemplate from './admin/AdminTemplate';
 
-const API_BASE = import.meta.env.VITE_API_URL || "https://hrms-backend-fzef.onrender.com";
+const API_BASE = (typeof window !== "undefined" && (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1") ? (import.meta.env.VITE_API_URL || "http://localhost:5002") : (import.meta.env.VITE_API_URL || "https://hrms-backend-fzef.onrender.com"));
 
 
 const DEFAULT_EMPLOYEE = {
@@ -571,8 +571,8 @@ export default function App() {
       profileData.designation = profileData.designation || currentUser.role || 'Employee';
       profileData.department = profileData.department || 'General';
       profileData.team = profileData.team || 'General';
-      profileData.city = profileData.city || profileData.location || 'Nagpur';
-      profileData.location = profileData.location || profileData.city || 'Nagpur';
+      profileData.city = profileData.city || profileData.location || 'NA';
+      profileData.location = profileData.location || profileData.city || 'NA';
       profileData.profile_completion_percentage = Number.isFinite(Number(profileData.profile_completion_percentage)) ? Math.min(100, Math.max(0, Number(profileData.profile_completion_percentage))) : 0;
 
       setEmployeeProfile(profileData);
@@ -727,6 +727,17 @@ export default function App() {
   // ============================================================
 
   const handleLogout = () => {
+    document.querySelectorAll('.offcanvas-backdrop, .modal-backdrop').forEach((el) => el.remove());
+    document.body.classList.remove('modal-open');
+    document.body.style.removeProperty('overflow');
+    document.body.style.removeProperty('padding-right');
+    const offcanvasEl = document.getElementById('mainMenu');
+    if (offcanvasEl && window.bootstrap) {
+      try {
+        const inst = window.bootstrap.Offcanvas.getInstance(offcanvasEl);
+        if (inst) inst.hide();
+      } catch (_) {}
+    }
     sessionStorage.removeItem('hrms_user');
     localStorage.removeItem('hrms_user');
     localStorage.removeItem('admin_active_tab');
@@ -1058,9 +1069,9 @@ export default function App() {
 
   const detectDynamicLocation = async (forceLocation = false) => {
     let result = {
-      location: employeeProfile?.city ? `${employeeProfile.city}, Maharashtra` : 'Nagpur, Maharashtra',
-      area: employeeProfile?.city || 'Nagpur',
-      city: employeeProfile?.city || 'Nagpur',
+      location: employeeProfile?.city ? `${employeeProfile.city}, Maharashtra` : 'NA, Maharashtra',
+      area: employeeProfile?.city || 'NA',
+      city: employeeProfile?.city || 'NA',
       state: employeeProfile?.state || 'Maharashtra',
       latitude: null,
       longitude: null
@@ -1108,7 +1119,7 @@ export default function App() {
             const osmData = await osmRes.json();
             const addr = osmData.address || {};
             area = addr.suburb || addr.neighbourhood || addr.residential || addr.road || addr.village || addr.subdistrict || '';
-            city = addr.city || addr.town || addr.municipality || addr.state_district || 'Nagpur';
+            city = addr.city || addr.town || addr.municipality || addr.state_district || 'NA';
             if (city.endsWith(' City')) city = city.replace(' City', '');
             state = addr.state || 'Maharashtra';
           }
@@ -1123,7 +1134,7 @@ export default function App() {
             if (geoRes.ok) {
               const geoData = await geoRes.json();
               if (!area) area = geoData.locality || geoData.principalSubdivisionCode || '';
-              if (!city) city = geoData.city || geoData.locality || 'Nagpur';
+              if (!city) city = geoData.city || geoData.locality || 'NA';
               if (!state) state = geoData.principalSubdivision || 'Maharashtra';
             }
           } catch (_) {}
@@ -1134,8 +1145,8 @@ export default function App() {
 
         return {
           location: locStr || (area ? `${area}, ${city}, ${state}` : `${city}, ${state}` || `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`),
-          area: area || city || 'Nagpur',
-          city: city || 'Nagpur',
+          area: area || city || 'NA',
+          city: city || 'NA',
           state: state || 'Maharashtra',
           latitude,
           longitude
@@ -1185,12 +1196,12 @@ export default function App() {
       if (ipRes.ok) {
         const ipData = await ipRes.json();
         if (ipData && ipData.success !== false) {
-          const city = ipData.city || 'Nagpur';
+          const city = ipData.city || 'NA';
           const state = ipData.region || 'Maharashtra';
-          const area = ipData.city || 'Nagpur';
+          const area = ipData.city || 'NA';
           const locStr = [city, state].filter(Boolean).join(', ');
           return {
-            location: locStr || (employeeProfile?.city || 'Nagpur, Maharashtra'),
+            location: locStr || (employeeProfile?.city || 'NA, Maharashtra'),
             area: area,
             city: city,
             state: state,

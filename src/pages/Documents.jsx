@@ -27,7 +27,7 @@ const statusKind = (status) => {
   if (status === "Re-upload") return { cls: "rejected", icon: "bi-arrow-repeat", label: "Re-upload Required" };
   return { cls: "pending", icon: "bi-clock-fill", label: "Pending" };
 };
-const API_BASE = import.meta.env.VITE_API_URL || "https://hrms-backend-fzef.onrender.com";
+const API_BASE = (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') ? 'http://localhost:5002' : (import.meta.env.VITE_API_URL || 'https://hrms-backend-fzef.onrender.com'));
 
 const dataURItoBlob = (dataURI) => {
   try {
@@ -151,15 +151,6 @@ const readApiResponse = async (response) => {
         ? `Server returned an unexpected response (${response.status}).`
         : body || `Request failed (${response.status}).`);
 };
-export const CATEGORY_DOCUMENT_TYPES = {
-  Identity: ["Aadhaar", "PAN", "Passport", "Voter ID", "Driving License", "ID Proof"],
-  Employment: ["Offer Letter", "Appointment Letter", "Relieving Letter", "Experience Letter", "Resume", "Payslip", "1st Company Offer Letter", "1st Company Relieving Letter"],
-  Education: ["10th Certificate", "+2 Certificate", "Graduation", "Post Graduation", "Education Certificate", "Degree Certificate", "Mark Sheet"],
-  Bank: ["Bank Passbook", "Cancelled Cheque", "Bank Statement"],
-  Tax: ["Form 16", "Tax Declaration", "Investment Proof"],
-  Compliance: ["NDA", "Code of Conduct", "Background Check", "Certification"]
-};
-
 const EMPTY_FORM = {
   documentCategory: "",
   documentType: "",
@@ -173,7 +164,7 @@ const EMPTY_FORM = {
 export default function Documents({ currentUser, employeeProfile, embedded = false }) {
     const firstName = employeeProfile?.first_name || "";
     const lastName = employeeProfile?.last_name || "";
-    const employeeName = employeeProfile?.preferred_name || `${firstName} ${lastName}`.trim() || (currentUser?.email ? currentUser.email.split('@')[0] : "Employee");
+    const employeeName = `${firstName} ${lastName}`.trim() || currentUser?.email || "Employee";
     const employeeInitials = `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase()
         || currentUser?.email?.slice(0, 2).toUpperCase()
         || "EM";
@@ -183,19 +174,6 @@ export default function Documents({ currentUser, employeeProfile, embedded = fal
   const [form, setForm] = useState(EMPTY_FORM);
   const [submitting, setSubmitting] = useState(false);
   const [feedback, setFeedback] = useState({ type: "", text: "" });
-  const [actionError, setActionError] = useState("");
-  useEffect(() => {
-    if (!feedback.text) return;
-    const t = setTimeout(() => setFeedback({ type: "", text: "" }), 5000);
-    return () => clearTimeout(t);
-  }, [feedback]);
-
-  useEffect(() => {
-    if (!actionError) return;
-    const t = setTimeout(() => setActionError(""), 5000);
-    return () => clearTimeout(t);
-  }, [actionError]);
-
   const fileInputRef = useRef(null);
   const [documents, setDocuments] = useState([]);
   const [listLoading, setListLoading] = useState(true);
@@ -206,16 +184,9 @@ export default function Documents({ currentUser, employeeProfile, embedded = fal
   const [page, setPage] = useState(1);
   const [viewDoc, setViewDoc] = useState(null);
   const [editingDoc, setEditingDoc] = useState(null);
-  const [deleteTarget, setDeleteTarget] = useState(null);
-  const [deleting, setDeleting] = useState(false);
-  const [globalToast, setGlobalToast] = useState(null);
-
-  useEffect(() => {
-    if (globalToast) {
-      const timer = setTimeout(() => setGlobalToast(null), 5000);
-      return () => clearTimeout(timer);
-    }
-  }, [globalToast]);
+  const [actionError, setActionError] = useState("");
+    const [deleteTarget, setDeleteTarget] = useState(null);
+    const [deleting, setDeleting] = useState(false);
 
   const openEdit = (doc) => {
     setEditingDoc(doc);
@@ -248,7 +219,6 @@ export default function Documents({ currentUser, employeeProfile, embedded = fal
       if (!response.ok) throw new Error(data.message || "Delete failed");
             setDeleteTarget(null);
             await loadDocuments();
-            setGlobalToast({ type: "success", message: "Document deleted successfully" });
     } catch (err) {
       setActionError(err.message || "Delete failed");
         } finally {
@@ -257,14 +227,13 @@ export default function Documents({ currentUser, employeeProfile, embedded = fal
   };
 
   const loadDocuments = useCallback(async () => {
-    const targetUserId = currentUser?.id || employeeProfile?.user_id || employeeProfile?.id;
-    if (!targetUserId) {
+    if (!currentUser?.id) {
       setListLoading(false);
       return;
     }
     try {
       setListError("");
-      const response = await fetch(`${API_BASE}/api/employee/documents/${targetUserId}`);
+      const response = await fetch(`${API_BASE}/api/employee/documents/${currentUser.id}`);
       const data = await response.json();
       if (!response.ok) throw new Error(data.message || "Failed to load documents");
       setDocuments(data);
@@ -371,15 +340,6 @@ export default function Documents({ currentUser, employeeProfile, embedded = fal
   });
   const updateField = (event) => {
     const { name, value } = event.target;
-    if (name === "documentCategory") {
-      const allowed = CATEGORY_DOCUMENT_TYPES[value] || [];
-      setForm((prev) => ({
-        ...prev,
-        documentCategory: value,
-        documentType: allowed.includes(prev.documentType) ? prev.documentType : ""
-      }));
-      return;
-    }
     if (name === "issuedDate" && value) {
       const today = new Date().toISOString().split("T")[0];
       if (value > today) {
@@ -444,7 +404,6 @@ export default function Documents({ currentUser, employeeProfile, embedded = fal
         if (!response.ok) throw new Error(data.message || "Update failed");
         loadDocuments();
         closeUpload();
-        setGlobalToast({ type: "success", message: "Document updated successfully" });
       } catch (err) {
         setFeedback({ type: "danger", text: err.message || "Update failed" });
       } finally {
@@ -475,7 +434,6 @@ export default function Documents({ currentUser, employeeProfile, embedded = fal
       setForm(EMPTY_FORM);
     await loadDocuments();
     closeUpload();
-    setGlobalToast({ type: "success", message: "Document added successfully" });
     } catch (err) {
       setFeedback({ type: "danger", text: err.message || "Upload failed" });
     } finally {
@@ -496,18 +454,11 @@ export default function Documents({ currentUser, employeeProfile, embedded = fal
 
   return (
     <>
-      <div className={embedded ? "w-100" : "px-0 px-md-5 employee-dashboard"} style={{ width: "100%" }}>
+<div className={embedded ? "" : "px-0 px-md-5 employee-dashboard"}>
 
-                <div id="profileDocuments" className="w-100" style={{ width: "100%" }}>
+                <div id="profileDocuments">
 
-                    <div className="epd-page w-100" style={{ width: "100%", maxWidth: "100%" }}>
-                        {globalToast && (
-                            <div className="alert alert-success alert-dismissible fade show d-flex align-items-center mb-3" role="alert" style={{ borderRadius: 10, fontSize: "14px" }}>
-                                <i className="bi bi-check-circle-fill text-success me-2 fs-5"></i>
-                                <div className="flex-grow-1">{globalToast.message}</div>
-                                <button type="button" className="btn-close" aria-label="Close" onClick={() => setGlobalToast(null)}></button>
-                            </div>
-                        )}
+                    <div className="epd-page">
 
                         
                         {!embedded && <div className="epd-header">
@@ -540,7 +491,7 @@ export default function Documents({ currentUser, employeeProfile, embedded = fal
                                         <img
                                             src={/^(https?:\/\/|data:|blob:)/i.test(employeeProfile?.profile_pic || employeeProfile?.avatar_url)
                                                 ? (employeeProfile?.profile_pic || employeeProfile?.avatar_url)
-                                                : `${import.meta.env.VITE_API_URL || 'https://hrms-backend-fzef.onrender.com'}/${(employeeProfile?.profile_pic || employeeProfile?.avatar_url).replace(/^\/+/, '')}`}
+                                                : `${(typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') ? 'http://localhost:5002' : (import.meta.env.VITE_API_URL || 'https://hrms-backend-fzef.onrender.com'))}/${(employeeProfile?.profile_pic || employeeProfile?.avatar_url).replace(/^\/+/, '')}`}
                                             alt={employeeName}
                                             style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: "17px" }}
                                         />
@@ -558,22 +509,22 @@ export default function Documents({ currentUser, employeeProfile, embedded = fal
                                         </span>
                                     </div>
 
+                                    <p>{employeeProfile?.designation || "Employee"}</p>
+
                                     <div className="esc-employee-meta">
                                         <span>
-                                            <i className="bi bi-person-badge"></i>
-                                            {employeeProfile?.employee_code || "EMP-1360"}
-                                        </span>
-                                        <span>
-                                            <i className="bi bi-briefcase"></i>
-                                            {employeeProfile?.designation || currentUser?.designation || currentUser?.role || "Software Engineer"}
-                                        </span>
-                                        <span>
                                             <i className="bi bi-diagram-3"></i>
-                                            {employeeProfile?.department ? `${employeeProfile.department}${employeeProfile.team ? ` · ${employeeProfile.team}` : " · Backend"}` : "Engineering · Backend"}
+                                            {employeeProfile?.department || "Department"}
                                         </span>
+
                                         <span>
-                                            <i className="bi bi-geo-alt"></i>
-                                            {employeeProfile?.city || employeeProfile?.location || "Nagpur"}
+                                            <i className="bi bi-code-slash"></i>
+                                            {employeeProfile?.team || "Team"}
+                                        </span>
+
+                                        <span>
+                                            <i className="bi bi-person-badge"></i>
+                                            {employeeProfile?.employee_code || "EMP-0000"}
                                         </span>
                                     </div>
                                 </div>
@@ -1016,8 +967,8 @@ export default function Documents({ currentUser, employeeProfile, embedded = fal
                                         </div>
 
                                         <strong>
-                                            Upload your document {!editingDoc && <span className="text-danger">*</span>}
- </strong>
+                                            Upload your document
+                                        </strong>
 
                                         <span>
                                             Click to browse or drag and drop
@@ -1127,10 +1078,22 @@ export default function Documents({ currentUser, employeeProfile, embedded = fal
                                                 </label>
 
                                                 <select className="form-select epd-input" id="epdDocumentCategory" name="documentCategory" value={form.documentCategory} onChange={updateField}>
-                                                    <option value="">Select Category</option>
-                                                    {Object.keys(CATEGORY_DOCUMENT_TYPES).map((cat) => (
-                                                        <option key={cat} value={cat}>{cat}</option>
-                                                    ))}
+
+                                                    <option>Identity</option>
+
+                                                    <option>Employment</option>
+
+                                                    <option>Education</option>
+
+                                                    <option>Bank</option>
+
+                                                    <option>
+                                                        Tax
+                                                    </option>
+
+                                                    <option>
+                                                        Compliance
+                                                    </option>
                                                 </select>
 
                                             </div>
@@ -1143,14 +1106,67 @@ export default function Documents({ currentUser, employeeProfile, embedded = fal
                                                     <span>*</span>
                                                 </label>
 
-                                                <select className="form-select epd-input" id="epdDocumentType" name="documentType" value={form.documentType} onChange={updateField} disabled={!form.documentCategory}>
-                                                    <option value="">{form.documentCategory ? "Select Document Type" : "Select Category First"}</option>
-                                                    {(CATEGORY_DOCUMENT_TYPES[form.documentCategory] || []).map((t) => (
-                                                        <option key={t} value={t}>{t}</option>
-                                                    ))}
-                                                    {form.documentType && !(CATEGORY_DOCUMENT_TYPES[form.documentCategory] || []).includes(form.documentType) && (
-                                                        <option value={form.documentType}>{form.documentType}</option>
-                                                    )}
+                                                <select className="form-select epd-input" id="epdDocumentType" name="documentType" value={form.documentType} onChange={updateField}>
+
+                                                    <option value="">
+                                                        Select Document Type
+                                                    </option>
+
+                                                    <option>Aadhaar</option>
+                                                    <option>PAN</option>
+                                                    <option>Passport</option>
+                                                    <option>Offer Letter</option>
+                                                    <option>Resume</option>
+                                                    <option>Education Certificate</option>
+
+                                                    <option>10th Certificate</option>
+
+                                                    <option>+2 Certificate</option>
+
+                                                    <option>Graduation</option>
+
+                                                    <option>Post Graduation</option>
+
+                                                    <option>
+                                                        1st Company Offer Letter
+                                                    </option>
+
+                                                    <option>
+                                                        1st Company Relieving Letter
+                                                    </option>
+
+                                                    <option>
+                                                        Offer Letter
+                                                    </option>
+
+                                                    <option>
+                                                        NDA
+                                                    </option>
+
+                                                    <option>
+                                                        ID Proof
+                                                    </option>
+
+                                                    <option>
+                                                        Experience Letter
+                                                    </option>
+
+                                                    <option>
+                                                        Certification
+                                                    </option>
+
+                                                    <option>
+                                                        Passport
+                                                    </option>
+
+                                                    <option>
+                                                        Driving License
+                                                    </option>
+
+                                                    <option>
+                                                        Other
+                                                    </option>
+
                                                 </select>
 
                                             </div>
@@ -1335,7 +1351,7 @@ export default function Documents({ currentUser, employeeProfile, embedded = fal
                             </div>
                             <div className="modal-body">
                                 <p className="mb-0">
-                                    Are you sure you want to delete <strong>{deleteTarget?.document_name || deleteTarget?.document_type}</strong>?
+                                    Delete <strong>{deleteTarget?.document_name || deleteTarget?.document_type}</strong>? This cannot be undone.
                                 </p>
                                 {actionError && <p className="text-danger mt-3 mb-0" role="alert">{actionError}</p>}
                             </div>

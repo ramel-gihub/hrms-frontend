@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import EmptyState from "../components/EmptyState";
 
-const API_BASE = import.meta.env.VITE_API_URL || "https://hrms-backend-fzef.onrender.com";
+const API_BASE = (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') ? 'http://localhost:5002' : (import.meta.env.VITE_API_URL || 'https://hrms-backend-fzef.onrender.com'));
 
 const EXPENSE_CATEGORIES = [
   "Travel & Cab",
@@ -402,10 +402,9 @@ export default function Expenses({ currentUser, employeeProfile, onNavigate, emb
           <div className="esc-employee-info">
             <div className="esc-name-row">
               <h3>
-                {employeeProfile?.preferred_name
-                  || (employeeProfile?.first_name
-                    ? `${employeeProfile.first_name} ${employeeProfile.last_name || ""}`.trim()
-                    : (currentUser?.email ? currentUser.email.split('@')[0] : 'Employee'))}
+                {employeeProfile?.first_name
+                  ? `${employeeProfile.first_name} ${employeeProfile.last_name || ""}`
+                  : currentUser?.email}
               </h3>
               <span className="esc-status-badge">
                 <span></span>
@@ -413,22 +412,20 @@ export default function Expenses({ currentUser, employeeProfile, onNavigate, emb
               </span>
             </div>
 
+            <p>{employeeProfile?.designation || "Developer"}</p>
+
             <div className="esc-employee-meta">
               <span>
-                <i className="bi bi-person-badge"></i>
-                {employeeProfile?.employee_code || "EMP-1360"}
-              </span>
-              <span>
-                <i className="bi bi-briefcase"></i>
-                {employeeProfile?.designation || "Senior Software Engineer"}
-              </span>
-              <span>
                 <i className="bi bi-diagram-3"></i>
-                {employeeProfile?.department ? `${employeeProfile.department}${employeeProfile.team ? ` · ${employeeProfile.team}` : " · Backend"}` : "Engineering · Backend"}
+                {employeeProfile?.department || "Engineering"}
               </span>
               <span>
                 <i className="bi bi-geo-alt"></i>
                 {employeeProfile?.city || employeeProfile?.location || "Nagpur"}
+              </span>
+              <span>
+                <i className="bi bi-person-badge"></i>
+                {employeeProfile?.employee_code || "EMP-1360"}
               </span>
             </div>
           </div>

@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import EmptyState from "../components/EmptyState";
 
-const API_BASE = import.meta.env.VITE_API_URL || "https://hrms-backend-fzef.onrender.com";
+const API_BASE = (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') ? 'http://localhost:5002' : (import.meta.env.VITE_API_URL || 'https://hrms-backend-fzef.onrender.com'));
 
 const requestCategories = [
   "Attendance Correction",
@@ -205,7 +205,7 @@ export default function EmployeeRequests({ employeeProfile, currentUser }) {
   const userId = currentUser?.id || profile.user_id;
   const firstName = profile.first_name || currentUser?.first_name || "Employee";
   const lastName = profile.last_name || currentUser?.last_name || "Name";
-  const employeeName = employeeProfile?.preferred_name || `${firstName} ${lastName}`.trim() || (currentUser?.email ? currentUser.email.split('@')[0] : "Employee");
+  const employeeName = `${firstName} ${lastName}`.trim();
   const initials = `${firstName[0] || ""}${lastName[0] || ""}`.toUpperCase();
 
   const [requests, setRequests] = useState([]);
@@ -246,6 +246,9 @@ export default function EmployeeRequests({ employeeProfile, currentUser }) {
   const [form, setForm] = useState(emptyForm);
   const [fieldErrors, setFieldErrors] = useState({});
   const [attachment, setAttachment] = useState(null);
+  const [previewFile, setPreviewFile] = useState(null);
+  const [showDocumentPreview, setShowDocumentPreview] = useState(false);
+  const fileInputRef = useRef(null);
   const [fileError, setFileError] = useState("");
   const [contactForm, setContactForm] = useState({ subject: "", message: "" });
   const [toast, setToast] = useState("");
@@ -278,6 +281,9 @@ export default function EmployeeRequests({ employeeProfile, currentUser }) {
       if (!prev[fieldName]) return prev;
       const copy = { ...prev };
       delete copy[fieldName];
+      if (Object.keys(copy).length === 0) {
+        setFormError("");
+      }
       return copy;
     });
   };
@@ -293,12 +299,6 @@ export default function EmployeeRequests({ employeeProfile, currentUser }) {
     if (form.category === "Asset Request") {
       if (!form.assetType) {
         errors.assetType = "Please select an asset type.";
-      }
-      if (form.dateNeeded) {
-        const todayStr = new Date().toISOString().split("T")[0];
-        if (form.dateNeeded < todayStr) {
-          errors.dateNeeded = "Date needed cannot be in the past.";
-        }
       }
     }
     if (form.category === "Leave Request") {
@@ -501,17 +501,25 @@ export default function EmployeeRequests({ employeeProfile, currentUser }) {
   useEffect(() => {
     const modalElement = requestModalRef.current;
     if (!modalElement) return undefined;
-    const resetAttachment = () => {
+    const resetOnModalClose = () => {
+      if (previewFile?.url) URL.revokeObjectURL(previewFile.url);
+      setPreviewFile(null);
+      setShowDocumentPreview(false);
       setAttachment(null);
       setFileError("");
+      setFormError("");
+      setFieldErrors({});
+      setEditingRequest(null);
+      setForm(emptyForm);
+      if (fileInputRef.current) fileInputRef.current.value = "";
     };
-    modalElement.addEventListener("hidden.bs.modal", resetAttachment);
-    return () => modalElement.removeEventListener("hidden.bs.modal", resetAttachment);
-  }, []);
+    modalElement.addEventListener("hidden.bs.modal", resetOnModalClose);
+    return () => modalElement.removeEventListener("hidden.bs.modal", resetOnModalClose);
+  }, [previewFile]);
 
   useEffect(() => {
     if (!toast) return undefined;
-    const timeout = window.setTimeout(() => setToast(""), 5000);
+    const timeout = window.setTimeout(() => setToast(""), 3500);
     return () => window.clearTimeout(timeout);
   }, [toast]);
 
@@ -572,48 +580,23 @@ export default function EmployeeRequests({ employeeProfile, currentUser }) {
   }, [requests]);
 
   const openRequestModal = (category = "") => {
+    if (previewFile?.url) URL.revokeObjectURL(previewFile.url);
+    setPreviewFile(null);
+    setShowDocumentPreview(false);
     setEditingRequest(null);
     setForm({ ...emptyForm, category: requestCategories.includes(category) ? category : "" });
     setAttachment(null);
     setFileError("");
     setFormError("");
+    setFieldErrors({});
+    if (fileInputRef.current) fileInputRef.current.value = "";
     if (requestModalRef.current) {
       window.bootstrap.Modal.getOrCreateInstance(requestModalRef.current).show();
     }
   };
 
-  const formatDateForInput = (d) => {
-    if (!d) return "";
-    if (typeof d === "string") return d.split("T")[0];
-    if (d instanceof Date && !isNaN(d.getTime())) return d.toISOString().split("T")[0];
-    return "";
-  };
-
   const openEditModal = (req) => {
     setEditingRequest(req);
-
-    // Resolve leaveTypeId from req.leave_type_id, or by matching leaveTypes with leave_type or subject
-    let resolvedLeaveTypeId = req.leave_type_id || "";
-    if (!resolvedLeaveTypeId && req.leave_type) {
-      const match = leaveTypes.find(lt => lt.name?.toLowerCase() === req.leave_type?.toLowerCase());
-      if (match) resolvedLeaveTypeId = match.id;
-    }
-    if (!resolvedLeaveTypeId && req.subject) {
-      const match = leaveTypes.find(lt => req.subject.toLowerCase().includes(lt.name?.toLowerCase()));
-      if (match) resolvedLeaveTypeId = match.id;
-    }
-
-    // Resolve start_date and end_date from start_date, or extract from subject (e.g. "Casual Leave · 2026-11-05 - 2026-11-06")
-    let sDate = formatDateForInput(req.start_date || req.startDate || req.wfh_start_date);
-    let eDate = formatDateForInput(req.end_date || req.endDate || req.wfh_end_date);
-    if ((!sDate || !eDate) && req.subject) {
-      const datesMatch = req.subject.match(/(\d{4}-\d{2}-\d{2})/g);
-      if (datesMatch && datesMatch.length >= 1) {
-        if (!sDate) sDate = datesMatch[0];
-        if (!eDate) eDate = datesMatch[1] || datesMatch[0];
-      }
-    }
-
     setForm({
       ...emptyForm,
       category: req.category || "",
@@ -623,24 +606,25 @@ export default function EmployeeRequests({ employeeProfile, currentUser }) {
       description: req.description || "",
       assetType: req.asset_type || "",
       preferredModel: req.preferred_model || "",
-      dateNeeded: formatDateForInput(req.date_needed || req.dateNeeded),
+      dateNeeded: req.date_needed || "",
       workLocation: req.work_location || "",
       additionalRequirements: req.additional_requirements || "",
-      leaveTypeId: resolvedLeaveTypeId,
+      leaveTypeId: req.leave_type_id || "",
       approverId: req.approver_id || "",
-      startDate: sDate,
-      endDate: eDate,
-      isHalfDay: Boolean(req.is_half_day),
+      startDate: req.start_date || "",
+      endDate: req.end_date || "",
+      isHalfDay: req.is_half_day || false,
       halfDayPeriod: req.half_day_period || "First Half",
       expenseCategory: req.expense_category || "Travel & Cab",
       claimAmount: req.claim_amount || "",
       merchantName: req.merchant_name || "",
-      expenseDate: formatDateForInput(req.expense_date || req.expenseDate) || new Date().toISOString().split("T")[0],
+      expenseDate: req.expense_date || new Date().toISOString().split("T")[0],
       wfhContact: req.wfh_contact || ""
     });
     setAttachment(null);
     setFileError("");
     setFormError("");
+    setFieldErrors({});
     if (requestModalRef.current) {
       window.bootstrap.Modal.getOrCreateInstance(requestModalRef.current).show();
     }
@@ -650,11 +634,16 @@ export default function EmployeeRequests({ employeeProfile, currentUser }) {
     if (requestModalRef.current) {
       window.bootstrap.Modal.getInstance(requestModalRef.current)?.hide();
     }
+    if (previewFile?.url) URL.revokeObjectURL(previewFile.url);
+    setPreviewFile(null);
+    setShowDocumentPreview(false);
     setEditingRequest(null);
     setAttachment(null);
     setFileError("");
     setFormError("");
     setFieldErrors({});
+    setForm(emptyForm);
+    if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
   const submitEmployeeRequest = async (payload) => {
@@ -702,7 +691,10 @@ export default function EmployeeRequests({ employeeProfile, currentUser }) {
       setFieldErrors(errors);
       setFormError("Please fill out all mandatory fields highlighted below.");
       const firstField = Object.keys(errors)[0];
-      const el = document.getElementById(`request-${firstField}`) || document.getElementById(`wfh-${firstField}`);
+      const el = document.getElementById(`request-${firstField}`) ||
+                 document.getElementById(`wfh-${firstField}`) ||
+                 (firstField === 'startDate' ? document.getElementById('wfh-start-date') : null) ||
+                 (firstField === 'endDate' ? document.getElementById('wfh-end-date') : null);
       if (el) el.focus();
       return;
     }
@@ -718,18 +710,7 @@ export default function EmployeeRequests({ employeeProfile, currentUser }) {
             subject: form.subject.trim(),
             description: form.description.trim(),
             priority: form.priority,
-            preferredResponse: form.response,
-            startDate: form.startDate,
-            endDate: form.endDate,
-            leaveTypeId: form.leaveTypeId,
-            dateNeeded: form.dateNeeded,
-            wfhStartDate: form.startDate,
-            wfhEndDate: form.endDate,
-            wfhContact: form.wfhContact,
-            expenseDate: form.expenseDate,
-            claimAmount: form.claimAmount,
-            merchantName: form.merchantName,
-            expenseCategory: form.expenseCategory
+            preferredResponse: form.response
           })
         });
         const data = await res.json();
@@ -799,13 +780,47 @@ export default function EmployeeRequests({ employeeProfile, currentUser }) {
   const handleAttachmentChange = (event) => {
     const file = event.target.files?.[0] || null;
     if (file && file.size > 500 * 1024) {
+      if (previewFile?.url) URL.revokeObjectURL(previewFile.url);
+      setPreviewFile(null);
       setAttachment(null);
       setFileError("File size exceeds 500 KB limit. Please select a smaller file.");
-      event.target.value = "";
+      if (fileInputRef.current) fileInputRef.current.value = "";
       return;
     }
-    setAttachment(file);
+    if (previewFile?.url) {
+      URL.revokeObjectURL(previewFile.url);
+    }
+    if (file) {
+      const url = URL.createObjectURL(file);
+      setAttachment(file);
+      setPreviewFile({
+        file,
+        url,
+        name: file.name,
+        size: `${(file.size / 1024).toFixed(1)} KB`,
+        type: file.type || (file.name.toLowerCase().endsWith(".pdf") ? "application/pdf" : "")
+      });
+      setFileError("");
+    } else {
+      setAttachment(null);
+      setPreviewFile(null);
+      setFileError("");
+    }
+  };
+
+  const handleRemoveAttachment = (e) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    if (previewFile?.url) {
+      URL.revokeObjectURL(previewFile.url);
+    }
+    setAttachment(null);
+    setPreviewFile(null);
+    setShowDocumentPreview(false);
     setFileError("");
+    if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
   const handleExport = () => {
@@ -841,7 +856,7 @@ export default function EmployeeRequests({ employeeProfile, currentUser }) {
       setContactForm({ subject: "", message: "" });
       setShowContactPanel(false);
       setShowContactSuccess(true);
-      window.setTimeout(() => setShowContactSuccess(false), 5000);
+      window.setTimeout(() => setShowContactSuccess(false), 4500);
     } catch (error) {
       setRequestError(error.message);
     }
@@ -857,10 +872,11 @@ export default function EmployeeRequests({ employeeProfile, currentUser }) {
   const averageResolutionDays = requestStats.average_resolution_days;
 
   return (
-    <>
-      <div className="px-0 px-md-5 employee-dashboard">
-        <div className="employee-requests-page">
-          <header className="requests-page-header">
+    <main className="dashboard-wrapper employee-requests-page">
+      <div className="dashboard-container">
+        <div className="px-0 px-md-5 employee-dashboard">
+          <div className="employee-requests-page">
+            <header className="requests-page-header">
               <div>
                 <h1>Employee Requests</h1>
                 <p>
@@ -885,7 +901,7 @@ export default function EmployeeRequests({ employeeProfile, currentUser }) {
                     <img
                       src={/^(https?:\/\/|data:|blob:)/i.test(employeeProfile?.profile_pic || employeeProfile?.avatar_url || profile?.profile_pic)
                         ? (employeeProfile?.profile_pic || employeeProfile?.avatar_url || profile?.profile_pic)
-                        : `${import.meta.env.VITE_API_URL || 'https://hrms-backend-fzef.onrender.com'}/${(employeeProfile?.profile_pic || employeeProfile?.avatar_url || profile?.profile_pic).replace(/^\/+/, '')}`}
+                        : `${(typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') ? 'http://localhost:5002' : (import.meta.env.VITE_API_URL || 'https://hrms-backend-fzef.onrender.com'))}/${(employeeProfile?.profile_pic || employeeProfile?.avatar_url || profile?.profile_pic).replace(/^\/+/, '')}`}
                       alt={employeeName}
                       style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: "17px" }}
                     />
@@ -898,23 +914,11 @@ export default function EmployeeRequests({ employeeProfile, currentUser }) {
                     <h3>{employeeName}</h3>
                     <span className="esc-status-badge"><span></span>Active</span>
                   </div>
+                  <p>{profile.designation || "Senior Software Engineer"}</p>
                   <div className="esc-employee-meta">
-                    <span>
-                      <i className="bi bi-person-badge" aria-hidden="true"></i>
-                      {profile.employee_code || "EMP-1360"}
-                    </span>
-                    <span>
-                      <i className="bi bi-briefcase" aria-hidden="true"></i>
-                      {profile.designation || "Senior Software Engineer"}
-                    </span>
-                    <span>
-                      <i className="bi bi-diagram-3" aria-hidden="true"></i>
-                      {profile.department ? `${profile.department}${profile.team ? ` · ${profile.team}` : " · Backend"}` : "Engineering · Backend"}
-                    </span>
-                    <span>
-                      <i className="bi bi-geo-alt" aria-hidden="true"></i>
-                      {profile.city || profile.location || "Nagpur"}
-                    </span>
+                    <span><i className="bi bi-diagram-3" aria-hidden="true"></i>{profile.department || "Engineering"}</span>
+                    <span><i className="bi bi-code-slash" aria-hidden="true"></i>{profile.team || "Backend"}</span>
+                    <span><i className="bi bi-person-badge" aria-hidden="true"></i>{profile.employee_code || "EMP-1360"}</span>
                   </div>
                 </div>
               </div>
@@ -1115,8 +1119,8 @@ export default function EmployeeRequests({ employeeProfile, currentUser }) {
                                   </>
                                 ) : (
                                   <>
-                                    <i className="bi bi-flag me-1" aria-hidden="true"></i>
-                                    Mark as High Priority
+                                    <i className="bi bi-exclamation-triangle" aria-hidden="true"></i>
+                                    High Priority
                                   </>
                                 )}
                               </button>
@@ -1250,6 +1254,9 @@ export default function EmployeeRequests({ employeeProfile, currentUser }) {
                 </section>
               </aside>
             </div>
+          </div>
+        </div>
+      </div>
 
       <div
         className="modal fade"
@@ -1285,8 +1292,17 @@ export default function EmployeeRequests({ employeeProfile, currentUser }) {
                       value={form.category}
                       style={{ borderColor: fieldErrors.category ? '#dc2626' : undefined }}
                       onChange={(event) => {
-                        setForm({ ...form, category: event.target.value });
-                        clearFieldError("category");
+                        const newCat = event.target.value;
+                        setForm((prev) => ({
+                          ...emptyForm,
+                          category: newCat,
+                          subject: prev.subject,
+                          priority: prev.priority,
+                          response: prev.response,
+                          description: prev.description
+                        }));
+                        setFieldErrors({});
+                        setFormError("");
                       }}
                     >
                       <option value="">Select request category</option>
@@ -1355,7 +1371,6 @@ export default function EmployeeRequests({ employeeProfile, currentUser }) {
                         <input
                           id="request-date-needed"
                           type="date"
-                          min={new Date().toISOString().split("T")[0]}
                           value={form.dateNeeded}
                           onChange={(event) => setForm({ ...form, dateNeeded: event.target.value })}
                           onClick={(e) => {
@@ -1502,7 +1517,6 @@ export default function EmployeeRequests({ employeeProfile, currentUser }) {
                         <input
                           id="request-start-date"
                           type="date"
-                          min={new Date().toISOString().split("T")[0]}
                           value={form.startDate}
                           style={{ cursor: "pointer", borderColor: fieldErrors.startDate ? '#dc2626' : undefined }}
                           onChange={(event) => {
@@ -1573,7 +1587,6 @@ export default function EmployeeRequests({ employeeProfile, currentUser }) {
                         <input
                           id="wfh-start-date"
                           type="date"
-                          min={new Date().toISOString().split("T")[0]}
                           value={form.startDate}
                           style={{ cursor: "pointer", borderColor: fieldErrors.startDate ? '#dc2626' : undefined }}
                           onChange={(e) => {
@@ -1787,55 +1800,108 @@ export default function EmployeeRequests({ employeeProfile, currentUser }) {
                   </div>
                   <div className="request-form-group full">
                     <span className="request-upload-label">Attachment</span>
-                    {editingRequest?.attachment && !attachment && (
-                      <div className="d-flex align-items-center justify-content-between p-2 mb-2 bg-light rounded border">
-                        <div className="d-flex align-items-center gap-2 text-truncate">
-                          <i className="bi bi-paperclip text-primary fs-5"></i>
-                          <span className="small text-truncate">Current: <strong>{editingRequest.attachment}</strong></span>
+                    <input
+                      ref={fileInputRef}
+                      id="request-file-input"
+                      type="file"
+                      accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+                      onChange={handleAttachmentChange}
+                      hidden
+                    />
+                    {!attachment ? (
+                      <label htmlFor="request-file-input" className="request-upload-box" style={{ cursor: "pointer" }}>
+                        <i className="bi bi-cloud-arrow-up" aria-hidden="true"></i>
+                        <strong>Click to upload a file</strong>
+                        <span>PDF, JPG, PNG or DOCX · Maximum 500 KB</span>
+                      </label>
+                    ) : (
+                      <div
+                        className="uploaded-file-card p-3 rounded-3 d-flex align-items-center justify-content-between"
+                        style={{
+                          background: "#f8fafc",
+                          border: "1.5px solid #e2e8f0",
+                          boxShadow: "0 1px 3px rgba(0,0,0,0.04)"
+                        }}
+                      >
+                        <div className="d-flex align-items-center gap-3 overflow-hidden">
+                          <div
+                            className="rounded-3 d-flex align-items-center justify-content-center flex-shrink-0"
+                            style={{
+                              width: "44px",
+                              height: "44px",
+                              background: attachment.type?.startsWith("image/")
+                                ? "#eff6ff"
+                                : attachment.name?.toLowerCase().endsWith(".pdf")
+                                ? "#fef2f2"
+                                : "#f0fdf4",
+                              color: attachment.type?.startsWith("image/")
+                                ? "#3b82f6"
+                                : attachment.name?.toLowerCase().endsWith(".pdf")
+                                ? "#ef4444"
+                                : "#16a34a",
+                              fontSize: "22px"
+                            }}
+                          >
+                            <i
+                              className={`bi ${
+                                attachment.type?.startsWith("image/")
+                                  ? "bi-file-earmark-image"
+                                  : attachment.name?.toLowerCase().endsWith(".pdf")
+                                  ? "bi-file-earmark-pdf"
+                                  : "bi-file-earmark-text"
+                              }`}
+                            ></i>
+                          </div>
+                          <div className="overflow-hidden">
+                            <strong className="d-block text-truncate text-dark" style={{ fontSize: "13.5px", maxWidth: "260px" }}>
+                              {attachment.name}
+                            </strong>
+                            <div className="d-flex align-items-center gap-2 mt-0.5">
+                              <span className="text-muted" style={{ fontSize: "11.5px" }}>
+                                {previewFile?.size || `${(attachment.size / 1024).toFixed(1)} KB`}
+                              </span>
+                              <span
+                                className="badge bg-success-subtle text-success border border-success-subtle"
+                                style={{ fontSize: "10.5px", padding: "1px 6px", fontWeight: 600 }}
+                              >
+                                Ready
+                              </span>
+                            </div>
+                          </div>
                         </div>
-                        <div className="d-flex gap-2 shrink-0">
-                          {editingRequest.receipt_url ? (
-                            <a
-                              href={editingRequest.receipt_url.startsWith('http') ? editingRequest.receipt_url : `${API_BASE}${editingRequest.receipt_url}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="btn btn-sm btn-outline-primary py-0 px-2"
-                              style={{ fontSize: "11px", borderRadius: "6px" }}
-                            >
-                              <i className="bi bi-eye me-1"></i> Preview / Download
-                            </a>
-                          ) : (
-                            <button
-                              type="button"
-                              className="btn btn-sm btn-outline-primary py-0 px-2"
-                              style={{ fontSize: "11px", borderRadius: "6px" }}
-                              onClick={() => {
-                                const blob = new Blob([`Attachment Name: ${editingRequest.attachment}\nRequest ID: ${editingRequest.id}\nCategory: ${editingRequest.category}\nSubject: ${editingRequest.subject}\nDescription: ${editingRequest.description}`], { type: 'text/plain;charset=utf-8' });
-                                const url = URL.createObjectURL(blob);
-                                const a = document.createElement('a');
-                                a.href = url;
-                                a.download = editingRequest.attachment;
-                                a.click();
-                                URL.revokeObjectURL(url);
-                              }}
-                            >
-                              <i className="bi bi-download me-1"></i> Download
-                            </button>
-                          )}
+
+                        <div className="d-flex align-items-center gap-2 flex-shrink-0">
+                          <button
+                            type="button"
+                            className="btn btn-sm btn-outline-primary d-inline-flex align-items-center gap-1.5"
+                            style={{ fontSize: "12.5px", fontWeight: 600, padding: "5px 12px", borderRadius: "8px" }}
+                            onClick={() => setShowDocumentPreview(true)}
+                            title="Preview uploaded document"
+                          >
+                            <i className="bi bi-eye"></i>
+                            Preview
+                          </button>
+                          <label
+                            htmlFor="request-file-input"
+                            className="btn btn-sm btn-outline-secondary d-inline-flex align-items-center gap-1.5 mb-0"
+                            style={{ fontSize: "12.5px", fontWeight: 500, padding: "5px 10px", borderRadius: "8px", cursor: "pointer" }}
+                            title="Change file"
+                          >
+                            <i className="bi bi-arrow-repeat"></i>
+                            Change
+                          </label>
+                          <button
+                            type="button"
+                            className="btn btn-sm btn-outline-danger d-inline-flex align-items-center"
+                            style={{ fontSize: "12.5px", padding: "5px 8px", borderRadius: "8px" }}
+                            onClick={handleRemoveAttachment}
+                            title="Remove file"
+                          >
+                            <i className="bi bi-trash"></i>
+                          </button>
                         </div>
                       </div>
                     )}
-                    <label className="request-upload-box">
-                      <input
-                        type="file"
-                        accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
-                        onChange={handleAttachmentChange}
-                        hidden
-                      />
-                      <i className="bi bi-cloud-arrow-up" aria-hidden="true"></i>
-                      <strong>{attachment ? attachment.name : editingRequest?.attachment ? "Click to replace file" : "Click to upload a file"}</strong>
-                      <span>PDF, JPG, PNG or DOCX · Maximum 500 KB</span>
-                    </label>
                     {fileError && <span className="request-file-error" role="alert">{fileError}</span>}
                   </div>
                 </div>
@@ -1858,23 +1924,6 @@ export default function EmployeeRequests({ employeeProfile, currentUser }) {
       {selectedRequest && (
         <div
           className="request-modal-overlay show"
-          style={{
-            position: "fixed",
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            width: "100vw",
-            height: "100vh",
-            backgroundColor: "rgba(15, 23, 42, 0.65)",
-            backdropFilter: "blur(3px)",
-            WebkitBackdropFilter: "blur(3px)",
-            zIndex: 99999,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: "20px"
-          }}
           onClick={(event) => {
             if (event.target === event.currentTarget) setSelectedRequest(null);
           }}
@@ -1884,18 +1933,6 @@ export default function EmployeeRequests({ employeeProfile, currentUser }) {
             role="dialog"
             aria-modal="true"
             aria-labelledby="detail-request-title"
-            style={{
-              backgroundColor: "#ffffff",
-              borderRadius: "16px",
-              width: "100%",
-              maxWidth: "640px",
-              maxHeight: "calc(100vh - 48px)",
-              display: "flex",
-              flexDirection: "column",
-              boxShadow: "0 25px 60px rgba(0, 0, 0, 0.25)",
-              overflow: "hidden",
-              zIndex: 100000
-            }}
           >
             <header className="request-modal-header">
               <div>
@@ -1928,11 +1965,11 @@ export default function EmployeeRequests({ employeeProfile, currentUser }) {
                 <h3><i className="bi bi-clock-history" aria-hidden="true"></i>Request Timeline</h3>
                 <div className="request-detail-timeline">
                   <div className="request-detail-timeline-item completed">
-                    <div className="timeline-dot"><i className="bi bi-check-lg" aria-hidden="true"></i></div>
+                    <span className="timeline-dot"><i className="bi bi-check" aria-hidden="true"></i></span>
                     <div><strong>Request Submitted</strong><span>{selectedRequest.date}</span></div>
                   </div>
                   <div className={`request-detail-timeline-item ${["In Review", "Approved", "Completed", "Rejected"].includes(selectedRequest.status) ? "completed" : "current"}`}>
-                    <div className="timeline-dot"><i className={`bi ${statusIcon(selectedRequest.status)}`} aria-hidden="true"></i></div>
+                    <span className="timeline-dot"><i className={`bi ${statusIcon(selectedRequest.status)}`} aria-hidden="true"></i></span>
                     <div>
                       <strong>{selectedRequest.status === "Pending" ? "Waiting for Manager Review" : selectedRequest.status}</strong>
                       <span>
@@ -1947,11 +1984,11 @@ export default function EmployeeRequests({ employeeProfile, currentUser }) {
                     </div>
                   </div>
                   <div className={`request-detail-timeline-item ${["Approved", "Completed"].includes(selectedRequest.status) ? "completed" : ""}`}>
-                    <div className="timeline-dot"><i className={`bi ${["Approved", "Completed"].includes(selectedRequest.status) ? "bi-check-lg" : "bi-circle"}`} aria-hidden="true"></i></div>
+                    <span className="timeline-dot"><i className={`bi ${["Approved", "Completed"].includes(selectedRequest.status) ? "bi-check" : "bi-circle"}`} aria-hidden="true"></i></span>
                     <div><strong>HR Verification</strong><span>{["Approved", "Completed"].includes(selectedRequest.status) ? "Completed" : "Pending"}</span></div>
                   </div>
                   <div className={`request-detail-timeline-item ${selectedRequest.status === "Completed" ? "completed" : ""}`}>
-                    <div className="timeline-dot"><i className={`bi ${selectedRequest.status === "Completed" ? "bi-check-lg" : "bi-circle"}`} aria-hidden="true"></i></div>
+                    <span className="timeline-dot"><i className={`bi ${selectedRequest.status === "Completed" ? "bi-check" : "bi-circle"}`} aria-hidden="true"></i></span>
                     <div><strong>Request Completed</strong><span>{selectedRequest.status === "Completed" ? "Completed" : "Pending"}</span></div>
                   </div>
                 </div>
@@ -2036,7 +2073,7 @@ export default function EmployeeRequests({ employeeProfile, currentUser }) {
                     <>
                       <div><span>Asset Type</span><strong>{selectedRequest.asset_type.replace(/-/g, " ")}</strong></div>
                       {selectedRequest.date_needed && (
-                        <div><span>Date Needed</span><strong>{formatDateForInput(selectedRequest.date_needed) || selectedRequest.date_needed}</strong></div>
+                        <div><span>Date Needed</span><strong>{selectedRequest.date_needed}</strong></div>
                       )}
                       {selectedRequest.preferred_model && (
                         <div><span>Preferred Model</span><strong>{selectedRequest.preferred_model}</strong></div>
@@ -2047,52 +2084,7 @@ export default function EmployeeRequests({ employeeProfile, currentUser }) {
                     </>
                   )}
                   {selectedRequest.attachment && (
-                    <div>
-                      <span>Attachment</span>
-                      <strong>
-                        <span className="d-inline-flex align-items-center gap-2 flex-wrap">
-                          <span>{selectedRequest.attachment}</span>
-                          {selectedRequest.receipt_url ? (
-                            <a
-                              href={selectedRequest.receipt_url.startsWith('http') ? selectedRequest.receipt_url : `${API_BASE}${selectedRequest.receipt_url}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="btn btn-sm btn-outline-primary py-0 px-2"
-                              style={{ fontSize: "11px", borderRadius: "6px" }}
-                            >
-                              <i className="bi bi-eye me-1"></i> Preview / Download
-                            </a>
-                          ) : (selectedRequest.source_type === "leave" || selectedRequest.leave_id) ? (
-                            <a
-                              href={`${API_BASE}/api/employee/leave-requests/document/${selectedRequest.source_id || selectedRequest.leave_id}?download=true`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="btn btn-sm btn-outline-primary py-0 px-2"
-                              style={{ fontSize: "11px", borderRadius: "6px" }}
-                            >
-                              <i className="bi bi-download me-1"></i> Download
-                            </a>
-                          ) : (
-                            <button
-                              type="button"
-                              className="btn btn-sm btn-outline-primary py-0 px-2"
-                              style={{ fontSize: "11px", borderRadius: "6px" }}
-                              onClick={() => {
-                                const blob = new Blob([`Attachment Name: ${selectedRequest.attachment}\nRequest ID: ${selectedRequest.id}\nCategory: ${selectedRequest.category}\nSubject: ${selectedRequest.subject}\nDescription: ${selectedRequest.description}`], { type: 'text/plain;charset=utf-8' });
-                                const url = URL.createObjectURL(blob);
-                                const a = document.createElement('a');
-                                a.href = url;
-                                a.download = selectedRequest.attachment;
-                                a.click();
-                                URL.revokeObjectURL(url);
-                              }}
-                            >
-                              <i className="bi bi-download me-1"></i> Download
-                            </button>
-                          )}
-                        </span>
-                      </strong>
-                    </div>
+                    <div><span>Attachment</span><strong>{selectedRequest.attachment}</strong></div>
                   )}
                   {(selectedRequest.claim_amount || selectedRequest.category === "Expenses & Claims") && (
                     <>
@@ -2176,28 +2168,14 @@ export default function EmployeeRequests({ employeeProfile, currentUser }) {
                       </>
                     ) : (
                       <>
-                        <i className="bi bi-flag me-1" aria-hidden="true"></i>
-                        Mark as High Priority
+                        <i className="bi bi-exclamation-triangle" aria-hidden="true"></i>
+                        High Priority
                       </>
                     )}
                   </button>
                 )}
               </div>
-              {selectedRequest.status === "Pending" && (
-                <button
-                  className="requests-primary-btn"
-                  style={{ backgroundColor: "#4f46e5", borderColor: "#4f46e5", display: "inline-flex", alignItems: "center", gap: "6px" }}
-                  type="button"
-                  onClick={() => {
-                    const req = selectedRequest;
-                    setSelectedRequest(null);
-                    openEditModal(req);
-                  }}
-                >
-                  <i className="bi bi-pencil" aria-hidden="true"></i>
-                  Edit Request
-                </button>
-              )}
+
               <button className="requests-secondary-btn" type="button" onClick={() => setSelectedRequest(null)}>
                 Close
               </button>
@@ -2280,7 +2258,7 @@ export default function EmployeeRequests({ employeeProfile, currentUser }) {
             </header>
             <form onSubmit={handleContactSubmit}>
               <div className="request-form-group">
-                <label htmlFor="contact-hr-subject">Subject <span className="text-danger">*</span></label>
+                <label htmlFor="contact-hr-subject">Subject</label>
                 <input
                   id="contact-hr-subject"
                   value={contactForm.subject}
@@ -2290,7 +2268,7 @@ export default function EmployeeRequests({ employeeProfile, currentUser }) {
                 />
               </div>
               <div className="request-form-group">
-                <label htmlFor="contact-hr-message">Message <span className="text-danger">*</span></label>
+                <label htmlFor="contact-hr-message">Message</label>
                 <textarea
                   id="contact-hr-message"
                   rows="6"
@@ -2364,8 +2342,161 @@ export default function EmployeeRequests({ employeeProfile, currentUser }) {
           </button>
         </div>
       )}
+      {/* Document Preview Modal */}
+      {showDocumentPreview && previewFile && (
+        <div
+          className="modal-backdrop-custom d-flex align-items-center justify-content-center"
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: "rgba(15, 23, 42, 0.75)",
+            backdropFilter: "blur(4px)",
+            zIndex: 1070,
+            padding: "20px"
+          }}
+          onClick={() => setShowDocumentPreview(false)}
+        >
+          <div
+            className="bg-white rounded-4 shadow-lg overflow-hidden d-flex flex-column"
+            style={{
+              width: "100%",
+              maxWidth: "850px",
+              maxHeight: "90vh",
+              border: "1px solid #cbd5e1"
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div
+              className="px-4 py-3 border-bottom d-flex align-items-center justify-content-between"
+              style={{ background: "#f8fafc" }}
+            >
+              <div className="d-flex align-items-center gap-2.5 overflow-hidden">
+                <div
+                  className="rounded-circle d-flex align-items-center justify-content-center"
+                  style={{ width: "32px", height: "32px", background: "#e0e7ff", color: "#4f46e5" }}
+                >
+                  <i className="bi bi-file-earmark-check fs-6"></i>
+                </div>
+                <div className="overflow-hidden">
+                  <h6 className="mb-0 fw-bold text-dark text-truncate" style={{ fontSize: "15px" }}>
+                    {previewFile.name}
+                  </h6>
+                  <span className="text-muted" style={{ fontSize: "12px" }}>
+                    Document Preview · {previewFile.size}
+                  </span>
+                </div>
+              </div>
+
+              <div className="d-flex align-items-center gap-2">
+                <a
+                  href={previewFile.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="btn btn-sm btn-outline-secondary d-inline-flex align-items-center gap-1"
+                  style={{ fontSize: "12px", borderRadius: "6px" }}
+                  title="Open in new tab"
+                >
+                  <i className="bi bi-box-arrow-up-right"></i>
+                  Open in New Tab
+                </a>
+                <button
+                  type="button"
+                  className="btn-close"
+                  aria-label="Close preview"
+                  onClick={() => setShowDocumentPreview(false)}
+                ></button>
+              </div>
+            </div>
+
+            {/* Modal Body */}
+            <div
+              className="p-3 overflow-auto flex-grow-1 d-flex align-items-center justify-content-center"
+              style={{ background: "#f1f5f9", minHeight: "350px" }}
+            >
+              {previewFile.file?.type?.startsWith("image/") ? (
+                <div className="text-center w-100">
+                  <img
+                    src={previewFile.url}
+                    alt={previewFile.name}
+                    style={{
+                      maxWidth: "100%",
+                      maxHeight: "65vh",
+                      objectFit: "contain",
+                      borderRadius: "8px",
+                      boxShadow: "0 4px 15px rgba(0,0,0,0.1)",
+                      background: "#fff"
+                    }}
+                  />
+                </div>
+              ) : previewFile.name?.toLowerCase().endsWith(".pdf") || previewFile.type === "application/pdf" ? (
+                <iframe
+                  src={previewFile.url}
+                  title="PDF Preview"
+                  style={{
+                    width: "100%",
+                    height: "65vh",
+                    border: "none",
+                    borderRadius: "8px",
+                    background: "#fff"
+                  }}
+                />
+              ) : (
+                <div
+                  className="bg-white p-5 rounded-4 text-center shadow-sm"
+                  style={{ maxWidth: "450px", border: "1px solid #e2e8f0" }}
+                >
+                  <div
+                    className="mx-auto rounded-circle d-flex align-items-center justify-content-center mb-3"
+                    style={{ width: "64px", height: "64px", background: "#eff6ff", color: "#3b82f6" }}
+                  >
+                    <i className="bi bi-file-earmark-word fs-1"></i>
+                  </div>
+                  <h6 className="fw-bold mb-1 text-dark">{previewFile.name}</h6>
+                  <p className="text-muted small mb-3">
+                    {previewFile.size} · Microsoft Word Document
+                  </p>
+                  <div className="alert alert-info py-2 px-3 small text-start mb-3" style={{ fontSize: "12px" }}>
+                    <i className="bi bi-info-circle me-1.5"></i>
+                    Document is ready and verified for submission. Direct browser preview for Word documents (.doc, .docx) is not natively supported without downloading.
+                  </div>
+                  <a
+                    href={previewFile.url}
+                    download={previewFile.name}
+                    className="btn btn-primary btn-sm d-inline-flex align-items-center gap-1.5"
+                    style={{ borderRadius: "8px", fontWeight: 600 }}
+                  >
+                    <i className="bi bi-download"></i>
+                    Download to Verify
+                  </a>
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div
+              className="px-4 py-2.5 border-top d-flex align-items-center justify-content-between"
+              style={{ background: "#ffffff" }}
+            >
+              <div className="d-flex align-items-center gap-1.5 text-success small fw-medium" style={{ fontSize: "12.5px" }}>
+                <i className="bi bi-shield-check"></i>
+                Verified & Ready to Submit
+              </div>
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm px-3"
+                style={{ borderRadius: "8px", fontWeight: 600 }}
+                onClick={() => setShowDocumentPreview(false)}
+              >
+                Close Preview
+              </button>
+            </div>
+          </div>
         </div>
-      </div>
-    </>
+      )}
+    </main>
   );
 }
