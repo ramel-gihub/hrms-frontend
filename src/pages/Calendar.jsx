@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import EmptyState from "../components/EmptyState";
 import TeamChatModal from "../components/TeamChatModal";
 
@@ -30,9 +30,38 @@ export default function Calendar({ employeeProfile, currentUser, initialTab = "c
   const [showModal, setShowModal] = useState(false);
   const [modalData, setModalData] = useState({ title: '', list: [] });
 
-  const [sentWishes, setSentWishes] = useState({});
+  const [sentWishes, setSentWishes] = useState(() => {
+    try {
+      const saved = localStorage.getItem("hrms_sent_wishes");
+      return saved ? JSON.parse(saved) : {};
+    } catch {
+      return {};
+    }
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("hrms_sent_wishes", JSON.stringify(sentWishes));
+    } catch (_) {}
+  }, [sentWishes]);
+
   const [sendingWishId, setSendingWishId] = useState(null);
   const [wishToast, setWishToast] = useState(null);
+  const toastTimerRef = useRef(null);
+
+  const triggerToast = (toastObj) => {
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    setWishToast(toastObj);
+    toastTimerRef.current = setTimeout(() => {
+      setWishToast(null);
+    }, 4000);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    };
+  }, []);
 
   const handleSendWish = async (user, type) => {
     if (!user || !currentUser?.id) return;
@@ -54,17 +83,25 @@ export default function Calendar({ employeeProfile, currentUser, initialTab = "c
       const data = await res.json();
       if (res.ok && data.success) {
         setSentWishes(prev => ({ ...prev, [wishKey]: true }));
-        setWishToast({
-          title: type === 'birthday' ? "🎂 Birthday Wishes Sent!" : "🌟 Work Anniversary Wishes Sent!",
+        triggerToast({
+          type: 'success',
+          title: type === 'birthday' ? "🎂 Birthday Wishes Sent!" : type === 'welcome' ? "👋 Welcome Onboard Wishes Sent!" : "🌟 Work Anniversary Wishes Sent!",
           message: data.message || `Wishes sent to ${user.name}!`
         });
-        setTimeout(() => setWishToast(null), 6000);
       } else {
-        alert(data.message || data.error || "Failed to send wishes");
+        triggerToast({
+          type: 'warning',
+          title: "Celebration Notice",
+          message: data.message || data.error || "Wishes can only be sent on the exact celebration date (today)."
+        });
       }
     } catch (err) {
       console.error("Error sending wish:", err);
-      alert("Failed to send wishes. Please try again.");
+      triggerToast({
+        type: 'danger',
+        title: "Error",
+        message: "Failed to send wishes. Please try again."
+      });
     } finally {
       setSendingWishId(null);
     }
@@ -152,6 +189,20 @@ export default function Calendar({ employeeProfile, currentUser, initialTab = "c
                 }
                 if (data.allCelebrationUsers && Array.isArray(data.allCelebrationUsers) && data.allCelebrationUsers.length > 0) {
                     setAllUsers(data.allCelebrationUsers);
+                }
+                if (data.sentWishesToday && Array.isArray(data.sentWishesToday)) {
+                    setSentWishes(prev => {
+                        const next = { ...prev };
+                        data.sentWishesToday.forEach(w => {
+                            let meta = {};
+                            try { meta = typeof w.metadata === 'string' ? JSON.parse(w.metadata) : (w.metadata || {}); } catch(_) {}
+                            const type = meta.type || (w.title?.includes('Birthday') ? 'birthday' : w.title?.includes('Welcome') ? 'welcome' : 'anniversary');
+                            if (w.employee_id) next[`${type}-${w.employee_id}`] = true;
+                            if (w.recipient_user_id) next[`${type}-${w.recipient_user_id}`] = true;
+                            if (meta.recipientName) next[`${type}-${meta.recipientName}`] = true;
+                        });
+                        return next;
+                    });
                 }
             })
             .catch(console.error);
@@ -390,7 +441,7 @@ export default function Calendar({ employeeProfile, currentUser, initialTab = "c
   }, []);
   const currentCalendarYear = currentMonth.getFullYear();
 
-  // Helper arrays for Overview Tab & Send Wishes Tab (Birthdays & Work Anniversaries)
+  // Helper arrays for Overview Tab & Send Wishes Tab (Birthdays, Work Anniversaries & New Onboarding Joiners)
   const thisMonthBdays = useMemo(() => {
     return allUsers
       .filter(u => {
@@ -401,12 +452,14 @@ export default function Calendar({ employeeProfile, currentUser, initialTab = "c
       .map(u => {
         const p = parseDateParts(u.dob);
         const bdayDate = new Date(year, month, p.day);
+        bdayDate.setHours(0, 0, 0, 0);
         const daysUntil = Math.ceil((bdayDate - today) / (1000 * 60 * 60 * 24));
         return {
           ...u,
           day: p.day,
           date: bdayDate,
-          daysUntil
+          daysUntil,
+          type: 'birthday'
         };
       })
       .sort((a, b) => a.day - b.day);
@@ -417,11 +470,15 @@ export default function Calendar({ employeeProfile, currentUser, initialTab = "c
       .filter(u => {
         if (!u.doj) return false;
         const p = parseDateParts(u.doj);
-        return p && p.month === month;
+        if (!p || p.month !== month) return false;
+        const joinYear = p.year || new Date(u.doj).getFullYear();
+        // True Work Anniversary: must have completed at least 1 year (joined in a prior year)
+        return (year - joinYear) > 0;
       })
       .map(u => {
         const p = parseDateParts(u.doj);
         const annivDate = new Date(year, month, p.day);
+        annivDate.setHours(0, 0, 0, 0);
         const daysUntil = Math.ceil((annivDate - today) / (1000 * 60 * 60 * 24));
         const joinYear = p.year || new Date(u.doj).getFullYear();
         const years = year - joinYear;
@@ -429,8 +486,35 @@ export default function Calendar({ employeeProfile, currentUser, initialTab = "c
           ...u,
           day: p.day,
           date: annivDate,
-          years: years > 0 ? years : 1,
-          daysUntil
+          years: years,
+          daysUntil,
+          type: 'anniversary'
+        };
+      })
+      .sort((a, b) => a.day - b.day);
+  }, [allUsers, month, year, today]);
+
+  const thisMonthOnboarding = useMemo(() => {
+    return allUsers
+      .filter(u => {
+        if (!u.doj) return false;
+        const p = parseDateParts(u.doj);
+        if (!p || p.month !== month) return false;
+        const joinYear = p.year || new Date(u.doj).getFullYear();
+        // New Joiner / Onboarding: joined in the current calendar year (years <= 0)
+        return (year - joinYear) <= 0;
+      })
+      .map(u => {
+        const p = parseDateParts(u.doj);
+        const joinDate = new Date(year, month, p.day);
+        joinDate.setHours(0, 0, 0, 0);
+        const daysUntil = Math.ceil((joinDate - today) / (1000 * 60 * 60 * 24));
+        return {
+          ...u,
+          day: p.day,
+          date: joinDate,
+          daysUntil,
+          type: 'welcome'
         };
       })
       .sort((a, b) => a.day - b.day);
@@ -441,10 +525,13 @@ export default function Calendar({ employeeProfile, currentUser, initialTab = "c
   const [bdayPerPage, setBdayPerPage] = useState(5);
   const [annivPage, setAnnivPage] = useState(1);
   const [annivPerPage, setAnnivPerPage] = useState(5);
+  const [onboardPage, setOnboardPage] = useState(1);
+  const [onboardPerPage, setOnboardPerPage] = useState(5);
 
   useEffect(() => {
     setBdayPage(1);
     setAnnivPage(1);
+    setOnboardPage(1);
   }, [currentMonth]);
 
   const totalBdayPages = Math.ceil(thisMonthBdays.length / bdayPerPage) || 1;
@@ -464,6 +551,15 @@ export default function Calendar({ employeeProfile, currentUser, initialTab = "c
   }, [thisMonthAnnivs, currentAnnivPage, annivPerPage]);
   const annivStartIndex = thisMonthAnnivs.length === 0 ? 0 : (currentAnnivPage - 1) * annivPerPage + 1;
   const annivEndIndex = Math.min(currentAnnivPage * annivPerPage, thisMonthAnnivs.length);
+
+  const totalOnboardPages = Math.ceil(thisMonthOnboarding.length / onboardPerPage) || 1;
+  const currentOnboardPage = Math.min(onboardPage, totalOnboardPages);
+  const paginatedOnboarding = useMemo(() => {
+    const start = (currentOnboardPage - 1) * onboardPerPage;
+    return thisMonthOnboarding.slice(start, start + onboardPerPage);
+  }, [thisMonthOnboarding, currentOnboardPage, onboardPerPage]);
+  const onboardStartIndex = thisMonthOnboarding.length === 0 ? 0 : (currentOnboardPage - 1) * onboardPerPage + 1;
+  const onboardEndIndex = Math.min(currentOnboardPage * onboardPerPage, thisMonthOnboarding.length);
 
   // Public holidays: show only current year pending holidays
   const pendingCurrentYearHolidays = holidays.filter(h => {
@@ -590,7 +686,7 @@ export default function Calendar({ employeeProfile, currentUser, initialTab = "c
                   </div>
                   <div>
                     <span>Team Members</span>
-                    <strong>{allUsers.length || 0}</strong>
+                    <strong>{teamDirectoryMembers.length || 0}</strong>
                   </div>
                 </div>
                 <div className="summary-item">
@@ -603,6 +699,28 @@ export default function Calendar({ employeeProfile, currentUser, initialTab = "c
                   </div>
                 </div>
               </div>
+
+              {wishToast && (
+                <div 
+                  className={`alert ${wishToast.type === 'danger' ? 'alert-danger' : wishToast.type === 'warning' ? 'alert-warning' : 'alert-success'} alert-dismissible fade show d-flex align-items-center gap-2 mb-3`} 
+                  role="alert"
+                  style={{ 
+                    borderRadius: "14px", 
+                    border: wishToast.type === 'danger' ? "1px solid #fecaca" : wishToast.type === 'warning' ? "1px solid #fde68a" : "1px solid #bbf7d0", 
+                    backgroundColor: wishToast.type === 'danger' ? "#fef2f2" : wishToast.type === 'warning' ? "#fffbeb" : "#f0fdf4", 
+                    color: wishToast.type === 'danger' ? "#991b1b" : wishToast.type === 'warning' ? "#92400e" : "#166534",
+                    padding: "12px 18px",
+                    boxShadow: "0 4px 12px rgba(0, 0, 0, 0.05)"
+                  }}
+                >
+                  <i className={`bi ${wishToast.type === 'danger' ? 'bi-x-circle-fill text-danger' : wishToast.type === 'warning' ? 'bi-exclamation-triangle-fill text-warning' : 'bi-check-circle-fill text-success'} fs-5`}></i>
+                  <div className="flex-grow-1">
+                    <strong className="me-1">{wishToast.title}:</strong>
+                    <span>{wishToast.message}</span>
+                  </div>
+                  <button type="button" className="btn-close" onClick={() => setWishToast(null)} aria-label="Close"></button>
+                </div>
+              )}
 
               <div className="calendar-tabs-wrapper">
                 <div className="calendar-tabs" role="tablist">
@@ -739,7 +857,7 @@ export default function Calendar({ employeeProfile, currentUser, initialTab = "c
                                    </div>
                                </div>
                                <div className="mt-3">
-                                   {thisMonthBdays.length === 0 && thisMonthAnnivs.length === 0 ? (
+                                   {thisMonthBdays.length === 0 && thisMonthAnnivs.length === 0 && thisMonthOnboarding.length === 0 ? (
                                        <EmptyState
                                             compact
                                             emoji="🎂"
@@ -775,6 +893,17 @@ export default function Calendar({ employeeProfile, currentUser, initialTab = "c
                                                </li>
                                                );
                                            })}
+                                           {thisMonthOnboarding.map((u, i) => (
+                                               <li key={`oonboard-${i}`} className="d-flex align-items-center gap-3">
+                                                   <div style={{background: '#ecfdf5', color: '#059669', width: '40px', height: '40px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center'}}>
+                                                       <i className="bi bi-rocket-takeoff-fill"></i>
+                                                   </div>
+                                                   <div>
+                                                       <h6 className="mb-0">{u.name} (Welcome Onboard)</h6>
+                                                       <small className="text-muted">{new Date(u.doj).toLocaleDateString('en-GB', {day: '2-digit', month: 'short'})} · Joined</small>
+                                                   </div>
+                                               </li>
+                                           ))}
                                        </ul>
                                    )}
                                </div>
@@ -906,13 +1035,21 @@ export default function Calendar({ employeeProfile, currentUser, initialTab = "c
 
                   {wishToast && (
                     <div 
-                      className="alert alert-success alert-dismissible fade show d-flex align-items-center gap-2 mb-4" 
+                      className={`alert ${wishToast.type === 'danger' ? 'alert-danger' : wishToast.type === 'warning' ? 'alert-warning' : 'alert-success'} alert-dismissible fade show d-flex align-items-center gap-2 mb-4`} 
                       role="alert"
-                      style={{ borderRadius: "14px", border: "1px solid #bbf7d0", backgroundColor: "#f0fdf4", color: "#166534" }}
+                      style={{ 
+                        borderRadius: "14px", 
+                        border: wishToast.type === 'danger' ? "1px solid #fecaca" : wishToast.type === 'warning' ? "1px solid #fde68a" : "1px solid #bbf7d0", 
+                        backgroundColor: wishToast.type === 'danger' ? "#fef2f2" : wishToast.type === 'warning' ? "#fffbeb" : "#f0fdf4", 
+                        color: wishToast.type === 'danger' ? "#991b1b" : wishToast.type === 'warning' ? "#92400e" : "#166534",
+                        padding: "12px 18px",
+                        boxShadow: "0 4px 12px rgba(0, 0, 0, 0.05)"
+                      }}
                     >
-                      <i className="bi bi-check-circle-fill text-success fs-5"></i>
+                      <i className={`bi ${wishToast.type === 'danger' ? 'bi-x-circle-fill text-danger' : wishToast.type === 'warning' ? 'bi-exclamation-triangle-fill text-warning' : 'bi-check-circle-fill text-success'} fs-5`}></i>
                       <div className="flex-grow-1">
-                        <strong>{wishToast.title}</strong> {wishToast.message}
+                        <strong className="me-1">{wishToast.title}:</strong>
+                        <span>{wishToast.message}</span>
                       </div>
                       <button type="button" className="btn-close" onClick={() => setWishToast(null)} aria-label="Close"></button>
                     </div>
@@ -920,7 +1057,7 @@ export default function Calendar({ employeeProfile, currentUser, initialTab = "c
 
                   <div className="row g-4 mt-1">
                     {/* Column 1: Current Month Upcoming Birthdays */}
-                    <div className="col-12 col-lg-6">
+                    <div className="col-12 col-xl-4 col-md-6">
                       <div className="side-card h-100 mb-0 d-flex flex-column" style={{ borderRadius: "20px", border: "1px solid #ebecf3", background: "#ffffff", padding: "22px" }}>
                         <div className="side-card-header d-flex align-items-center justify-content-between pb-3 border-bottom mb-3">
                           <div>
@@ -945,7 +1082,7 @@ export default function Calendar({ employeeProfile, currentUser, initialTab = "c
                               compact
                               emoji="🎂"
                               title="No birthdays this month"
-                              message={`There are no colleagues celebrating birthdays in ${monthName}.`}
+                              message={`There are no birthdays scheduled for ${monthName}.`}
                             />
                           ) : (
                             <div className="d-flex flex-column gap-2">
@@ -954,6 +1091,7 @@ export default function Calendar({ employeeProfile, currentUser, initialTab = "c
                                 const wishKey = `birthday-${u.id || u.userId || u.name}`;
                                 const isSent = sentWishes[wishKey];
                                 const isSending = sendingWishId === wishKey;
+                                const isToday = u.daysUntil === 0;
                                 const avatarSrc = u.profilePic 
                                   ? (/^(https?:\/\/|data:|blob:)/i.test(u.profilePic) ? u.profilePic : `${API_BASE}/${u.profilePic.replace(/^\/+/, '')}`)
                                   : null;
@@ -992,9 +1130,9 @@ export default function Calendar({ employeeProfile, currentUser, initialTab = "c
                                         <span className="d-block text-truncate text-muted" style={{ fontSize: "12px" }}>
                                           {u.designation || u.department || "Team Member"}
                                         </span>
-                                        <small style={{ fontSize: "11.5px", color: u.daysUntil === 0 ? "#16a34a" : "#64748b", fontWeight: u.daysUntil === 0 ? 600 : 400 }}>
+                                        <small style={{ fontSize: "11.5px", color: isToday ? "#16a34a" : "#64748b", fontWeight: isToday ? 600 : 400 }}>
                                           <i className="bi bi-calendar-event me-1"></i>
-                                          {u.daysUntil === 0 ? "Today 🎉" : u.daysUntil === 1 ? "Tomorrow" : `${u.day} ${monthName}`}
+                                          {isToday ? "Today 🎉" : u.daysUntil === 1 ? "Tomorrow" : `${u.day} ${monthName}`}
                                         </small>
                                       </div>
                                     </div>
@@ -1003,21 +1141,22 @@ export default function Calendar({ employeeProfile, currentUser, initialTab = "c
                                       <button
                                         type="button"
                                         className="btn btn-sm"
-                                        disabled={isSent || isSending || isCurrentUser}
+                                        disabled={isSent || isSending || isCurrentUser || !isToday}
                                         onClick={() => handleSendWish(u, 'birthday')}
+                                        title={!isToday ? "Birthday wishes can only be sent on the exact celebration date (today)" : undefined}
                                         style={{
                                           borderRadius: "10px",
                                           padding: "7px 14px",
                                           fontSize: "12.5px",
                                           fontWeight: 600,
-                                          backgroundColor: isSent ? "#dcfce7" : isCurrentUser ? "#f1f5f9" : "#3c2fbc",
-                                          color: isSent ? "#15803d" : isCurrentUser ? "#94a3b8" : "#ffffff",
-                                          border: "none",
+                                          backgroundColor: isSent ? "#dcfce7" : isCurrentUser ? "#f1f5f9" : !isToday ? "#f1f5f9" : "#e8679d",
+                                          color: isSent ? "#15803d" : isCurrentUser ? "#94a3b8" : !isToday ? "#94a3b8" : "#ffffff",
+                                          border: !isToday && !isSent ? "1px solid #e2e8f0" : "none",
                                           display: "inline-flex",
                                           alignItems: "center",
                                           gap: "6px",
-                                          cursor: (isSent || isCurrentUser) ? "default" : "pointer",
-                                          boxShadow: (isSent || isCurrentUser) ? "none" : "0 2px 6px rgba(60, 47, 188, 0.25)"
+                                          cursor: (isSent || isCurrentUser || !isToday) ? "not-allowed" : "pointer",
+                                          boxShadow: (isSent || isCurrentUser || !isToday) ? "none" : "0 2px 6px rgba(232, 103, 157, 0.25)"
                                         }}
                                       >
                                         {isSending ? (
@@ -1033,6 +1172,11 @@ export default function Calendar({ employeeProfile, currentUser, initialTab = "c
                                         ) : isCurrentUser ? (
                                           <>
                                             <span>Your Day 🎉</span>
+                                          </>
+                                        ) : !isToday ? (
+                                          <>
+                                            <i className="bi bi-clock me-1"></i>
+                                            <span>Send on {u.day} {monthName.slice(0, 3)}</span>
                                           </>
                                         ) : (
                                           <>
@@ -1078,7 +1222,7 @@ export default function Calendar({ employeeProfile, currentUser, initialTab = "c
                                       color: "#1e293b",
                                       fontWeight: 500,
                                       cursor: "pointer",
-                                      boxShadow: "none"
+                                      padding: "2px 20px 2px 8px"
                                     }}
                                   >
                                     <option value={5}>5</option>
@@ -1112,17 +1256,16 @@ export default function Calendar({ employeeProfile, currentUser, initialTab = "c
                                   <i className="bi bi-chevron-left"></i>
                                 </button>
                                 {Array.from({ length: totalBdayPages }, (_, i) => i + 1).map(pageNum => (
-                                  <button 
-                                    key={pageNum} 
-                                    type="button" 
-                                    className="btn btn-sm"
+                                  <button
+                                    key={`bday-p-${pageNum}`}
+                                    type="button"
                                     onClick={() => setBdayPage(pageNum)}
                                     style={{
                                       width: "30px",
                                       height: "30px",
                                       borderRadius: "8px",
                                       border: currentBdayPage === pageNum ? "none" : "1px solid #e2e8f0",
-                                      backgroundColor: currentBdayPage === pageNum ? "#3c2fbc" : "#ffffff",
+                                      backgroundColor: currentBdayPage === pageNum ? "#e8679d" : "#ffffff",
                                       color: currentBdayPage === pageNum ? "#ffffff" : "#475569",
                                       fontWeight: currentBdayPage === pageNum ? 600 : 400,
                                       fontSize: "11.5px",
@@ -1130,7 +1273,7 @@ export default function Calendar({ employeeProfile, currentUser, initialTab = "c
                                       alignItems: "center",
                                       justifyContent: "center",
                                       cursor: "pointer",
-                                      boxShadow: currentBdayPage === pageNum ? "0 2px 4px rgba(60, 47, 188, 0.2)" : "none"
+                                      boxShadow: currentBdayPage === pageNum ? "0 2px 4px rgba(232, 103, 157, 0.2)" : "none"
                                     }}
                                   >
                                     {pageNum}
@@ -1165,8 +1308,8 @@ export default function Calendar({ employeeProfile, currentUser, initialTab = "c
                       </div>
                     </div>
 
-                    {/* Column 2: Current Month Upcoming Work Anniversaries */}
-                    <div className="col-12 col-lg-6">
+                    {/* Column 2: Current Month Upcoming Work Anniversaries (1+ years completed) */}
+                    <div className="col-12 col-xl-4 col-md-6">
                       <div className="side-card h-100 mb-0 d-flex flex-column" style={{ borderRadius: "20px", border: "1px solid #ebecf3", background: "#ffffff", padding: "22px" }}>
                         <div className="side-card-header d-flex align-items-center justify-content-between pb-3 border-bottom mb-3">
                           <div>
@@ -1200,6 +1343,7 @@ export default function Calendar({ employeeProfile, currentUser, initialTab = "c
                                 const wishKey = `anniversary-${u.id || u.userId || u.name}`;
                                 const isSent = sentWishes[wishKey];
                                 const isSending = sendingWishId === wishKey;
+                                const isToday = u.daysUntil === 0;
                                 const avatarSrc = u.profilePic 
                                   ? (/^(https?:\/\/|data:|blob:)/i.test(u.profilePic) ? u.profilePic : `${API_BASE}/${u.profilePic.replace(/^\/+/, '')}`)
                                   : null;
@@ -1238,9 +1382,9 @@ export default function Calendar({ employeeProfile, currentUser, initialTab = "c
                                         <span className="d-block text-truncate text-muted" style={{ fontSize: "12px" }}>
                                           {u.designation || u.department || "Team Member"}
                                         </span>
-                                        <small style={{ fontSize: "11.5px", color: u.daysUntil === 0 ? "#16a34a" : "#64748b", fontWeight: u.daysUntil === 0 ? 600 : 400 }}>
+                                        <small style={{ fontSize: "11.5px", color: isToday ? "#16a34a" : "#64748b", fontWeight: isToday ? 600 : 400 }}>
                                           <i className="bi bi-award me-1"></i>
-                                          {u.years} Year{u.years !== 1 ? 's' : ''} · {u.daysUntil === 0 ? "Today 🎉" : u.daysUntil === 1 ? "Tomorrow" : `${u.day} ${monthName}`}
+                                          {u.years} Year{u.years !== 1 ? 's' : ''} · {isToday ? "Today 🎉" : u.daysUntil === 1 ? "Tomorrow" : `${u.day} ${monthName}`}
                                         </small>
                                       </div>
                                     </div>
@@ -1249,21 +1393,22 @@ export default function Calendar({ employeeProfile, currentUser, initialTab = "c
                                       <button
                                         type="button"
                                         className="btn btn-sm"
-                                        disabled={isSent || isSending || isCurrentUser}
+                                        disabled={isSent || isSending || isCurrentUser || !isToday}
                                         onClick={() => handleSendWish(u, 'anniversary')}
+                                        title={!isToday ? "Work anniversary wishes can only be sent on the exact celebration date (today)" : undefined}
                                         style={{
                                           borderRadius: "10px",
                                           padding: "7px 14px",
                                           fontSize: "12.5px",
                                           fontWeight: 600,
-                                          backgroundColor: isSent ? "#dcfce7" : isCurrentUser ? "#f1f5f9" : "#3c2fbc",
-                                          color: isSent ? "#15803d" : isCurrentUser ? "#94a3b8" : "#ffffff",
-                                          border: "none",
+                                          backgroundColor: isSent ? "#dcfce7" : isCurrentUser ? "#f1f5f9" : !isToday ? "#f1f5f9" : "#3c2fbc",
+                                          color: isSent ? "#15803d" : isCurrentUser ? "#94a3b8" : !isToday ? "#94a3b8" : "#ffffff",
+                                          border: !isToday && !isSent ? "1px solid #e2e8f0" : "none",
                                           display: "inline-flex",
                                           alignItems: "center",
                                           gap: "6px",
-                                          cursor: (isSent || isCurrentUser) ? "default" : "pointer",
-                                          boxShadow: (isSent || isCurrentUser) ? "none" : "0 2px 6px rgba(60, 47, 188, 0.25)"
+                                          cursor: (isSent || isCurrentUser || !isToday) ? "not-allowed" : "pointer",
+                                          boxShadow: (isSent || isCurrentUser || !isToday) ? "none" : "0 2px 6px rgba(60, 47, 188, 0.25)"
                                         }}
                                       >
                                         {isSending ? (
@@ -1279,6 +1424,11 @@ export default function Calendar({ employeeProfile, currentUser, initialTab = "c
                                         ) : isCurrentUser ? (
                                           <>
                                             <span>Your Milestone 🌟</span>
+                                          </>
+                                        ) : !isToday ? (
+                                          <>
+                                            <i className="bi bi-clock me-1"></i>
+                                            <span>Send on {u.day} {monthName.slice(0, 3)}</span>
                                           </>
                                         ) : (
                                           <>
@@ -1324,7 +1474,7 @@ export default function Calendar({ employeeProfile, currentUser, initialTab = "c
                                       color: "#1e293b",
                                       fontWeight: 500,
                                       cursor: "pointer",
-                                      boxShadow: "none"
+                                      padding: "2px 20px 2px 8px"
                                     }}
                                   >
                                     <option value={5}>5</option>
@@ -1400,6 +1550,258 @@ export default function Calendar({ employeeProfile, currentUser, initialTab = "c
                                     alignItems: "center",
                                     justifyContent: "center",
                                     cursor: currentAnnivPage === totalAnnivPages ? "not-allowed" : "pointer"
+                                  }}
+                                >
+                                  <i className="bi bi-chevron-right"></i>
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Column 3: Current Month Welcome Onboard (New Joiners) */}
+                    <div className="col-12 col-xl-4 col-12">
+                      <div className="side-card h-100 mb-0 d-flex flex-column" style={{ borderRadius: "20px", border: "1px solid #ebecf3", background: "#ffffff", padding: "22px" }}>
+                        <div className="side-card-header d-flex align-items-center justify-content-between pb-3 border-bottom mb-3">
+                          <div>
+                            <span className="section-label text-uppercase fw-semibold" style={{ fontSize: "11px", letterSpacing: "0.5px", color: "#059669" }}>
+                              {monthName.toUpperCase()} {yearName} NEW JOINERS
+                            </span>
+                            <div className="d-flex align-items-center gap-2 mt-1">
+                              <h3 className="mb-0" style={{ fontSize: "18px", fontWeight: "700" }}>Welcome Onboard</h3>
+                              <span className="badge rounded-pill" style={{ backgroundColor: "#ecfdf5", color: "#059669", fontSize: "12px", padding: "4px 10px" }}>
+                                {thisMonthOnboarding.length}
+                              </span>
+                            </div>
+                          </div>
+                          <div style={{ width: "42px", height: "42px", borderRadius: "12px", background: "#ecfdf5", color: "#059669", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "20px" }}>
+                            <i className="bi bi-rocket-takeoff-fill"></i>
+                          </div>
+                        </div>
+
+                        <div className="flex-grow-1 d-flex flex-column justify-content-between">
+                          {thisMonthOnboarding.length === 0 ? (
+                            <EmptyState
+                              compact
+                              emoji="🚀"
+                              title="No new joiners this month"
+                              message={`There are no new team members onboarded in ${monthName}.`}
+                            />
+                          ) : (
+                            <div className="d-flex flex-column gap-2">
+                              {paginatedOnboarding.map((u, i) => {
+                                const isCurrentUser = currentUser?.id && u.userId && Number(currentUser.id) === Number(u.userId);
+                                const wishKey = `welcome-${u.id || u.userId || u.name}`;
+                                const isSent = sentWishes[wishKey];
+                                const isSending = sendingWishId === wishKey;
+                                const isToday = u.daysUntil === 0;
+                                const avatarSrc = u.profilePic 
+                                  ? (/^(https?:\/\/|data:|blob:)/i.test(u.profilePic) ? u.profilePic : `${API_BASE}/${u.profilePic.replace(/^\/+/, '')}`)
+                                  : null;
+
+                                return (
+                                  <div
+                                    key={`wonboard-${u.id || i}`}
+                                    className="d-flex align-items-center justify-content-between p-3 rounded-4"
+                                    style={{
+                                      background: "#fafbfc",
+                                      border: "1px solid #f0f0f5",
+                                      transition: "all 0.2s ease"
+                                    }}
+                                  >
+                                    <div className="d-flex align-items-center gap-3 min-w-0">
+                                      <div style={{ width: "48px", height: "48px", borderRadius: "14px", overflow: "hidden", flexShrink: 0, border: "1px solid #e2e8f0" }}>
+                                        {avatarSrc ? (
+                                          <img
+                                            src={avatarSrc}
+                                            alt={u.name}
+                                            style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                                          />
+                                        ) : (
+                                          <div style={{ width: "100%", height: "100%", background: "#ecfdf5", color: "#059669", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: "700", fontSize: "16px" }}>
+                                            {u.name?.charAt(0) || "🚀"}
+                                          </div>
+                                        )}
+                                      </div>
+                                      <div className="min-w-0">
+                                        <div className="d-flex align-items-center gap-2">
+                                          <strong className="d-block text-truncate" style={{ fontSize: "14.5px", color: "#1e293b" }}>{u.name}</strong>
+                                          {isCurrentUser && (
+                                            <span className="badge bg-primary text-white rounded-pill px-2 py-0" style={{ fontSize: "10px" }}>You</span>
+                                          )}
+                                        </div>
+                                        <span className="d-block text-truncate text-muted" style={{ fontSize: "12px" }}>
+                                          {u.designation || u.department || "Team Member"}
+                                        </span>
+                                        <small style={{ fontSize: "11.5px", color: isToday ? "#16a34a" : "#64748b", fontWeight: isToday ? 600 : 400 }}>
+                                          <i className="bi bi-person-check me-1"></i>
+                                          {isToday ? "Joined Today 🎉" : `Joined ${u.day} ${monthName}`} · Welcome
+                                        </small>
+                                      </div>
+                                    </div>
+
+                                    <div className="flex-shrink-0 ms-2">
+                                      <button
+                                        type="button"
+                                        className="btn btn-sm"
+                                        disabled={isSent || isSending || isCurrentUser || !isToday}
+                                        onClick={() => handleSendWish(u, 'welcome')}
+                                        title={!isToday ? "Welcome wishes can only be sent on the exact celebration date (today)" : undefined}
+                                        style={{
+                                          borderRadius: "10px",
+                                          padding: "7px 14px",
+                                          fontSize: "12.5px",
+                                          fontWeight: 600,
+                                          backgroundColor: isSent ? "#dcfce7" : isCurrentUser ? "#f1f5f9" : !isToday ? "#f1f5f9" : "#059669",
+                                          color: isSent ? "#15803d" : isCurrentUser ? "#94a3b8" : !isToday ? "#94a3b8" : "#ffffff",
+                                          border: !isToday && !isSent ? "1px solid #e2e8f0" : "none",
+                                          display: "inline-flex",
+                                          alignItems: "center",
+                                          gap: "6px",
+                                          cursor: (isSent || isCurrentUser || !isToday) ? "not-allowed" : "pointer",
+                                          boxShadow: (isSent || isCurrentUser || !isToday) ? "none" : "0 2px 6px rgba(5, 150, 105, 0.25)"
+                                        }}
+                                      >
+                                        {isSending ? (
+                                          <>
+                                            <span className="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                                            <span>Sending...</span>
+                                          </>
+                                        ) : isSent ? (
+                                          <>
+                                            <i className="bi bi-check-circle-fill"></i>
+                                            <span>Wish Sent ✨</span>
+                                          </>
+                                        ) : isCurrentUser ? (
+                                          <>
+                                            <span>You Joined! 👋</span>
+                                          </>
+                                        ) : !isToday ? (
+                                          <>
+                                            <i className="bi bi-clock me-1"></i>
+                                            <span>{u.daysUntil < 0 ? `Joined ${u.day} ${monthName.slice(0, 3)}` : `Send on ${u.day} ${monthName.slice(0, 3)}`}</span>
+                                          </>
+                                        ) : (
+                                          <>
+                                            <i className="bi bi-send-fill"></i>
+                                            <span>Welcome Onboard</span>
+                                          </>
+                                        )}
+                                      </button>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+
+                          {thisMonthOnboarding.length > 0 && (
+                            <div
+                              className="d-flex align-items-center justify-content-between flex-wrap gap-2 pt-3 mt-3 border-top"
+                              style={{
+                                padding: "12px 14px",
+                                backgroundColor: "#fafbfc",
+                                borderRadius: "14px",
+                                border: "1px solid #f0f0f5"
+                              }}
+                            >
+                              <div className="d-flex align-items-center gap-2 flex-wrap">
+                                <span style={{ fontSize: "12.5px", color: "#64748b" }}>
+                                  Showing <strong style={{ color: "#1e293b" }}>{onboardStartIndex}–{onboardEndIndex}</strong> of <strong style={{ color: "#1e293b" }}>{thisMonthOnboarding.length}</strong>
+                                </span>
+                                <div className="d-flex align-items-center gap-1.5 ms-1">
+                                  <span style={{ fontSize: "12px", color: "#64748b" }}>Per page:</span>
+                                  <select
+                                    className="form-select form-select-sm"
+                                    value={onboardPerPage}
+                                    onChange={e => { setOnboardPerPage(Number(e.target.value)); setOnboardPage(1); }}
+                                    style={{
+                                      width: "66px",
+                                      height: "30px",
+                                      borderRadius: "8px",
+                                      borderColor: "#e2e8f0",
+                                      fontSize: "12px",
+                                      backgroundColor: "#ffffff",
+                                      color: "#1e293b",
+                                      fontWeight: 500,
+                                      cursor: "pointer",
+                                      padding: "2px 20px 2px 8px"
+                                    }}
+                                  >
+                                    <option value={5}>5</option>
+                                    <option value={10}>10</option>
+                                    <option value={20}>20</option>
+                                  </select>
+                                </div>
+                              </div>
+
+                              <div className="d-flex align-items-center gap-1">
+                                <button 
+                                  type="button"
+                                  className="btn btn-sm"
+                                  disabled={currentOnboardPage === 1} 
+                                  onClick={() => setOnboardPage(p => Math.max(1, p - 1))}
+                                  title="Previous Page"
+                                  style={{
+                                    width: "30px",
+                                    height: "30px",
+                                    borderRadius: "8px",
+                                    border: "1px solid #e2e8f0",
+                                    backgroundColor: currentOnboardPage === 1 ? "#f8fafc" : "#ffffff",
+                                    color: currentOnboardPage === 1 ? "#cbd5e1" : "#475569",
+                                    fontSize: "11px",
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                    cursor: currentOnboardPage === 1 ? "not-allowed" : "pointer"
+                                  }}
+                                >
+                                  <i className="bi bi-chevron-left"></i>
+                                </button>
+                                {Array.from({ length: totalOnboardPages }, (_, i) => i + 1).map(pageNum => (
+                                  <button
+                                    key={`onboard-p-${pageNum}`}
+                                    type="button"
+                                    onClick={() => setOnboardPage(pageNum)}
+                                    style={{
+                                      width: "30px",
+                                      height: "30px",
+                                      borderRadius: "8px",
+                                      border: currentOnboardPage === pageNum ? "none" : "1px solid #e2e8f0",
+                                      backgroundColor: currentOnboardPage === pageNum ? "#059669" : "#ffffff",
+                                      color: currentOnboardPage === pageNum ? "#ffffff" : "#475569",
+                                      fontWeight: currentOnboardPage === pageNum ? 600 : 400,
+                                      fontSize: "11.5px",
+                                      display: "inline-flex",
+                                      alignItems: "center",
+                                      justifyContent: "center",
+                                      cursor: "pointer",
+                                      boxShadow: currentOnboardPage === pageNum ? "0 2px 4px rgba(5, 150, 105, 0.2)" : "none"
+                                    }}
+                                  >
+                                    {pageNum}
+                                  </button>
+                                ))}
+                                <button 
+                                  type="button"
+                                  className="btn btn-sm"
+                                  disabled={currentOnboardPage === totalOnboardPages} 
+                                  onClick={() => setOnboardPage(p => Math.min(totalOnboardPages, p + 1))}
+                                  title="Next Page"
+                                  style={{
+                                    width: "30px",
+                                    height: "30px",
+                                    borderRadius: "8px",
+                                    border: "1px solid #e2e8f0",
+                                    backgroundColor: currentOnboardPage === totalOnboardPages ? "#f8fafc" : "#ffffff",
+                                    color: currentOnboardPage === totalOnboardPages ? "#cbd5e1" : "#475569",
+                                    fontSize: "11px",
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                    cursor: currentOnboardPage === totalOnboardPages ? "not-allowed" : "pointer"
                                   }}
                                 >
                                   <i className="bi bi-chevron-right"></i>
