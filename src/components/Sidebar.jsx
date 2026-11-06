@@ -10,6 +10,7 @@ export default function Sidebar({ isOpen, toggleSidebar, activeMenu, setActiveMe
         { name: 'Employment Details', icon: 'bi-briefcase', page: 'employement-details' },
         { name: 'Documents', icon: 'bi-file-earmark-text', page: 'documents' },
         { name: 'Skills & Certifications', icon: 'bi-award', page: 'skills-certifications' },
+        // { name: 'Projects & Work Sessions', icon: 'bi-briefcase-fill', page: 'my-team' },
         { name: 'Attendance', icon: 'bi-clock', page: 'attendance' },
         { name: 'Leave', icon: 'bi-calendar', page: 'leaves' },
       ]

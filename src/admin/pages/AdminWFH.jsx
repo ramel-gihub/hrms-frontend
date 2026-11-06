@@ -20,6 +20,7 @@ export default function AdminWFH({
   // Filters
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
+  const [periodFilter, setPeriodFilter] = useState('all'); // 'today' | 'week' | 'month' | 'all'
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
@@ -27,7 +28,7 @@ export default function AdminWFH({
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [statusFilter, searchQuery]);
+  }, [statusFilter, searchQuery, periodFilter]);
 
   // Modal State
   const [showModal, setShowModal] = useState(false);
@@ -89,12 +90,48 @@ export default function AdminWFH({
     fetchTenantStaff();
   }, [orgId, currentUser?.id]);
 
-  // Filtered requests
+  // Filtered requests with period support
   const filteredRequests = useMemo(() => {
+    const today = new Date();
+    const todayStr = today.toISOString().split('T')[0];
+
+    // Current week range (Mon - Sun)
+    const dayOfWeek = today.getDay();
+    const distToMon = (dayOfWeek + 6) % 7;
+    const mon = new Date(today);
+    mon.setDate(today.getDate() - distToMon);
+    const monStr = mon.toISOString().split('T')[0];
+    const sun = new Date(mon);
+    sun.setDate(mon.getDate() + 6);
+    const sunStr = sun.toISOString().split('T')[0];
+
+    // Current month range (1st - last)
+    const firstDay = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split('T')[0];
+    const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0).toISOString().split('T')[0];
+
     return wfhRequests.filter(req => {
       if (statusFilter !== 'All' && (req.status || 'Pending').toLowerCase() !== statusFilter.toLowerCase()) {
         return false;
       }
+
+      // Period filtering
+      const reqStart = (req.wfh_start_date || '').split('T')[0];
+      const reqEnd = (req.wfh_end_date || req.wfh_start_date || '').split('T')[0];
+
+      if (periodFilter === 'today') {
+        if (!(reqStart <= todayStr && reqEnd >= todayStr)) {
+          return false;
+        }
+      } else if (periodFilter === 'week') {
+        if (!(reqStart <= sunStr && reqEnd >= monStr)) {
+          return false;
+        }
+      } else if (periodFilter === 'month') {
+        if (!(reqStart <= lastDay && reqEnd >= firstDay)) {
+          return false;
+        }
+      }
+
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
         const empName = `${req.first_name || ''} ${req.last_name || ''}`.toLowerCase();
@@ -108,7 +145,7 @@ export default function AdminWFH({
       }
       return true;
     });
-  }, [wfhRequests, statusFilter, searchQuery]);
+  }, [wfhRequests, statusFilter, searchQuery, periodFilter]);
 
   const paginatedRequests = useMemo(() => {
     const start = (currentPage - 1) * pageSize;
@@ -344,6 +381,39 @@ export default function AdminWFH({
           </div>
           <div className="mt-3 text-2xl font-bold text-gray-900 dark:text-white">{metrics.totalDays} Days</div>
           <p className="text-xs text-gray-400 mt-1">Total remote work days</p>
+        </div>
+      </div>
+
+      {/* Period Filter Selector & Report Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-white dark:bg-gray-900 p-3.5 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-xs">
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wider flex items-center gap-1.5">
+            <i className="bi bi-calendar3 text-emerald-600"></i>
+            Report Period:
+          </span>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          {[
+            { id: 'today', label: 'Today', icon: 'bi-calendar-day' },
+            { id: 'week', label: 'This Week', icon: 'bi-calendar-week' },
+            { id: 'month', label: 'This Month', icon: 'bi-calendar-month' },
+            { id: 'all', label: 'All Time', icon: 'bi-calendar4-range' }
+          ].map(p => (
+            <button
+              key={p.id}
+              type="button"
+              onClick={() => setPeriodFilter(p.id)}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+                periodFilter === p.id
+                  ? 'bg-emerald-600 text-white shadow-sm'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700'
+              }`}
+            >
+              <i className={`bi ${p.icon}`}></i>
+              {p.label}
+            </button>
+          ))}
         </div>
       </div>
 

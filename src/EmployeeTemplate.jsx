@@ -80,15 +80,15 @@ const SEARCH_DIRECTORY = [
   // Accounts
   // { id: "accounts-main", label: "Access & Accounts", category: "Accounts", description: "Work email, SSO credentials, and system access", icon: "bi-shield-lock", page: "access-accounts", keywords: ["accounts", "access", "login", "credentials", "sso"] },
 
-  // HR Announcements
-  { id: "announcements-main", label: "HR Announcements", category: "HR Management", description: "Create and broadcast company, project, or employee announcements", icon: "bi-megaphone", page: "announcements", keywords: ["announcement", "announcements", "broadcast", "news", "notice", "hr"] }
+  // HR Announcements (Restricted to HR and Admin)
+  { id: "announcements-main", label: "HR Announcements", category: "HR Management", description: "Create and broadcast company, project, or employee announcements", icon: "bi-megaphone", page: "announcements", adminOrHrOnly: true, keywords: ["announcement", "announcements", "broadcast", "news", "notice", "hr"] }
 ];
 
 const SHORTCUT_CONFIG = {
   "dashboard": { id: "dashboard", label: "Employee Dashboard", description: "Your workspace overview", icon: "bi-grid", color: "blue", page: "index" },
   "apply-leave": { id: "apply-leave", label: "Apply Leave", description: "Request time off", icon: "bi-calendar-plus", color: "purple", page: "leaves" },
   "attendance": { id: "attendance", label: "Attendance", description: "View attendance", icon: "bi-calendar-check", color: "blue", page: "attendance" },
-  // "my-team": { id: "my-team", label: "My Team", description: "View your project team", icon: "bi-people-fill", color: "blue", page: "my-team" },
+  // "my-team": { id: "my-team", label: "Projects & Sessions", description: "Client projects, hours & profit/loss", icon: "bi-briefcase-fill", color: "blue", page: "my-team" },
   // "expenses": { id: "expenses", label: "Expenses & Claims", description: "Submit & track claims", icon: "bi-wallet2", color: "orange", page: "expenses" },
   "new-request": { id: "new-request", label: "New Request", description: "Contact HR / Admin", icon: "bi-send", color: "orange", page: "employee-requests" },
   "documents": { id: "documents", label: "Documents", description: "My documents", icon: "bi-folder2-open", color: "green", page: "documents" },
@@ -109,6 +109,8 @@ export default function EmployeeTemplate({
   attendanceLoading, handleCheckIn, handleCheckOut, fetchAttendance, employeeProfile, fetchEmployeeProfile, attendanceStats, fetchAttendanceStats,
   attendanceLocation, attendanceArea, attendanceCity, attendanceState, attendanceDevice, setAttendanceDevice, todayAttendance
 }) {
+  const API_BASE = (typeof window !== "undefined" && (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1") ? (import.meta.env.VITE_API_URL || "http://localhost:5002") : (import.meta.env.VITE_API_URL || "https://hrms-backend-fzef.onrender.com"));
+
   const [menuOpen, setMenuOpen] = useState(false);
   const [dashboardNotifications, setDashboardNotifications] = useState([]);
   const [unreadNotificationCount, setUnreadNotificationCount] = useState(0);
@@ -118,6 +120,17 @@ export default function EmployeeTemplate({
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [headerSearchQuery, setHeaderSearchQuery] = useState("");
   const [showCheckOutConfirm, setShowCheckOutConfirm] = useState(false);
+  // Multi-project checkout allocation state
+  const [assignedProjectsList, setAssignedProjectsList] = useState([]);
+  const [showMultiProjectModal, setShowMultiProjectModal] = useState(false);
+  const [isOnBreak, setIsOnBreak] = useState(false);
+  const [breakStartTime, setBreakStartTime] = useState(null);
+  const [breakElapsedSeconds, setBreakElapsedSeconds] = useState(0);
+  const [isBreakActionLoading, setIsBreakActionLoading] = useState(false);
+  const [multiProjectSlots, setMultiProjectSlots] = useState([
+    { projectId: "", hours: 4.0, taskDescription: "" }
+  ]);
+  const [isSubmittingCheckoutSlots, setIsSubmittingCheckoutSlots] = useState(false);
   const [toastNotification, setToastNotification] = useState(null);
   const [dynamicBreakMinutes, setDynamicBreakMinutes] = useState(() => {
     try {
@@ -152,6 +165,37 @@ export default function EmployeeTemplate({
     const interval = setInterval(updateTime, 1000);
     return () => clearInterval(interval);
   }, []);
+
+  // SYNC BREAK STATUS FROM ATTENDANCE RECORD
+  useEffect(() => {
+    if (todayAttendance) {
+      if (todayAttendance.is_on_break) {
+        setIsOnBreak(true);
+        const st = todayAttendance.break_start_time ? new Date(todayAttendance.break_start_time).getTime() : Date.now();
+        setBreakStartTime(st);
+      } else {
+        setIsOnBreak(false);
+        setBreakStartTime(null);
+      }
+      if (todayAttendance.break_minutes !== undefined && todayAttendance.break_minutes !== null) {
+        setDynamicBreakMinutes(parseInt(todayAttendance.break_minutes, 10));
+      }
+    }
+  }, [todayAttendance]);
+
+  // LIVE BREAK TICKER
+  useEffect(() => {
+    let interval = null;
+    if (isOnBreak && breakStartTime) {
+      interval = setInterval(() => {
+        const diffSecs = Math.max(0, Math.floor((Date.now() - breakStartTime) / 1000));
+        setBreakElapsedSeconds(diffSecs);
+      }, 1000);
+    } else {
+      setBreakElapsedSeconds(0);
+    }
+    return () => clearInterval(interval);
+  }, [isOnBreak, breakStartTime]);
 
   useEffect(() => {
     if (todayAttendance?.metadata?.break_minutes) {
@@ -217,19 +261,10 @@ export default function EmployeeTemplate({
 
     // Dynamic break cut: default is dynamicBreakMinutes (e.g. 60 mins / 1 hour)
     // If shift is checked out or worked >= 4 hours (240 mins) or it is afternoon (>= 13:00), cut break time
-    let breakCutMinutes = 0;
-    const nowHour = new Date().getHours();
-    if (attendanceStatus === "Checked Out") {
-      breakCutMinutes = totalElapsedMinutes >= 240 ? dynamicBreakMinutes : Math.min(totalElapsedMinutes, dynamicBreakMinutes);
-    } else {
-      if (totalElapsedMinutes >= 240 || nowHour >= 13) {
-        breakCutMinutes = Math.min(totalElapsedMinutes, dynamicBreakMinutes);
-      } else if (totalElapsedMinutes > 120 && nowHour >= 12) {
-        breakCutMinutes = Math.min(30, dynamicBreakMinutes);
-      } else {
-        breakCutMinutes = 0;
-      }
-    }
+    // Calculate dynamic break cut: accumulated break minutes from DB + current ongoing break minutes
+    const ongoingBreakMins = isOnBreak ? Math.floor(breakElapsedSeconds / 60) : 0;
+    const accumulatedMins = parseInt(dynamicBreakMinutes, 10) || 0;
+    let breakCutMinutes = accumulatedMins + ongoingBreakMins;
 
     const netMinutes = Math.max(0, totalElapsedMinutes - breakCutMinutes);
     const hours = Math.floor(netMinutes / 60);
@@ -246,7 +281,7 @@ export default function EmployeeTemplate({
       breakCutMinutes,
       progressPercent
     };
-  }, [attendanceStatus, checkInTime, todayAttendance, dynamicBreakMinutes, liveCurrentTime, workingTime]);
+  }, [attendanceStatus, checkInTime, todayAttendance, dynamicBreakMinutes, liveCurrentTime, workingTime, isOnBreak, breakElapsedSeconds]);
 
   const calculateWorkProgressPercent = () => liveAttendanceCalc.progressPercent;
 
@@ -271,6 +306,288 @@ export default function EmployeeTemplate({
         });
       }
     } catch (_) {}
+  };
+
+    // BREAK MANAGEMENT: START & STOP BREAK (Subtracted from Working Hours)
+  const handleStartBreak = async () => {
+    try {
+      setIsBreakActionLoading(true);
+      const empId = employeeProfile?.id || currentUser?.id;
+      const res = await fetch(`${API_BASE}/api/attendance/break/start`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: currentUser?.id, employeeId: empId })
+      });
+      const text = await res.text();
+      let data = {};
+      try { data = JSON.parse(text); } catch (_) { throw new Error(text.slice(0, 100)); }
+      if (!res.ok) {
+        alert(data.error || "Failed to start break");
+        return;
+      }
+      setIsOnBreak(true);
+      const st = data.breakStartTime ? new Date(data.breakStartTime).getTime() : Date.now();
+      setBreakStartTime(st);
+      setToastNotification({
+        type: "info",
+        title: "Break Started",
+        message: "You are currently on break. Enjoy your time!",
+        icon: "bi-cup-hot-fill"
+      });
+      if (fetchAttendance) fetchAttendance();
+    } catch (err) {
+      alert("Error starting break: " + err.message);
+    } finally {
+      setIsBreakActionLoading(false);
+    }
+  };
+
+  const handleStopBreak = async () => {
+    try {
+      setIsBreakActionLoading(true);
+      const empId = employeeProfile?.id || currentUser?.id;
+      const res = await fetch(`${API_BASE}/api/attendance/break/stop`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: currentUser?.id, employeeId: empId })
+      });
+      const text = await res.text();
+      let data = {};
+      try { data = JSON.parse(text); } catch (_) { throw new Error(text.slice(0, 100)); }
+      if (!res.ok) {
+        alert(data.error || "Failed to stop break");
+        return;
+      }
+      setIsOnBreak(false);
+      setBreakStartTime(null);
+      setBreakElapsedSeconds(0);
+      if (data.breakMinutes !== undefined) {
+        setDynamicBreakMinutes(data.breakMinutes);
+      }
+      setToastNotification({
+        type: "success",
+        title: "Break Ended",
+        message: `Welcome back! Break time recorded and subtracted from working hours.`,
+        icon: "bi-check-circle-fill"
+      });
+      if (fetchAttendance) fetchAttendance();
+    } catch (err) {
+      alert("Error stopping break: " + err.message);
+    } finally {
+      setIsBreakActionLoading(false);
+    }
+  };
+
+  // SAVE WORK STATUS & LOGS TO DB WITHOUT CHECKOUT
+  const handleSaveWorkLogOnly = async () => {
+    const empId = employeeProfile?.id || currentUser?.id;
+    for (const slot of multiProjectSlots) {
+      if (!slot.projectId) {
+        alert("Please select a project for all rows.");
+        return;
+      }
+      if (!slot.hours || parseFloat(slot.hours) <= 0) {
+        alert("Please enter valid hours spent for each project.");
+        return;
+      }
+      if (!slot.taskDescription || !slot.taskDescription.trim()) {
+        alert("Please provide a task summary of what was worked on.");
+        return;
+      }
+    }
+
+    try {
+      setIsSubmittingCheckoutSlots(true);
+      const res = await fetch(`${API_BASE}/api/work-sessions/save-log`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: currentUser?.id,
+          employeeId: empId,
+          projectAllocations: multiProjectSlots
+        })
+      });
+      const text = await res.text();
+      let data = {};
+      try { data = JSON.parse(text); } catch (_) { throw new Error(text.slice(0, 100)); }
+      if (!res.ok) {
+        alert(data.error || "Failed to save work status and log.");
+        return;
+      }
+      // Keep session IDs in multiProjectSlots so subsequent edits update existing rows
+      if (Array.isArray(data.sessions) && data.sessions.length > 0) {
+        setMultiProjectSlots(prev => prev.map((s, idx) => ({
+          ...s,
+          id: data.sessions[idx]?.id || s.id
+        })));
+      }
+      setShowMultiProjectModal(false);
+      setToastNotification({
+        type: "success",
+        title: "Work Status & Log Saved",
+        message: "Your project work status and daily logs were recorded in database.",
+        icon: "bi-check2-all"
+      });
+    } catch (err) {
+      alert("Error saving work status: " + err.message);
+    } finally {
+      setIsSubmittingCheckoutSlots(false);
+    }
+  };
+
+  // INITIATE CHECKOUT: Single Project (No Popup) vs Multi-Project (Time Allocation Popup + Add More)
+  const handleInitiateCheckOut = async () => {
+    try {
+      const empId = currentUser?.id || employeeProfile?.id;
+      if (!empId) {
+        handleConfirmCheckOut();
+        return;
+      }
+
+      // 1. Fetch assigned projects
+      const res = await fetch(`${API_BASE}/api/employee/assigned-projects/${empId}`);
+      const data = await res.json();
+      const list = data?.projects || [];
+      
+      // Deduplicate projects by id
+      const uniqueProjects = [];
+      const seen = new Set();
+      for (const pr of list) {
+        if (!seen.has(String(pr.id))) {
+          seen.add(String(pr.id));
+          uniqueProjects.push(pr);
+        }
+      }
+      setAssignedProjectsList(uniqueProjects);
+
+      // Rule: Single Project (count <= 1) => check in and checkout directly, no popup needed
+      if (uniqueProjects.length <= 1) {
+        const singleProjectId = uniqueProjects[0]?.id || null;
+        if (singleProjectId) {
+          try {
+            await fetch(`${API_BASE}/api/work-sessions/multi-checkout`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                userId: currentUser?.id,
+                employeeId: empId,
+                projectAllocations: [{
+                  projectId: singleProjectId,
+                  hours: liveAttendanceCalc?.totalHoursDecimal || 8.0,
+                  taskDescription: "Daily project tasks completed",
+                  workStatus: "Completed"
+                }]
+              })
+            });
+          } catch (_) {}
+        }
+        await handleConfirmCheckOut();
+        return;
+      }
+
+      // 2. Multi-project: Check if there are already saved work sessions for today in DB
+      try {
+        const todayRes = await fetch(`${API_BASE}/api/work-sessions/today/${empId}`);
+        const todayData = await todayRes.json();
+        if (todayData.success && Array.isArray(todayData.sessions) && todayData.sessions.length > 0) {
+          // Pre-populate popup with previously stored data from DB
+          const loadedSlots = todayData.sessions.map(s => ({
+            id: s.id,
+            projectId: String(s.project_id),
+            hours: parseFloat(s.duration_hours) || 1.0,
+            taskDescription: s.task_description || "",
+            workStatus: s.work_status || "In Progress"
+          }));
+          setMultiProjectSlots(loadedSlots);
+          setShowMultiProjectModal(true);
+          return;
+        }
+      } catch (err) {
+        console.warn("Could not load today saved sessions:", err);
+      }
+
+      // 3. Fallback: If no saved sessions yet today, initialize default slots for assigned projects
+      setMultiProjectSlots(
+        uniqueProjects.map((p, idx) => ({
+          projectId: String(p.id),
+          hours: idx === 0 ? 4.0 : 4.0,
+          taskDescription: "",
+          workStatus: "In Progress"
+        }))
+      );
+      setShowMultiProjectModal(true);
+    } catch (err) {
+      console.error("Check projects count error on checkout:", err);
+      handleConfirmCheckOut();
+    }
+  };
+
+  const handleAddMoreProjectSlot = () => {
+    const unselected = assignedProjectsList.find(p => !multiProjectSlots.some(s => String(s.projectId) === String(p.id)));
+    const nextProjId = unselected ? String(unselected.id) : (assignedProjectsList[0]?.id ? String(assignedProjectsList[0].id) : "");
+    setMultiProjectSlots(prev => [
+      ...prev,
+      { projectId: nextProjId, hours: 2.0, taskDescription: "", workStatus: "In Progress", isNewSlot: true }
+    ]);
+  };
+
+  const handleRemoveProjectSlot = (index) => {
+    if (multiProjectSlots.length <= 1) return;
+    setMultiProjectSlots(prev => prev.filter((_, idx) => idx !== index));
+  };
+
+  const handleUpdateSlot = (index, field, value) => {
+    setMultiProjectSlots(prev => {
+      const copy = [...prev];
+      copy[index] = { ...copy[index], [field]: value };
+      return copy;
+    });
+  };
+
+  const handleSubmitMultiCheckout = async (e) => {
+    if (e) e.preventDefault();
+    const empId = employeeProfile?.id || currentUser?.id;
+    for (const slot of multiProjectSlots) {
+      if (!slot.projectId) {
+        alert("Please select a project for all rows.");
+        return;
+      }
+      if (!slot.hours || parseFloat(slot.hours) <= 0) {
+        alert("Please enter valid hours spent for each project.");
+        return;
+      }
+      if (!slot.taskDescription || !slot.taskDescription.trim()) {
+        alert("Please provide a task summary of what was worked on.");
+        return;
+      }
+    }
+
+    try {
+      setIsSubmittingCheckoutSlots(true);
+      const res = await fetch(`${API_BASE}/api/work-sessions/multi-checkout`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: currentUser?.id,
+          employeeId: empId,
+          projectAllocations: multiProjectSlots
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.error || "Failed to record project time allocation.");
+        setIsSubmittingCheckoutSlots(false);
+        return;
+      }
+
+      setShowMultiProjectModal(false);
+      // Execute the official checkout punch
+      await handleConfirmCheckOut();
+    } catch (err) {
+      alert("Error submitting multi-project checkout: " + err.message);
+    } finally {
+      setIsSubmittingCheckoutSlots(false);
+    }
   };
 
   const handleConfirmCheckOut = async () => {
@@ -501,13 +818,25 @@ export default function EmployeeTemplate({
   const [sendingWishId, setSendingWishId] = useState(null);
   const [latestAnnouncement, setLatestAnnouncement] = useState(null);
 
-  const API_BASE = (typeof window !== "undefined" && (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1") ? (import.meta.env.VITE_API_URL || "http://localhost:5002") : (import.meta.env.VITE_API_URL || "https://hrms-backend-fzef.onrender.com"));
+  // API_BASE moved to top of component
 
   const isHR = useMemo(() => {
     const roleStr = (currentUser?.role || currentUser?.roleName || '').toLowerCase();
     const desigStr = (employeeProfile?.designation || '').toLowerCase();
     const deptStr = (employeeProfile?.department || '').toLowerCase();
     return roleStr.includes('hr') || desigStr.includes('hr') || deptStr.includes('human resources') || deptStr.includes('hr');
+  }, [currentUser, employeeProfile]);
+
+  const isHRorAdmin = useMemo(() => {
+    const roleStr = (currentUser?.role || currentUser?.roleName || currentUser?.role_name || '').toLowerCase();
+    const desigStr = (employeeProfile?.designation || '').toLowerCase();
+    const deptStr = (employeeProfile?.department || '').toLowerCase();
+    return roleStr.includes('admin') || 
+           roleStr.includes('hr') || 
+           desigStr.includes('hr') || 
+           desigStr.includes('admin') || 
+           deptStr.includes('human resources') || 
+           deptStr.includes('hr');
   }, [currentUser, employeeProfile]);
 
   useEffect(() => {
@@ -1336,8 +1665,8 @@ export default function EmployeeTemplate({
                       <span>Employment Details</span>
                   </span>
                   {/* <span onClick={() => navigateTo("my-team")} className={`menu-item${activePage === "my-team" ? " active" : ""}`} style={{cursor:"pointer"}}>
-                      <i className="bi bi-people-fill"></i>
-                      <span>My Team</span>
+                      <i className="bi bi-briefcase-fill"></i>
+                      <span>Projects & Sessions</span>
                   </span> */}
                   <span onClick={() => navigateTo("documents")} className={`menu-item${activePage === "documents" ? " active" : ""}`} style={{cursor:"pointer"}}>
                       <i className="bi bi-folder2-open"></i>
@@ -1459,17 +1788,16 @@ export default function EmployeeTemplate({
                 <div className="d-flex align-items-center justify-content-between">
 
 
-                    <span onClick={() => navigateTo("index")} className="brand-logo" style={{cursor:"pointer"}}>
-
-                        <div className="brand-icon">
-                            <i className="bi bi-grid-1x2-fill"></i>
-                        </div>
-
-                        <div>
-                            <h5>Ramel HR</h5>
-                            <span>Employee Workspace</span>
-                        </div>
-
+                    <span onClick={() => navigateTo("index")} className="brand-logo d-flex align-items-center" style={{cursor:"pointer"}}>
+                        <img 
+                            src="/images/logo/official_ramel_logo.png" 
+                            alt="Ramel Employee Management System" 
+                            style={{ height: "38px", objectFit: "contain" }} 
+                            onError={(e) => {
+                                e.target.onerror = null;
+                                e.target.src = "/images/logo/logo.png";
+                            }}
+                        />
                     </span>
 
 
@@ -1967,10 +2295,22 @@ export default function EmployeeTemplate({
                                         </div>
                                     </div>
 
-                                    <div className="ed-attendance-actions">
+                                    {isOnBreak && (
+                                        <div className="p-2 mb-2 rounded-3 bg-warning bg-opacity-25 border border-warning text-warning d-flex align-items-center justify-content-between" style={{ fontSize: '0.8rem' }}>
+                                            <span className="d-flex align-items-center gap-1.5 fw-semibold text-white">
+                                                <span className="spinner-grow spinner-grow-sm text-warning" role="status"></span>
+                                                ☕ Currently on Break
+                                            </span>
+                                            <strong className="font-monospace text-warning">
+                                                {Math.floor(breakElapsedSeconds / 60)}m {breakElapsedSeconds % 60}s
+                                            </strong>
+                                        </div>
+                                    )}
+
+                                    <div className="ed-attendance-actions d-flex flex-wrap gap-2">
                                         <button 
                                             type="button" 
-                                            className={`ed-checkin-btn ${attendanceStatus === 'Checked In' ? 'is-inactive' : 'is-active'}`} 
+                                            className={`ed-checkin-btn flex-fill ${attendanceStatus === 'Checked In' ? 'is-inactive' : 'is-active'}`} 
                                             id="edCheckInBtn" 
                                             onClick={handleCheckInWithToast} 
                                             disabled={attendanceLoading || attendanceStatus === "Checked In"}
@@ -1979,11 +2319,53 @@ export default function EmployeeTemplate({
                                             {attendanceLoading && attendanceStatus !== "Checked In" ? "..." : "Check In"}
                                         </button>
 
+                                        {attendanceStatus === 'Checked In' && (
+                                            <>
+                                                <button 
+                                                    type="button" 
+                                                    className="btn btn-sm rounded-pill fw-semibold text-white d-flex align-items-center justify-content-center gap-1 px-3 py-2"
+                                                    style={{ 
+                                                        background: !isOnBreak ? 'linear-gradient(135deg, #f59e0b, #d97706)' : 'rgba(255,255,255,0.15)',
+                                                        border: 'none',
+                                                        cursor: !isOnBreak ? 'pointer' : 'not-allowed',
+                                                        opacity: !isOnBreak ? 1 : 0.45,
+                                                        fontSize: '0.82rem',
+                                                        boxShadow: !isOnBreak ? '0 4px 12px rgba(245, 158, 11, 0.35)' : 'none'
+                                                    }}
+                                                    onClick={handleStartBreak} 
+                                                    disabled={isBreakActionLoading || isOnBreak}
+                                                    title={isOnBreak ? "You are already on break" : "Start your break now"}
+                                                >
+                                                    <i className="bi bi-cup-hot-fill"></i>
+                                                    <span>Start Break</span>
+                                                </button>
+
+                                                <button 
+                                                    type="button" 
+                                                    className="btn btn-sm rounded-pill fw-semibold text-white d-flex align-items-center justify-content-center gap-1 px-3 py-2"
+                                                    style={{ 
+                                                        background: isOnBreak ? 'linear-gradient(135deg, #10b981, #059669)' : 'rgba(255,255,255,0.15)',
+                                                        border: 'none',
+                                                        cursor: isOnBreak ? 'pointer' : 'not-allowed',
+                                                        opacity: isOnBreak ? 1 : 0.45,
+                                                        fontSize: '0.82rem',
+                                                        boxShadow: isOnBreak ? '0 4px 12px rgba(16, 185, 129, 0.45)' : 'none'
+                                                    }}
+                                                    onClick={handleStopBreak} 
+                                                    disabled={isBreakActionLoading || !isOnBreak}
+                                                    title={!isOnBreak ? "You are not currently on break" : "Stop break and resume working"}
+                                                >
+                                                    <i className="bi bi-stop-circle-fill"></i>
+                                                    <span>Stop Break</span>
+                                                </button>
+                                            </>
+                                        )}
+
                                         <button 
                                             type="button" 
-                                            className={`ed-checkout-btn ${attendanceStatus === 'Checked In' ? 'is-active' : 'is-inactive'}`} 
+                                            className={`ed-checkout-btn flex-fill ${attendanceStatus === 'Checked In' ? 'is-active' : 'is-inactive'}`} 
                                             id="edCheckOutBtn" 
-                                            onClick={() => setShowCheckOutConfirm(true)} 
+                                            onClick={handleInitiateCheckOut} 
                                             disabled={attendanceLoading || attendanceStatus !== "Checked In"}
                                         >
                                             <i className="bi bi-box-arrow-right"></i>
@@ -3088,6 +3470,7 @@ export default function EmployeeTemplate({
 {activePage === "employee-requests" && <EmployeeRequests employeeProfile={employeeProfile} currentUser={currentUser} onNavigate={navigateTo} onProfileUpdate={fetchEmployeeProfile} />}
 {activePage === "calendar" && <Calendar employeeProfile={employeeProfile} currentUser={currentUser} initialTab={calendarTab} />}
 {activePage === "announcements" && <Announcements currentUser={currentUser} employeeProfile={employeeProfile} />}
+{activePage === "my-team" && <MyTeam currentUser={currentUser} employeeProfile={employeeProfile} />}
 
         {/* Break Duration Customization Modal */}
         {showBreakModal && (
@@ -3186,6 +3569,153 @@ export default function EmployeeTemplate({
         )}
 
         {/* Check-Out Confirmation Modal */}
+                {/* Multi-Project Checkout Time Allocation Modal */}
+        {showMultiProjectModal && (
+            <>
+            <div className="modal-backdrop fade show" style={{ zIndex: 9998, backgroundColor: "rgba(0,0,0,0.6)" }} onClick={() => setShowMultiProjectModal(false)}></div>
+            <div className="modal fade show d-block" tabIndex="-1" role="dialog" style={{ zIndex: 9999 }}>
+                <div className="modal-dialog modal-dialog-centered" style={{ maxWidth: "620px" }}>
+                    <div className="modal-content" style={{ borderRadius: "20px", border: "none", boxShadow: "0 25px 50px rgba(0,0,0,0.25)", backgroundColor: "#ffffff", padding: "16px" }}>
+                        <div className="modal-header border-0 pb-0 d-flex justify-content-between align-items-center">
+                            <div className="d-flex align-items-center gap-2.5">
+                                <div style={{ width: "42px", height: "42px", borderRadius: "12px", backgroundColor: "#e0e7ff", color: "#4f46e5", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "20px" }}>
+                                    <i className="bi bi-briefcase-fill"></i>
+                                </div>
+                                <div>
+                                    <h5 className="fw-bold mb-0 text-dark" style={{ fontSize: "18px" }}>Checkout — What projects did you spend time on?</h5>
+                                    <small className="text-muted">You are assigned to multiple projects. Record time across projects in one slot.</small>
+                                </div>
+                            </div>
+                            <button type="button" className="btn-close" onClick={() => setShowMultiProjectModal(false)}></button>
+                        </div>
+
+                        <form onSubmit={handleSubmitMultiCheckout}>
+                            <div className="modal-body py-3">
+                                <div className="d-flex justify-content-between align-items-center mb-3 p-2.5 rounded-3 bg-light border">
+                                    <span className="small text-muted fw-semibold">
+                                        <i className="bi bi-clock-history me-1 text-primary"></i>Check-in Time: <strong>{checkInTime || "--:--"}</strong>
+                                    </span>
+                                    <span className="badge bg-primary-subtle text-primary border border-primary-subtle font-monospace px-2.5 py-1">
+                                        Total Logged: {multiProjectSlots.reduce((acc, s) => acc + (parseFloat(s.hours) || 0), 0)} hrs
+                                    </span>
+                                </div>
+
+                                <div className="d-flex flex-column gap-3">
+                                    {multiProjectSlots.map((slot, sIdx) => (
+                                        <div key={sIdx} className="p-3 rounded-3 border bg-white shadow-xs">
+                                            <div className="d-flex justify-content-between align-items-center mb-2">
+                                                <span className="badge bg-secondary-subtle text-dark border fw-semibold">
+                                                    Slot #{sIdx + 1}
+                                                </span>
+                                                {multiProjectSlots.length > 1 && (
+                                                    <button 
+                                                        type="button" 
+                                                        className="btn btn-sm btn-outline-danger py-0 px-2 rounded-pill"
+                                                        onClick={() => handleRemoveProjectSlot(sIdx)}
+                                                        title="Remove this slot"
+                                                    >
+                                                        <i className="bi bi-trash"></i>
+                                                    </button>
+                                                )}
+                                            </div>
+
+                                            <div className="row g-2 mb-2">
+                                                <div className="col-8">
+                                                    <label className="form-label small fw-semibold text-dark mb-1">
+                                                        Project <span className="text-danger">*</span>
+                                                    </label>
+                                                    <select 
+                                                        className="form-select form-select-sm"
+                                                        value={slot.projectId}
+                                                        onChange={(e) => handleUpdateSlot(sIdx, "projectId", e.target.value)}
+                                                        required
+                                                    >
+                                                        <option value="">Select assigned project...</option>
+                                                        {assignedProjectsList.map(p => (
+                                                            <option key={p.id} value={p.id}>
+                                                                {p.project_name} ({p.client_name})
+                                                            </option>
+                                                        ))}
+                                                    </select>
+                                                </div>
+                                                <div className="col-4">
+                                                    <label className="form-label small fw-semibold text-dark mb-1">
+                                                        Hours Spent <span className="text-danger">*</span>
+                                                    </label>
+                                                    <input 
+                                                        type="number"
+                                                        step="0.5"
+                                                        min="0.5"
+                                                        max="24"
+                                                        className="form-control form-control-sm font-monospace"
+                                                        value={slot.hours}
+                                                        onChange={(e) => handleUpdateSlot(sIdx, "hours", e.target.value)}
+                                                        required
+                                                    />
+                                                </div>
+                                            </div>
+
+                                            <div>
+                                                <input 
+                                                    type="text"
+                                                    className="form-control form-control-sm"
+                                                    placeholder="Task description (e.g. Bug fixes, API endpoints, review...)"
+                                                    value={slot.taskDescription}
+                                                    onChange={(e) => handleUpdateSlot(sIdx, "taskDescription", e.target.value)}
+                                                    required
+                                                />
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+
+                                <div className="mt-3 text-center">
+                                    <button 
+                                        type="button" 
+                                        className="btn btn-outline-primary btn-sm rounded-pill px-3 shadow-xs"
+                                        onClick={handleAddMoreProjectSlot}
+                                    >
+                                        <i className="bi bi-plus-circle-fill me-1.5"></i>+ Add More Project
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div className="modal-footer border-0 pt-0 d-flex flex-wrap justify-content-between align-items-center gap-2">
+                                <button 
+                                    type="button" 
+                                    className="btn btn-light rounded-pill px-3"
+                                    onClick={() => setShowMultiProjectModal(false)}
+                                >
+                                    Cancel
+                                </button>
+                                <div className="d-flex align-items-center gap-2">
+                                    <button 
+                                        type="button" 
+                                        className="btn btn-outline-primary rounded-pill px-3 fw-semibold shadow-xs"
+                                        disabled={isSubmittingCheckoutSlots}
+                                        onClick={handleSaveWorkLogOnly}
+                                        title="Save work status and log to database without checking out"
+                                    >
+                                        <i className="bi bi-save2 me-1"></i>
+                                        {isSubmittingCheckoutSlots ? "Saving..." : "Save Work Status to DB"}
+                                    </button>
+                                    <button 
+                                        type="submit" 
+                                        className="btn btn-danger rounded-pill px-4 fw-semibold shadow-sm"
+                                        disabled={isSubmittingCheckoutSlots}
+                                    >
+                                        <i className="bi bi-box-arrow-right me-1"></i>
+                                        {isSubmittingCheckoutSlots ? "Checking Out..." : "Submit & Check Out"}
+                                    </button>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+            </>
+        )}
+
         {showCheckOutConfirm && (
             <>
             <div className="modal-backdrop fade show" style={{ zIndex: 9998, backgroundColor: "rgba(0,0,0,0.5)" }} onClick={() => setShowCheckOutConfirm(false)}></div>
@@ -3438,6 +3968,7 @@ export default function EmployeeTemplate({
                             {(() => {
                                 const q = headerSearchQuery.trim().toLowerCase();
                                 const results = SEARCH_DIRECTORY.filter(item => {
+                                    if (item.adminOrHrOnly && !isHRorAdmin) return false;
                                     if (!q) return true;
                                     return (
                                         item.label.toLowerCase().includes(q) ||

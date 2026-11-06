@@ -39,12 +39,12 @@ export default function AdminSidebar({
     },
     { 
       id: "admin-leaves", 
-      label: "Manage Leaves", 
+      label: "Attendance & Leaves", 
       icon: <CalendarIcon className="w-5 h-5 text-indigo-400" />
     },
     { 
       id: "admin-wfh", 
-      label: "Manage WFH", 
+      label: "WFH Management & Report", 
       icon: <HomeIcon className="w-5 h-5 text-emerald-400" />
     },
     { 

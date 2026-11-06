@@ -18,6 +18,53 @@ export default function AdminLeaves({
   const [leaveTypes, setLeaveTypes] = useState([]);
   const [tenantEmployees, setTenantEmployees] = useState(employees);
 
+  // Active tab state
+  const [activeTab, setActiveTab] = useState('attendance_report'); // 'attendance_report' | 'leaves'
+
+  // Attendance & Leaves Report State
+  const [attPeriod, setAttPeriod] = useState('today'); // 'today' | 'week' | 'month' | 'all'
+  const [attPage, setAttPage] = useState(1);
+  const [attPageSize, setAttPageSize] = useState(10);
+  const [attSearch, setAttSearch] = useState('');
+  const [attWorkMode, setAttWorkMode] = useState('All');
+  const [attRecords, setAttRecords] = useState([]);
+  const [attTotal, setAttTotal] = useState(0);
+  const [attLoading, setAttLoading] = useState(false);
+
+  const fetchAttendanceRecords = async () => {
+    setAttLoading(true);
+    try {
+      const params = new URLSearchParams({
+        period: attPeriod,
+        page: attPage,
+        pageSize: attPageSize,
+        search: attSearch,
+        workMode: attWorkMode
+      });
+      const res = await fetch(`${API_URL}/api/admin/attendance-records?${params.toString()}`);
+      const data = await res.json();
+      if (data && data.records) {
+        setAttRecords(data.records);
+        setAttTotal(data.pagination?.total || 0);
+      }
+    } catch (err) {
+      console.error('Error fetching attendance records:', err);
+    } finally {
+      setAttLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchAttendanceRecords();
+  }, [attPeriod, attPage, attPageSize, attWorkMode]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      fetchAttendanceRecords();
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [attSearch]);
+
   // Filters
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
@@ -306,27 +353,337 @@ export default function AdminLeaves({
   return (
     <div className="space-y-6">
       {/* Page Header */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
             <span className="p-2 rounded-xl bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300">
               <CalendarIcon className="w-6 h-6" />
             </span>
-            Manage Employee Leaves
+            Attendance & Leaves Management
           </h2>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-            Apply and backdate leave requests for one or multiple employees in your organization. All entries auto-approved with status <span className="font-semibold text-emerald-600">Approved</span>.
+            Track daily attendance records, clock-ins/outs, and manage employee leave balances with period reports (Today, Week, Month).
           </p>
         </div>
 
-        <button
-          onClick={() => { setShowModal(true); setFeedback(null); }}
-          className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-[#3c50e0] to-[#5a6ff0] px-5 py-2.5 text-sm font-semibold text-white shadow-md transition-all hover:opacity-95 active:scale-95 shrink-0"
-        >
-          <PlusIcon className="w-5 h-5" />
-          <span>Record Past / Multiple Leaves</span>
-        </button>
+        {/* View Switcher Pills */}
+        <div className="flex items-center gap-2 bg-gray-100 dark:bg-gray-800 p-1 rounded-xl self-start md:self-auto">
+          <button
+            type="button"
+            onClick={() => setActiveTab('attendance_report')}
+            className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+              activeTab === 'attendance_report'
+                ? 'bg-white dark:bg-gray-900 text-[#3c50e0] shadow-sm font-bold'
+                : 'text-gray-600 dark:text-gray-400 hover:text-gray-900'
+            }`}
+          >
+            <i className="bi bi-calendar-check-fill mr-1.5 text-indigo-500"></i>
+            Attendance & Leaves Report
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('leaves')}
+            className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+              activeTab === 'leaves'
+                ? 'bg-white dark:bg-gray-900 text-[#3c50e0] shadow-sm font-bold'
+                : 'text-gray-600 dark:text-gray-400 hover:text-gray-900'
+            }`}
+          >
+            <i className="bi bi-card-checklist mr-1.5"></i>
+            Leave Requests & Recording
+          </button>
+        </div>
       </div>
+
+      {/* TAB 1: ATTENDANCE & LEAVES REPORT (Today, Week, Month with Pagination) */}
+      {activeTab === 'attendance_report' && (
+        <div className="space-y-5">
+          {/* Period Filter Header */}
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-white dark:bg-gray-900 p-4 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-xs">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wider flex items-center gap-1.5">
+                <i className="bi bi-calendar3 text-[#3c50e0]"></i>
+                Attendance Period:
+              </span>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              {[
+                { id: 'today', label: 'Today', icon: 'bi-calendar-day' },
+                { id: 'week', label: 'This Week', icon: 'bi-calendar-week' },
+                { id: 'month', label: 'This Month', icon: 'bi-calendar-month' },
+                { id: 'all', label: 'All Time', icon: 'bi-calendar4-range' }
+              ].map(p => (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => { setAttPeriod(p.id); setAttPage(1); }}
+                  className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+                    attPeriod === p.id
+                      ? 'bg-[#3c50e0] text-white shadow-sm'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700'
+                  }`}
+                >
+                  <i className={`bi ${p.icon}`}></i>
+                  {p.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Metric Summary Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+              <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Total Recorded Logs</span>
+              <div className="mt-2 flex items-baseline justify-between">
+                <h3 className="text-3xl font-extrabold text-gray-900 dark:text-white">{attTotal}</h3>
+                <span className="text-xs px-2 py-0.5 rounded-full font-bold bg-indigo-50 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300">
+                  {attPeriod}
+                </span>
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+              <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Present Staff</span>
+              <div className="mt-2 flex items-baseline justify-between">
+                <h3 className="text-3xl font-extrabold text-emerald-600 dark:text-emerald-400">
+                  {attRecords.filter(r => (r.attendance_status || '').toLowerCase() === 'present').length}
+                </h3>
+                <span className="text-xs px-2 py-0.5 rounded-full font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300">
+                  Checked In
+                </span>
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+              <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">WFH / Remote</span>
+              <div className="mt-2 flex items-baseline justify-between">
+                <h3 className="text-3xl font-extrabold text-blue-600 dark:text-blue-400">
+                  {attRecords.filter(r => (r.work_mode || '').toLowerCase().includes('remote') || (r.work_mode || '').toLowerCase().includes('wfh')).length}
+                </h3>
+                <span className="text-xs px-2 py-0.5 rounded-full font-bold bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300">
+                  Remote Mode
+                </span>
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+              <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">On Leave Staff</span>
+              <div className="mt-2 flex items-baseline justify-between">
+                <h3 className="text-3xl font-extrabold text-purple-600 dark:text-purple-400">
+                  {attRecords.filter(r => (r.attendance_status || '').toLowerCase().includes('leave')).length}
+                </h3>
+                <span className="text-xs px-2 py-0.5 rounded-full font-bold bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-300">
+                  Leaves
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Search & Work Mode Filter Bar */}
+          <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4 bg-white dark:bg-gray-900 p-4 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-xs">
+            <div className="relative flex-1 max-w-md">
+              <SearchIcon className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <input
+                type="text"
+                value={attSearch}
+                onChange={(e) => { setAttSearch(e.target.value); setAttPage(1); }}
+                placeholder="Search by employee name, code, or department..."
+                className="w-full rounded-xl border border-gray-200 bg-gray-50/50 pl-10 pr-4 py-2 text-xs text-gray-800 focus:border-[#3c50e0] focus:bg-white focus:outline-none dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+              />
+            </div>
+
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-gray-500 font-medium">Work Mode:</span>
+              <select
+                value={attWorkMode}
+                onChange={(e) => { setAttWorkMode(e.target.value); setAttPage(1); }}
+                className="rounded-xl border border-gray-200 bg-gray-50/50 px-3 py-1.5 text-xs text-gray-800 focus:border-[#3c50e0] focus:outline-none dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+              >
+                <option value="All">All Modes</option>
+                <option value="Office">Office</option>
+                <option value="Remote">Remote</option>
+                <option value="WFH">WFH</option>
+              </select>
+
+              <button
+                type="button"
+                onClick={fetchAttendanceRecords}
+                disabled={attLoading}
+                className="rounded-xl border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 shadow-sm hover:bg-gray-50 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300 transition-colors cursor-pointer"
+              >
+                {attLoading ? '↻ Refreshing...' : '↻ Refresh'}
+              </button>
+            </div>
+          </div>
+
+          {/* Attendance & Leave Records Table */}
+          <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-xs dark:border-gray-800 dark:bg-gray-900">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs border-collapse">
+                <thead className="bg-gray-50/75 dark:bg-gray-800/50 text-[11px] font-bold text-gray-500 uppercase tracking-wider border-b border-gray-100 dark:border-gray-800">
+                  <tr>
+                    <th className="py-3 px-4">Employee</th>
+                    <th className="py-3 px-4">Department & Role</th>
+                    <th className="py-3 px-4">Date</th>
+                    <th className="py-3 px-4">Check-In</th>
+                    <th className="py-3 px-4">Check-Out</th>
+                    <th className="py-3 px-4 text-center">Total Hours</th>
+                    <th className="py-3 px-4 text-center">Work Mode</th>
+                    <th className="py-3 px-4 text-center">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                  {attLoading ? (
+                    <tr>
+                      <td colSpan={8} className="py-12 text-center text-gray-400">
+                        Loading attendance logs...
+                      </td>
+                    </tr>
+                  ) : attRecords.length === 0 ? (
+                    <tr>
+                      <td colSpan={8} className="py-12 text-center text-gray-400">
+                        No attendance records found for this period.
+                      </td>
+                    </tr>
+                  ) : (
+                    attRecords.map((r) => {
+                      const initial = (r.employee_name || 'E').charAt(0).toUpperCase();
+                      const dateStr = r.attendance_date
+                        ? new Date(r.attendance_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+                        : '—';
+                      const formatTimeDisplay = (val) => {
+                        if (!val || val === '—' || val === '-') return '—';
+                        try {
+                          if (/^\d{1,2}:\d{2}\s*(AM|PM)$/i.test(val)) return val;
+                          const d = new Date(val);
+                          if (isNaN(d.getTime())) return val;
+                          return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
+                        } catch (e) {
+                          return val;
+                        }
+                      };
+                      const checkIn = formatTimeDisplay(r.check_in_time || r.clock_in_time);
+                      const checkOut = formatTimeDisplay(r.check_out_time || r.clock_out_time);
+
+                      return (
+                        <tr key={r.id} className="hover:bg-gray-50/50 dark:hover:bg-gray-800/30 transition-colors">
+                          <td className="py-3 px-4">
+                            <div className="flex items-center gap-2.5">
+                              {r.profile_pic ? (
+                                <img
+                                  src={r.profile_pic}
+                                  alt={r.employee_name}
+                                  className="w-8 h-8 rounded-full object-cover border border-gray-200 dark:border-gray-700"
+                                />
+                              ) : (
+                                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#3c50e0] to-indigo-600 text-white font-bold flex items-center justify-center text-xs">
+                                  {initial}
+                                </div>
+                              )}
+                              <div>
+                                <span className="font-bold text-gray-900 dark:text-white block">
+                                  {r.employee_name}
+                                </span>
+                                <span className="text-[10px] text-gray-400 font-mono">
+                                  {r.employee_code}
+                                </span>
+                              </div>
+                            </div>
+                          </td>
+
+                          <td className="py-3 px-4">
+                            <span className="font-medium text-gray-800 dark:text-gray-200 block">
+                              {r.department || 'General'}
+                            </span>
+                            <span className="text-[11px] text-gray-400">
+                              {r.designation || 'Staff'}
+                            </span>
+                          </td>
+
+                          <td className="py-3 px-4 font-semibold text-gray-700 dark:text-gray-300">
+                            {dateStr}
+                          </td>
+
+                          <td className="py-3 px-4 text-emerald-600 dark:text-emerald-400 font-mono font-medium">
+                            {checkIn}
+                          </td>
+
+                          <td className="py-3 px-4 text-blue-600 dark:text-blue-400 font-mono font-medium">
+                            {checkOut}
+                          </td>
+
+                          <td className="py-3 px-4 text-center font-extrabold text-gray-900 dark:text-white">
+                            {r.total_hours ? `${r.total_hours} hrs` : (r.working_hours_display && r.working_hours_display !== '--' ? r.working_hours_display : '—')}
+                            {r.break_minutes > 0 && (
+                              <span className="block text-[10px] text-amber-600 dark:text-amber-400 font-semibold">
+                                ({r.break_minutes}m break)
+                              </span>
+                            )}
+                          </td>
+
+                          <td className="py-3 px-4 text-center">
+                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                              (r.work_mode || '').toLowerCase() === 'office'
+                                ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-950/50 dark:text-indigo-300'
+                                : 'bg-teal-50 text-teal-700 dark:bg-teal-950/50 dark:text-teal-300'
+                            }`}>
+                              {r.work_mode || 'Office'}
+                            </span>
+                          </td>
+
+                          <td className="py-3 px-4 text-center">
+                            <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold ${
+                              (r.attendance_status || '').toLowerCase() === 'present'
+                                ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300'
+                                : (r.attendance_status || '').toLowerCase().includes('leave')
+                                ? 'bg-purple-100 text-purple-800 dark:bg-purple-950/60 dark:text-purple-300'
+                                : (r.attendance_status || '').toLowerCase() === 'late'
+                                ? 'bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300'
+                                : 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300'
+                            }`}>
+                              <span className={`w-1.5 h-1.5 rounded-full ${
+                                (r.attendance_status || '').toLowerCase() === 'present' ? 'bg-emerald-500' : 'bg-purple-500'
+                              }`}></span>
+                              {r.attendance_status || 'Present'}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="p-3 border-t border-gray-100 dark:border-gray-800">
+              <Pagination
+                currentPage={attPage}
+                totalItems={attTotal}
+                pageSize={attPageSize}
+                onPageChange={setAttPage}
+                onPageSizeChange={setAttPageSize}
+                pageSizeOptions={[10, 20, 50]}
+                itemLabel="attendance logs"
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* TAB 2: LEAVE REQUESTS & RECORDING */}
+      {activeTab === 'leaves' && (
+        <div className="space-y-6">
+          <div className="flex justify-end">
+            <button
+              onClick={() => { setShowModal(true); setFeedback(null); }}
+              className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-[#3c50e0] to-[#5a6ff0] px-5 py-2.5 text-sm font-semibold text-white shadow-md transition-all hover:opacity-95 active:scale-95 shrink-0 cursor-pointer"
+            >
+              <PlusIcon className="w-5 h-5" />
+              <span>Record Past / Multiple Leaves</span>
+            </button>
+          </div>
 
       {/* Metrics Row */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -564,6 +921,8 @@ export default function AdminLeaves({
         </>
       )}
       </div>
+      </div>
+      )}
 
       {/* Record Past Leaves Modal */}
       {showModal && (
