@@ -1189,7 +1189,7 @@ export default function MyTeam({ currentUser, employeeProfile }) {
                   <span className="badge bg-success text-white mb-2 px-3 py-1.5 fw-bold">
                     BUDGET & PROFIT FORMULA
                   </span>
-                  <h3 className="fw-bold mb-2">Project = 115 Days ==> 115 × 8 = 1,240 Hours</h3>
+                  <h3 className="fw-bold mb-2">Project = 115 Days &rarr; 115 &times; 8 = 1,240 Hours</h3>
                   <p className="opacity-90 mb-0 fs-6">
                     <strong>Rule:</strong> Burned Hours ≤ 1,240 Hrs ➔ <span className="badge bg-success ms-1 me-2">PROFIT 🟢</span> 
                     Burned Hours &gt; 1,240 Hrs ➔ <span className="badge bg-danger ms-1">LOSS 🔴</span>

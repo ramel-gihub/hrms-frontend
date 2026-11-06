@@ -320,9 +320,9 @@ export default function EmployeeTemplate({
       });
       const text = await res.text();
       let data = {};
-      try { data = JSON.parse(text); } catch (_) { throw new Error(text.slice(0, 100)); }
+      try { data = JSON.parse(text); } catch (_) {}
       if (!res.ok) {
-        alert(data.error || "Failed to start break");
+        alert(data.error || (res.status === 404 ? "Backend route not available yet (deployment in progress). Please wait a moment and try again." : `Request failed (HTTP ${res.status})`));
         return;
       }
       setIsOnBreak(true);
@@ -353,9 +353,9 @@ export default function EmployeeTemplate({
       });
       const text = await res.text();
       let data = {};
-      try { data = JSON.parse(text); } catch (_) { throw new Error(text.slice(0, 100)); }
+      try { data = JSON.parse(text); } catch (_) {}
       if (!res.ok) {
-        alert(data.error || "Failed to stop break");
+        alert(data.error || (res.status === 404 ? "Backend route not available yet (deployment in progress). Please wait a moment and try again." : `Request failed (HTTP ${res.status})`));
         return;
       }
       setIsOnBreak(false);
@@ -409,9 +409,9 @@ export default function EmployeeTemplate({
       });
       const text = await res.text();
       let data = {};
-      try { data = JSON.parse(text); } catch (_) { throw new Error(text.slice(0, 100)); }
+      try { data = JSON.parse(text); } catch (_) {}
       if (!res.ok) {
-        alert(data.error || "Failed to save work status and log.");
+        alert(data.error || (res.status === 404 ? "Backend route not available yet (deployment in progress). Please wait a moment and try again." : `Request failed (HTTP ${res.status})`));
         return;
       }
       // Keep session IDs in multiProjectSlots so subsequent edits update existing rows
@@ -573,9 +573,11 @@ export default function EmployeeTemplate({
           projectAllocations: multiProjectSlots
         })
       });
-      const data = await res.json();
+      const text = await res.text();
+      let data = {};
+      try { data = JSON.parse(text); } catch (_) {}
       if (!res.ok) {
-        alert(data.error || "Failed to record project time allocation.");
+        alert(data.error || (res.status === 404 ? "Backend route not available yet (deployment in progress). Please wait a moment and try again." : `Request failed (HTTP ${res.status})`));
         setIsSubmittingCheckoutSlots(false);
         return;
       }
