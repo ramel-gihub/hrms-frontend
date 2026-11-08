@@ -224,6 +224,8 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
     const [profilePictureError, setProfilePictureError] = useState("");
     const profilePictureInputRef = useRef(null);
     const [isPersonalEditOpen, setIsPersonalEditOpen] = useState(false);
+    const [personalEditErrors, setPersonalEditErrors] = useState({});
+    const [personalEditErrorBanner, setPersonalEditErrorBanner] = useState("");
     const [personalEditFeedback, setPersonalEditFeedback] = useState("");
     const [personalEditSubmitting, setPersonalEditSubmitting] = useState(false);
     const [personalEditForm, setPersonalEditForm] = useState({
@@ -243,6 +245,8 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
     const [isContactEditOpen, setIsContactEditOpen] = useState(false);
     const [contactEditFeedback, setContactEditFeedback] = useState("");
     const [contactEditSubmitting, setContactEditSubmitting] = useState(false);
+    const [contactEditErrors, setContactEditErrors] = useState({});
+    const [contactEditErrorBanner, setContactEditErrorBanner] = useState("");
     const [contactEditForm, setContactEditForm] = useState({
         workEmail: "",
         personalEmail: "",
@@ -275,6 +279,7 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
     const [bankEditSubmitting, setBankEditSubmitting] = useState(false);
     const [bankEditFeedback, setBankEditFeedback] = useState("");
     const [bankFieldErrors, setBankFieldErrors] = useState({});
+    const [bankErrorBanner, setBankErrorBanner] = useState("");
     const [bankEditTouched, setBankEditTouched] = useState({});
     const [bankEditForm, setBankEditForm] = useState({
         bankName: "",
@@ -295,6 +300,7 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
     const [identityEditFeedback, setIdentityEditFeedback] = useState("");
     const [identityEditTouched, setIdentityEditTouched] = useState({});
     const [identityFieldErrors, setIdentityFieldErrors] = useState({});
+    const [identityEditErrorBanner, setIdentityEditErrorBanner] = useState("");
     const [identityEditForm, setIdentityEditForm] = useState({
         aadhaarNumber: "",
         panNumber: "",
@@ -308,6 +314,9 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
     const [isEmergencyEditOpen, setIsEmergencyEditOpen] = useState(false);
     const [emergencyEditFeedback, setEmergencyEditFeedback] = useState("");
     const [emergencyEditSubmitting, setEmergencyEditSubmitting] = useState(false);
+    const [emergencyEditErrors, setEmergencyEditErrors] = useState({});
+    const [emergencyEditErrorBanner, setEmergencyEditErrorBanner] = useState("");
+    const [settingsToast, setSettingsToast] = useState(null); // { type: "success"|"error", message: "" }
     const [emergencyEditForm, setEmergencyEditForm] = useState({
         contactName: "",
         relationship: "",
@@ -334,6 +343,8 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
     const [commuteLoading, setCommuteLoading] = useState(true);
     const [commuteSaving, setCommuteSaving] = useState(false);
     const [commuteFeedback, setCommuteFeedback] = useState("");
+    const [commuteErrors, setCommuteErrors] = useState({});
+    const [commuteErrorBanner, setCommuteErrorBanner] = useState("");
     const [selectedShortcutIds, setSelectedShortcutIds] = useState([]);
     const [shortcutSelectionsLoading, setShortcutSelectionsLoading] = useState(true);
     const [shortcutSelectionsSaving, setShortcutSelectionsSaving] = useState(false);
@@ -1081,6 +1092,7 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
             }
             return next;
         });
+        setEmergencyEditErrors((e) => ({ ...e, [name]: false }));
     };
     const handleEmergencyEditSubmit = async (event) => {
         event.preventDefault();
@@ -1088,6 +1100,21 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
             setEmergencyEditFeedback("Unable to identify the current employee.");
             return;
         }
+
+        // --- Mandatory field validation ---
+        const eErrors = {};
+        if (!emergencyEditForm.contactName?.trim()) eErrors.contactName = true;
+        if (!emergencyEditForm.relationship) eErrors.relationship = true;
+        if (!emergencyEditForm.phoneNumber?.trim()) eErrors.phoneNumber = true;
+        if (Object.keys(eErrors).length > 0) {
+            setEmergencyEditErrors(eErrors);
+            const count = Object.keys(eErrors).length;
+            setEmergencyEditErrorBanner(`Please fill in the highlighted ${count} mandatory field${count > 1 ? 's' : ''} to submit.`);
+            return;
+        }
+        setEmergencyEditErrors({});
+        setEmergencyEditErrorBanner("");
+        // --- End validation ---
 
         const effectiveRelationship = emergencyEditForm.relationship === "Other"
             ? (emergencyEditForm.otherRelationship || "").trim()
@@ -1142,6 +1169,7 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
 
             setEmergencyContact(Array.isArray(data) ? data : [data]);
             setIsEmergencyEditOpen(false);
+            setSettingsToast({ type: "success", message: "Emergency contact updated successfully." });
         } catch (error) {
             setEmergencyEditFeedback(error.message || "Unable to update emergency contact.");
         } finally {
@@ -1183,6 +1211,8 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
             ? CharacterOnlyInput.sanitize(value)
             : value;
         setPersonalEditForm((current) => ({ ...current, [name]: nextValue }));
+        setPersonalEditErrors((e) => ({ ...e, [name]: false }));
+        setPersonalEditErrorBanner("");
     };
     const submitPersonalEditRequest = async (event) => {
         event.preventDefault();
@@ -1190,6 +1220,24 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
             setPersonalEditFeedback("Unable to identify the current employee.");
             return;
         }
+        // --- Mandatory field validation ---
+        const pErrors = {};
+        if (!personalEditForm.firstName?.trim()) pErrors.firstName = true;
+        if (!personalEditForm.lastName?.trim()) pErrors.lastName = true;
+        if (!personalEditForm.dateOfBirth) pErrors.dateOfBirth = true;
+        if (!personalEditForm.gender) pErrors.gender = true;
+        if (!personalEditForm.maritalStatus) pErrors.maritalStatus = true;
+        if (!personalEditForm.nationality?.trim()) pErrors.nationality = true;
+        if (!personalEditForm.bloodGroup) pErrors.bloodGroup = true;
+        if (Object.keys(pErrors).length > 0) {
+            setPersonalEditErrors(pErrors);
+            const count = Object.keys(pErrors).length;
+            setPersonalEditErrorBanner(`Please fill in the highlighted ${count} mandatory field${count > 1 ? 's' : ''} to submit.`);
+            return;
+        }
+        setPersonalEditErrors({});
+        setPersonalEditErrorBanner("");
+        // --- End validation ---
         if (personalEditForm.dateOfBirth && personalEditForm.dateOfBirth > getLatestEligibleDateOfBirth()) {
             setPersonalEditFeedback("Employees must be at least 18 years old.");
             return;
@@ -1222,6 +1270,7 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
 
             setPersonalInfo(data);
             setIsPersonalEditOpen(false);
+            setSettingsToast({ type: "success", message: "Personal information updated successfully." });
             if (typeof onProfileUpdate === "function") {
                 onProfileUpdate();
             }
@@ -1301,51 +1350,42 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
             }
             return next;
         });
+        if (name !== "sameAsCurrentAddress") {
+            setContactEditErrors((e) => ({ ...e, [name]: false }));
+            setContactEditErrorBanner("");
+        }
     };
     const submitContactEdit = async (event) => {
         event.preventDefault();
-        const requiredFields = [
-            ["Personal Email", contactEditForm.personalEmail],
-            ["Mobile Number", contactEditForm.mobile],
-            ["Alternate Phone", contactEditForm.alternatePhone],
-            ["Current Address", contactEditForm.currentAddress],
-            ["Current City", contactEditForm.currentCity],
-            ["Current State", contactEditForm.currentState],
-            ["Current Postal Code", contactEditForm.currentPostalCode],
-        ];
-
+        // --- Mandatory field validation ---
+        const cErrors = {};
+        if (!contactEditForm.personalEmail?.trim()) cErrors.personalEmail = true;
+        if (!contactEditForm.mobile?.trim()) cErrors.mobile = true;
+        if (!contactEditForm.currentAddress?.trim()) cErrors.currentAddress = true;
+        if (!contactEditForm.currentCity?.trim()) cErrors.currentCity = true;
+        if (!contactEditForm.currentState?.trim()) cErrors.currentState = true;
+        if (!contactEditForm.currentPostalCode?.trim()) cErrors.currentPostalCode = true;
         if (!contactEditForm.sameAsCurrentAddress) {
-            requiredFields.push(
-                ["Permanent Address", contactEditForm.permanentAddress],
-                ["Permanent City", contactEditForm.permanentCity],
-                ["Permanent State", contactEditForm.permanentState],
-                ["Permanent Postal Code", contactEditForm.permanentPostalCode],
-                ["Permanent Country", contactEditForm.permanentCountry]
-            );
+            if (!contactEditForm.permanentAddress?.trim()) cErrors.permanentAddress = true;
+            if (!contactEditForm.permanentCity?.trim()) cErrors.permanentCity = true;
+            if (!contactEditForm.permanentState?.trim()) cErrors.permanentState = true;
+            if (!contactEditForm.permanentPostalCode?.trim()) cErrors.permanentPostalCode = true;
+            if (!contactEditForm.permanentCountry?.trim()) cErrors.permanentCountry = true;
         }
-
-        const missingFields = requiredFields
-            .filter(([, value]) => !String(value ?? "").trim())
-            .map(([label]) => label);
-
-        if (missingFields.length) {
-            setContactEditFeedback(`Please fill in: ${missingFields.join(", ")}.`);
+        if (Object.keys(cErrors).length > 0) {
+            setContactEditErrors(cErrors);
+            const count = Object.keys(cErrors).length;
+            setContactEditErrorBanner(`Please fill in the highlighted ${count} mandatory field${count > 1 ? 's' : ''} to submit.`);
             return;
         }
-
+        setContactEditErrors({});
+        setContactEditErrorBanner("");
         const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        const invalidEmails = [
-            ["Work Email", contactEditForm.workEmail],
-            ["Personal Email", contactEditForm.personalEmail],
-        ]
-            .filter(([, email]) => !emailPattern.test(email.trim()))
-            .map(([label]) => label);
-
-        if (invalidEmails.length) {
-            setContactEditFeedback(`Enter a valid ${invalidEmails.join(" and ")}.`);
+        if (contactEditForm.personalEmail && !emailPattern.test(contactEditForm.personalEmail.trim())) {
+            setContactEditFeedback("Enter a valid Personal Email.");
             return;
         }
-
+        // --- End validation ---
         if (!currentUser?.id) {
             setContactEditFeedback("Unable to identify the current employee.");
             return;
@@ -1384,6 +1424,7 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
 
             setContactInfo(data);
             setIsContactEditOpen(false);
+            setSettingsToast({ type: "success", message: "Contact information updated successfully." });
             if (typeof onProfileUpdate === "function") {
                 onProfileUpdate();
             }
@@ -1436,6 +1477,7 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
         setFullAccountNumber("");
         setBankFieldErrors({});
         setBankEditTouched({});
+        setBankErrorBanner("");
         setBankEditForm((current) => ({
             ...current,
             accountNumber: "",
@@ -1497,21 +1539,24 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
     };
     const submitBankEdit = async (event) => {
         event.preventDefault();
-        const requiredFields = [
-            ["Bank Name", bankEditForm.bankName],
-            ["Account Holder Name", bankEditForm.accountHolderName],
-            ["Account Number", bankEditForm.accountNumber],
-            ["Confirm Account Number", bankEditForm.confirmAccountNumber],
-            ["IFSC Code", bankEditForm.ifscCode],
-        ];
-        const missingFields = requiredFields
-            .filter(([, value]) => !String(value ?? "").trim())
-            .map(([label]) => label);
-
-        if (missingFields.length) {
-            setBankEditFeedback(`Please fill in: ${missingFields.join(", ")}.`);
+        // --- Mandatory field validation ---
+        const bErrors = {};
+        if (!bankEditForm.bankName?.trim()) bErrors.bankName = true;
+        if (!bankEditForm.accountHolderName?.trim()) bErrors.accountHolderName = true;
+        if (!bankEditForm.accountNumber?.trim()) bErrors.accountNumber = true;
+        if (!bankEditForm.confirmAccountNumber?.trim()) bErrors.confirmAccountNumber = true;
+        if (!bankEditForm.ifscCode?.trim()) bErrors.ifscCode = true;
+        if (!bankEditForm.branchName?.trim()) bErrors.branchName = true;
+        if (!bankEditForm.reason?.trim()) bErrors.reason = true;
+        if (Object.keys(bErrors).length > 0) {
+            setBankFieldErrors((prev) => ({ ...prev, ...bErrors }));
+            const count = Object.keys(bErrors).length;
+            setBankErrorBanner(`Please fill in the highlighted ${count} mandatory field${count > 1 ? 's' : ''} to submit.`);
+            setBankEditFeedback("");
             return;
         }
+        setBankErrorBanner("");
+        // --- End validation ---
 
         const accErr = validateBankField("accountNumber", bankEditForm.accountNumber, bankEditForm);
         const confirmErr = validateBankField("confirmAccountNumber", bankEditForm.confirmAccountNumber, bankEditForm);
@@ -1560,6 +1605,7 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
             setAccountLastFourVisible(false);
             setFullAccountNumber("");
             setIsBankEditOpen(false);
+            setSettingsToast({ type: "success", message: "Bank details update request submitted. It is now pending HR verification." });
         } catch (error) {
             setBankEditFeedback(error.message || "Unable to update bank information.");
         } finally {
@@ -1641,6 +1687,7 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
 
         setIdentityEditForm((current) => ({ ...current, [name]: formattedValue }));
         setIdentityEditTouched((current) => ({ ...current, [name]: true }));
+        if (name === "reason") setIdentityEditErrorBanner("");
 
         if (identityFieldErrors[name]) {
             const err = validateIdentityField(name, formattedValue, true);
@@ -1726,6 +1773,13 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
             setIdentityEditFeedback("Please enter at least one identity number (Aadhaar, PAN, Passport, or UAN).");
             return;
         }
+        // Check reason mandatory
+        if (!identityEditForm.reason?.trim()) {
+            setIdentityEditErrorBanner("Please fill in the highlighted 1 mandatory field to submit.");
+            setIdentityEditFeedback("");
+            return;
+        }
+        setIdentityEditErrorBanner("");
 
         if (!currentUser?.id) {
             setIdentityEditFeedback("Unable to identify the current employee.");
@@ -1758,6 +1812,7 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
             }
             setIdentityInfo(data);
             setIsIdentityEditOpen(false);
+            setSettingsToast({ type: "success", message: "Identity information update request submitted. It is now pending HR verification." });
             if (typeof onProfileUpdate === "function") {
                 onProfileUpdate();
             }
@@ -1820,6 +1875,13 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
     };
     const dateOfBirth = formatDate(personalInfo?.date_of_birth);
 
+    // Auto-dismiss settingsToast after 6 seconds
+    useEffect(() => {
+        if (!settingsToast) return;
+        const timer = setTimeout(() => setSettingsToast(null), 6000);
+        return () => clearTimeout(timer);
+    }, [settingsToast]);
+
     const saveCommuteDetails = async (event) => {
         event.preventDefault();
         if (!currentUser?.id) {
@@ -1829,6 +1891,29 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
 
         const isPersonal = commuteForm.mode === "Personal vehicle";
         const isPublic = commuteForm.mode === "Public transport";
+
+        // --- Mandatory field validation ---
+        const newErrors = {};
+        if (!commuteForm.mode) newErrors.mode = true;
+        if (!commuteForm.distance || isNaN(commuteForm.distance) || Number(commuteForm.distance) <= 0)
+            newErrors.distance = true;
+        if (isPublic && !commuteForm.transportType) newErrors.transportType = true;
+        if (isPersonal && !commuteForm.vehicleType) newErrors.vehicleType = true;
+        if (isPersonal && !commuteForm.vehicleMakeModel?.trim()) newErrors.vehicleMakeModel = true;
+        if (isPersonal && (!commuteForm.vehicleMileage || isNaN(commuteForm.vehicleMileage) || Number(commuteForm.vehicleMileage) <= 0))
+            newErrors.vehicleMileage = true;
+        if (isPersonal && !commuteForm.fuelType) newErrors.fuelType = true;
+
+        if (Object.keys(newErrors).length > 0) {
+            setCommuteErrors(newErrors);
+            const count = Object.keys(newErrors).length;
+            setCommuteErrorBanner(`Please fill in the highlighted ${count} mandatory field${count > 1 ? 's' : ''} to submit.`);
+            setCommuteFeedback("");
+            return;
+        }
+        setCommuteErrors({});
+        setCommuteErrorBanner("");
+        // --- End validation ---
 
         setCommuteSaving(true);
         setCommuteFeedback("");
@@ -1888,6 +1973,19 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
     </div>
 
     
+    {/* Settings success/error toast */}
+    {settingsToast && (
+        <div className={`es-settings-toast ${settingsToast.type === "error" ? "es-settings-toast-error" : ""}`} role="alert">
+            <div className={`es-settings-toast-icon ${settingsToast.type === "error" ? "es-settings-toast-icon-error" : ""}`}>
+                <i className={`bi ${settingsToast.type === "error" ? "bi-x-lg" : "bi-check-lg"}`}></i>
+            </div>
+            <div className="es-settings-toast-body">{settingsToast.message}</div>
+            <button type="button" className="es-settings-toast-close" onClick={() => setSettingsToast(null)} aria-label="Close">
+                <i className="bi bi-x-lg"></i>
+            </button>
+        </div>
+    )}
+
     <div className="es-profile-banner">
         <div className="es-profile-avatar">
             {employeeAvatar
@@ -2099,7 +2197,25 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
                 </div>
 
                 {commuteLoading && <p role="status">Loading travel details...</p>}
-                <form className="es-commute-form" onSubmit={saveCommuteDetails}>
+                <form className="es-commute-form" onSubmit={saveCommuteDetails} noValidate>
+                    {/* Mandatory fields error banner */}
+                    {commuteErrorBanner && (
+                        <div className="es-mandatory-banner" role="alert">
+                            <div className="es-mandatory-banner-icon"><i className="bi bi-exclamation-triangle-fill"></i></div>
+                            <div>
+                                <strong>Mandatory Fields Missing</strong>
+                                <div>{commuteErrorBanner}</div>
+                            </div>
+                            <button type="button" className="es-mandatory-banner-close" onClick={() => setCommuteErrorBanner("")} aria-label="Close">
+                                <i className="bi bi-x-lg"></i>
+                            </button>
+                        </div>
+                    )}
+                    {/* Mandatory info notice */}
+                    <div className="es-mandatory-notice">
+                        <i className="bi bi-info-circle"></i>
+                        <span>Fields marked with <span className="es-mandatory-star">*</span> are mandatory and must be completed.</span>
+                    </div>
                     {(() => {
                         const isPublicTransport = commuteForm.mode === "Public transport";
                         const isPersonalVehicle = commuteForm.mode === "Personal vehicle";
@@ -2107,96 +2223,108 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
                         return (
                             <div className="es-commute-fields">
                                 <label className="es-commute-field">
-                                    <span>Usual mode of travel</span>
-                                    <select
-                                        value={commuteForm.mode}
-                                        onChange={(event) => {
-                                            const selectedMode = event.target.value;
-                                            setCommuteForm((form) => {
-                                                if (selectedMode === "Public transport") {
+                                    <span>Usual mode of travel <span className="es-mandatory-star">*</span></span>
+                                    <div className={`es-commute-input-wrap${commuteErrors.mode ? ' es-field-error' : ''}`}>
+                                        <select
+                                            value={commuteForm.mode}
+                                            onChange={(event) => {
+                                                const selectedMode = event.target.value;
+                                                setCommuteForm((form) => {
+                                                    if (selectedMode === "Public transport") {
+                                                        return {
+                                                            ...form,
+                                                            mode: selectedMode,
+                                                            vehicleType: "",
+                                                            vehicleMakeModel: "",
+                                                            vehicleMileage: "",
+                                                            fuelType: ""
+                                                        };
+                                                    }
+                                                    if (selectedMode === "Personal vehicle") {
+                                                        return {
+                                                            ...form,
+                                                            mode: "Personal vehicle",
+                                                            transportType: "",
+                                                            routeDetails: "",
+                                                            vehicleType: form.vehicleType === "Car" || form.vehicleType === "Bike" ? form.vehicleType : ""
+                                                        };
+                                                    }
                                                     return {
                                                         ...form,
                                                         mode: selectedMode,
+                                                        transportType: "",
+                                                        routeDetails: "",
                                                         vehicleType: "",
                                                         vehicleMakeModel: "",
                                                         vehicleMileage: "",
                                                         fuelType: ""
                                                     };
-                                                }
-                                                if (selectedMode === "Personal vehicle") {
-                                                    return {
-                                                        ...form,
-                                                        mode: "Personal vehicle",
-                                                        transportType: "",
-                                                        routeDetails: "",
-                                                        vehicleType: form.vehicleType === "Car" || form.vehicleType === "Bike" ? form.vehicleType : ""
-                                                    };
-                                                }
-                                                return {
-                                                    ...form,
-                                                    mode: selectedMode,
-                                                    transportType: "",
-                                                    routeDetails: "",
-                                                    vehicleType: "",
-                                                    vehicleMakeModel: "",
-                                                    vehicleMileage: "",
-                                                    fuelType: ""
-                                                };
-                                            });
-                                            setCommuteFeedback("");
-                                        }}
-                                        required
-                                    >
-                                        <option value="" disabled>Select a travel mode</option>
-                                        <option value="Personal vehicle">Personal vehicle</option>
-                                        <option value="Public transport">Public transport</option>
-                                    </select>
+                                                });
+                                                setCommuteFeedback("");
+                                                setCommuteErrors((e) => ({ ...e, mode: false }));
+                                            }}
+                                        >
+                                            <option value="" disabled>Select a travel mode</option>
+                                            <option value="Personal vehicle">Personal vehicle</option>
+                                            <option value="Public transport">Public transport</option>
+                                        </select>
+                                        {commuteErrors.mode && <span className="es-field-error-icon"><i className="bi bi-exclamation-circle-fill"></i></span>}
+                                    </div>
                                 </label>
                                 <label className="es-commute-field">
-                                    <span>One-way commute distance (km)</span>
-                                    <input
-                                        type="number"
-                                        min="0"
-                                        step="0.1"
-                                        placeholder="e.g. 12.5"
-                                        value={commuteForm.distance}
-                                        onChange={(event) => {
-                                            setCommuteForm((form) => ({ ...form, distance: event.target.value }));
-                                            setCommuteFeedback("");
-                                        }}
-                                    />
+                                    <span>One-way commute distance (km) <span className="es-mandatory-star">*</span></span>
+                                    <div className={`es-commute-input-wrap${commuteErrors.distance ? ' es-field-error' : ''}`}>
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            step="0.1"
+                                            placeholder="e.g. 12.5"
+                                            value={commuteForm.distance}
+                                            onChange={(event) => {
+                                                setCommuteForm((form) => ({ ...form, distance: event.target.value }));
+                                                setCommuteFeedback("");
+                                                setCommuteErrors((e) => ({ ...e, distance: false }));
+                                            }}
+                                        />
+                                        {commuteErrors.distance && <span className="es-field-error-icon"><i className="bi bi-exclamation-circle-fill"></i></span>}
+                                    </div>
                                 </label>
 
                                 {isPublicTransport && (
                                     <>
                                         <label className="es-commute-field">
-                                            <span>Public transport type</span>
-                                            <select
-                                                value={commuteForm.transportType}
-                                                onChange={(event) => {
-                                                    setCommuteForm((form) => ({ ...form, transportType: event.target.value }));
-                                                    setCommuteFeedback("");
-                                                }}
-                                                required
-                                            >
-                                                <option value="" disabled>Select a transport type</option>
-                                                <option value="Bus">Bus</option>
-                                                <option value="Train / Metro">Train / Metro</option>
-                                                <option value="Auto rickshaw">Auto rickshaw</option>
-                                                <option value="Other">Other</option>
-                                            </select>
+                                            <span>Public transport type <span className="es-mandatory-star">*</span></span>
+                                            <div className={`es-commute-input-wrap${commuteErrors.transportType ? ' es-field-error' : ''}`}>
+                                                <select
+                                                    value={commuteForm.transportType}
+                                                    onChange={(event) => {
+                                                        setCommuteForm((form) => ({ ...form, transportType: event.target.value }));
+                                                        setCommuteFeedback("");
+                                                        setCommuteErrors((e) => ({ ...e, transportType: false }));
+                                                    }}
+                                                >
+                                                    <option value="" disabled>Select a transport type</option>
+                                                    <option value="Bus">Bus</option>
+                                                    <option value="Train / Metro">Train / Metro</option>
+                                                    <option value="Auto rickshaw">Auto rickshaw</option>
+                                                    <option value="Other">Other</option>
+                                                </select>
+                                                {commuteErrors.transportType && <span className="es-field-error-icon"><i className="bi bi-exclamation-circle-fill"></i></span>}
+                                            </div>
                                         </label>
                                         <label className="es-commute-field">
-                                            <span>Route or service details (optional)</span>
-                                            <input
-                                                type="text"
-                                                placeholder="e.g. Bus route or metro line"
-                                                value={commuteForm.routeDetails}
-                                                onChange={(event) => {
-                                                    setCommuteForm((form) => ({ ...form, routeDetails: event.target.value }));
-                                                    setCommuteFeedback("");
-                                                }}
-                                            />
+                                            <span>Route or service details <span style={{ fontWeight: 400, color: "#94a3b8", fontSize: "0.82rem" }}>(optional)</span></span>
+                                            <div className="es-commute-input-wrap">
+                                                <input
+                                                    type="text"
+                                                    placeholder="e.g. Bus route or metro line"
+                                                    value={commuteForm.routeDetails}
+                                                    onChange={(event) => {
+                                                        setCommuteForm((form) => ({ ...form, routeDetails: event.target.value }));
+                                                        setCommuteFeedback("");
+                                                    }}
+                                                />
+                                            </div>
                                         </label>
                                     </>
                                 )}
@@ -2204,62 +2332,77 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
                                 {isPersonalVehicle && (
                                     <>
                                         <label className="es-commute-field">
-                                            <span>Vehicle type</span>
-                                            <select
-                                                value={commuteForm.vehicleType}
-                                                onChange={(event) => {
-                                                    setCommuteForm((form) => ({ ...form, vehicleType: event.target.value }));
-                                                    setCommuteFeedback("");
-                                                }}
-                                                required
-                                            >
-                                                <option value="" disabled>Select a vehicle type</option>
-                                                <option value="Car">Car</option>
-                                                <option value="Bike">Bike</option>
-                                            </select>
+                                            <span>Vehicle type <span className="es-mandatory-star">*</span></span>
+                                            <div className={`es-commute-input-wrap${commuteErrors.vehicleType ? ' es-field-error' : ''}`}>
+                                                <select
+                                                    value={commuteForm.vehicleType}
+                                                    onChange={(event) => {
+                                                        setCommuteForm((form) => ({ ...form, vehicleType: event.target.value }));
+                                                        setCommuteFeedback("");
+                                                        setCommuteErrors((e) => ({ ...e, vehicleType: false }));
+                                                    }}
+                                                >
+                                                    <option value="" disabled>Select a vehicle type</option>
+                                                    <option value="Car">Car</option>
+                                                    <option value="Bike">Bike</option>
+                                                </select>
+                                                {commuteErrors.vehicleType && <span className="es-field-error-icon"><i className="bi bi-exclamation-circle-fill"></i></span>}
+                                            </div>
                                         </label>
                                         <label className="es-commute-field">
-                                            <span>Vehicle make and model</span>
-                                            <input
-                                                type="text"
-                                                placeholder="e.g. Honda Activa"
-                                                value={commuteForm.vehicleMakeModel}
-                                                onChange={(event) => {
-                                                    setCommuteForm((form) => ({ ...form, vehicleMakeModel: event.target.value }));
-                                                    setCommuteFeedback("");
-                                                }}
-                                            />
+                                            <span>Vehicle make and model <span className="es-mandatory-star">*</span></span>
+                                            <div className={`es-commute-input-wrap${commuteErrors.vehicleMakeModel ? ' es-field-error' : ''}`}>
+                                                <input
+                                                    type="text"
+                                                    placeholder="e.g. Honda Activa"
+                                                    value={commuteForm.vehicleMakeModel}
+                                                    onChange={(event) => {
+                                                        setCommuteForm((form) => ({ ...form, vehicleMakeModel: event.target.value }));
+                                                        setCommuteFeedback("");
+                                                        setCommuteErrors((e) => ({ ...e, vehicleMakeModel: false }));
+                                                    }}
+                                                />
+                                                {commuteErrors.vehicleMakeModel && <span className="es-field-error-icon"><i className="bi bi-exclamation-circle-fill"></i></span>}
+                                            </div>
                                         </label>
                                         <label className="es-commute-field">
-                                            <span>Mileage (km/L, if applicable)</span>
-                                            <input
-                                                type="number"
-                                                min="0"
-                                                step="0.1"
-                                                placeholder="e.g. 45"
-                                                value={commuteForm.vehicleMileage}
-                                                onChange={(event) => {
-                                                    setCommuteForm((form) => ({ ...form, vehicleMileage: event.target.value }));
-                                                    setCommuteFeedback("");
-                                                }}
-                                            />
+                                            <span>Mileage (km/L) <span className="es-mandatory-star">*</span></span>
+                                            <div className={`es-commute-input-wrap${commuteErrors.vehicleMileage ? ' es-field-error' : ''}`}>
+                                                <input
+                                                    type="number"
+                                                    min="0"
+                                                    step="0.1"
+                                                    placeholder="e.g. 45"
+                                                    value={commuteForm.vehicleMileage}
+                                                    onChange={(event) => {
+                                                        setCommuteForm((form) => ({ ...form, vehicleMileage: event.target.value }));
+                                                        setCommuteFeedback("");
+                                                        setCommuteErrors((e) => ({ ...e, vehicleMileage: false }));
+                                                    }}
+                                                />
+                                                {commuteErrors.vehicleMileage && <span className="es-field-error-icon"><i className="bi bi-exclamation-circle-fill"></i></span>}
+                                            </div>
                                         </label>
                                         <label className="es-commute-field">
-                                            <span>Fuel type</span>
-                                            <select
-                                                value={commuteForm.fuelType}
-                                                onChange={(event) => {
-                                                    setCommuteForm((form) => ({ ...form, fuelType: event.target.value }));
-                                                    setCommuteFeedback("");
-                                                }}
-                                            >
-                                                <option value="" disabled>Select a fuel type</option>
-                                                <option value="Petrol">Petrol</option>
-                                                <option value="Diesel">Diesel</option>
-                                                <option value="Electric">Electric</option>
-                                                <option value="CNG">CNG</option>
-                                                <option value="Hybrid">Hybrid</option>
-                                            </select>
+                                            <span>Fuel type <span className="es-mandatory-star">*</span></span>
+                                            <div className={`es-commute-input-wrap${commuteErrors.fuelType ? ' es-field-error' : ''}`}>
+                                                <select
+                                                    value={commuteForm.fuelType}
+                                                    onChange={(event) => {
+                                                        setCommuteForm((form) => ({ ...form, fuelType: event.target.value }));
+                                                        setCommuteFeedback("");
+                                                        setCommuteErrors((e) => ({ ...e, fuelType: false }));
+                                                    }}
+                                                >
+                                                    <option value="" disabled>Select a fuel type</option>
+                                                    <option value="Petrol">Petrol</option>
+                                                    <option value="Diesel">Diesel</option>
+                                                    <option value="Electric">Electric</option>
+                                                    <option value="CNG">CNG</option>
+                                                    <option value="Hybrid">Hybrid</option>
+                                                </select>
+                                                {commuteErrors.fuelType && <span className="es-field-error-icon"><i className="bi bi-exclamation-circle-fill"></i></span>}
+                                            </div>
                                         </label>
                                     </>
                                 )}
@@ -2777,18 +2920,35 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
                 <button type="button" className="btn-close" aria-label="Close" onClick={() => setIsPersonalEditOpen(false)}></button>
             </div>
             <div className="modal-body">
+                {personalEditErrorBanner && (
+                    <div className="es-mandatory-banner" role="alert">
+                        <div className="es-mandatory-banner-icon"><i className="bi bi-exclamation-triangle-fill"></i></div>
+                        <div><strong>Mandatory Fields Missing</strong><div>{personalEditErrorBanner}</div></div>
+                        <button type="button" className="es-mandatory-banner-close" onClick={() => setPersonalEditErrorBanner("")}><i className="bi bi-x-lg"></i></button>
+                    </div>
+                )}
+                <div className="es-mandatory-notice">
+                    <i className="bi bi-info-circle"></i>
+                    <span>Fields marked with <span className="es-mandatory-star">*</span> are mandatory and must be completed.</span>
+                </div>
                 <div className="row g-3" id="esEditFields">
                     <div className="col-12 col-md-6 es-edit-field">
-                        <label htmlFor="personalEditFirstName">First Name</label>
-                        <input id="personalEditFirstName" className="form-control" name="firstName" value={personalEditForm.firstName} onChange={updatePersonalEditField} required />
+                        <label htmlFor="personalEditFirstName">First Name <span className="es-mandatory-star">*</span></label>
+                        <div className="es-modal-input-wrap">
+                            <input id="personalEditFirstName" className={`form-control ${personalEditErrors.firstName ? "is-invalid border-danger" : ""}`} name="firstName" value={personalEditForm.firstName} onChange={updatePersonalEditField} />
+                            {personalEditErrors.firstName && <span className="es-field-error-icon"><i className="bi bi-exclamation-circle-fill"></i></span>}
+                        </div>
                     </div>
                     <div className="col-12 col-md-6 es-edit-field">
                         <label htmlFor="personalEditMiddleName">Middle Name</label>
                         <input id="personalEditMiddleName" className="form-control" name="middleName" value={personalEditForm.middleName} onChange={updatePersonalEditField} placeholder="Enter middle name" />
                     </div>
                     <div className="col-12 col-md-6 es-edit-field">
-                        <label htmlFor="personalEditLastName">Last Name</label>
-                        <input id="personalEditLastName" className="form-control" name="lastName" value={personalEditForm.lastName} onChange={updatePersonalEditField} required />
+                        <label htmlFor="personalEditLastName">Last Name <span className="es-mandatory-star">*</span></label>
+                        <div className="es-modal-input-wrap">
+                            <input id="personalEditLastName" className={`form-control ${personalEditErrors.lastName ? "is-invalid border-danger" : ""}`} name="lastName" value={personalEditForm.lastName} onChange={updatePersonalEditField} />
+                            {personalEditErrors.lastName && <span className="es-field-error-icon"><i className="bi bi-exclamation-circle-fill"></i></span>}
+                        </div>
                     </div>
                     <div className="col-12 col-md-6 es-edit-field">
                         <label htmlFor="personalEditPreferredName">Preferred Name</label>
@@ -2796,62 +2956,73 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
                         <small className="text-muted">Preferred Name follows First Name because it has no separate database field.</small>
                     </div>
                     <div className="col-12 col-md-6 es-edit-field">
-                        <label htmlFor="personalEditDateOfBirth">Date of Birth</label>
-                        <input
-                            id="personalEditDateOfBirth"
-                            type="date"
-                            className="form-control"
-                            name="dateOfBirth"
-                            value={personalEditForm.dateOfBirth}
-                            max={getLatestEligibleDateOfBirth()}
-                            onChange={updatePersonalEditField}
-                            onClick={(e) => {
-                                try { e.currentTarget.showPicker(); } catch (_) {}
-                            }}
-                            onFocus={(e) => {
-                                try { e.currentTarget.showPicker(); } catch (_) {}
-                            }}
-                            style={{ cursor: "pointer" }}
-                        />
+                        <label htmlFor="personalEditDateOfBirth">Date of Birth <span className="es-mandatory-star">*</span></label>
+                        <div className="es-modal-input-wrap">
+                            <input
+                                id="personalEditDateOfBirth"
+                                type="date"
+                                className={`form-control ${personalEditErrors.dateOfBirth ? "is-invalid border-danger" : ""}`}
+                                name="dateOfBirth"
+                                value={personalEditForm.dateOfBirth}
+                                max={getLatestEligibleDateOfBirth()}
+                                onChange={updatePersonalEditField}
+                                onClick={(e) => { try { e.currentTarget.showPicker(); } catch (_) {} }}
+                                onFocus={(e) => { try { e.currentTarget.showPicker(); } catch (_) {} }}
+                                style={{ cursor: "pointer" }}
+                            />
+                            {personalEditErrors.dateOfBirth && <span className="es-field-error-icon"><i className="bi bi-exclamation-circle-fill"></i></span>}
+                        </div>
                         <small className="text-muted">Employees must be at least 18 years old.</small>
                     </div>
                     <div className="col-12 col-md-6 es-edit-field">
-                        <label htmlFor="personalEditGender">Gender</label>
-                        <select id="personalEditGender" className="form-select" name="gender" value={personalEditForm.gender} onChange={updatePersonalEditField}>
-                            <option value="">Select gender</option>
-                            <option value="Male">Male</option>
-                            <option value="Female">Female</option>
-                            <option value="Other">Other</option>
-                            <option value="Prefer not to say">Prefer not to say</option>
-                        </select>
+                        <label htmlFor="personalEditGender">Gender <span className="es-mandatory-star">*</span></label>
+                        <div className="es-modal-input-wrap">
+                            <select id="personalEditGender" className={`form-select ${personalEditErrors.gender ? "is-invalid border-danger" : ""}`} name="gender" value={personalEditForm.gender} onChange={updatePersonalEditField}>
+                                <option value="">Select gender</option>
+                                <option value="Male">Male</option>
+                                <option value="Female">Female</option>
+                                <option value="Other">Other</option>
+                                <option value="Prefer not to say">Prefer not to say</option>
+                            </select>
+                            {personalEditErrors.gender && <span className="es-field-error-icon"><i className="bi bi-exclamation-circle-fill"></i></span>}
+                        </div>
                     </div>
                     <div className="col-12 col-md-6 es-edit-field">
-                        <label htmlFor="personalEditMaritalStatus">Marital Status</label>
-                        <select id="personalEditMaritalStatus" className="form-select" name="maritalStatus" value={personalEditForm.maritalStatus} onChange={updatePersonalEditField}>
-                            <option value="">Select marital status</option>
-                            <option value="Single">Single</option>
-                            <option value="Married">Married</option>
-                            <option value="Divorced">Divorced</option>
-                            <option value="Widowed">Widowed</option>
-                        </select>
+                        <label htmlFor="personalEditMaritalStatus">Marital Status <span className="es-mandatory-star">*</span></label>
+                        <div className="es-modal-input-wrap">
+                            <select id="personalEditMaritalStatus" className={`form-select ${personalEditErrors.maritalStatus ? "is-invalid border-danger" : ""}`} name="maritalStatus" value={personalEditForm.maritalStatus} onChange={updatePersonalEditField}>
+                                <option value="">Select marital status</option>
+                                <option value="Single">Single</option>
+                                <option value="Married">Married</option>
+                                <option value="Divorced">Divorced</option>
+                                <option value="Widowed">Widowed</option>
+                            </select>
+                            {personalEditErrors.maritalStatus && <span className="es-field-error-icon"><i className="bi bi-exclamation-circle-fill"></i></span>}
+                        </div>
                     </div>
                     <div className="col-12 col-md-6 es-edit-field">
-                        <label htmlFor="personalEditNationality">Nationality</label>
-                        <input id="personalEditNationality" className="form-control" name="nationality" value={personalEditForm.nationality} onChange={updatePersonalEditField} />
+                        <label htmlFor="personalEditNationality">Nationality <span className="es-mandatory-star">*</span></label>
+                        <div className="es-modal-input-wrap">
+                            <input id="personalEditNationality" className={`form-control ${personalEditErrors.nationality ? "is-invalid border-danger" : ""}`} name="nationality" value={personalEditForm.nationality} onChange={updatePersonalEditField} />
+                            {personalEditErrors.nationality && <span className="es-field-error-icon"><i className="bi bi-exclamation-circle-fill"></i></span>}
+                        </div>
                     </div>
                     <div className="col-12 col-md-6 es-edit-field">
-                        <label htmlFor="personalEditBloodGroup">Blood Group</label>
-                        <select id="personalEditBloodGroup" className="form-select" name="bloodGroup" value={personalEditForm.bloodGroup} onChange={updatePersonalEditField}>
-                            <option value="">Select blood group</option>
-                            <option value="A+">A+</option>
-                            <option value="A-">A-</option>
-                            <option value="B+">B+</option>
-                            <option value="B-">B-</option>
-                            <option value="AB+">AB+</option>
-                            <option value="AB-">AB-</option>
-                            <option value="O+">O+</option>
-                            <option value="O-">O-</option>
-                        </select>
+                        <label htmlFor="personalEditBloodGroup">Blood Group <span className="es-mandatory-star">*</span></label>
+                        <div className="es-modal-input-wrap">
+                            <select id="personalEditBloodGroup" className={`form-select ${personalEditErrors.bloodGroup ? "is-invalid border-danger" : ""}`} name="bloodGroup" value={personalEditForm.bloodGroup} onChange={updatePersonalEditField}>
+                                <option value="">Select blood group</option>
+                                <option value="A+">A+</option>
+                                <option value="A-">A-</option>
+                                <option value="B+">B+</option>
+                                <option value="B-">B-</option>
+                                <option value="AB+">AB+</option>
+                                <option value="AB-">AB-</option>
+                                <option value="O+">O+</option>
+                                <option value="O-">O-</option>
+                            </select>
+                            {personalEditErrors.bloodGroup && <span className="es-field-error-icon"><i className="bi bi-exclamation-circle-fill"></i></span>}
+                        </div>
                     </div>
                 </div>
                 <div className="es-security-note mt-3">
@@ -2937,17 +3108,34 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
                 <button type="button" className="btn-close" aria-label="Close" onClick={closeBankEdit}></button>
             </div>
             <div className="modal-body">
+                {bankErrorBanner && (
+                    <div className="es-mandatory-banner" role="alert">
+                        <div className="es-mandatory-banner-icon"><i className="bi bi-exclamation-triangle-fill"></i></div>
+                        <div><strong>Mandatory Fields Missing</strong><div>{bankErrorBanner}</div></div>
+                        <button type="button" className="es-mandatory-banner-close" onClick={() => setBankErrorBanner("")}><i className="bi bi-x-lg"></i></button>
+                    </div>
+                )}
+                <div className="es-mandatory-notice">
+                    <i className="bi bi-info-circle"></i>
+                    <span>Fields marked with <span className="es-mandatory-star">*</span> are mandatory and must be completed.</span>
+                </div>
                 <div className="row g-3">
                     <div className="col-12 col-md-6 es-edit-field">
-                        <label htmlFor="bankEditName">Bank Name</label>
-                        <input id="bankEditName" className="form-control" name="bankName" value={bankEditForm.bankName} onChange={updateBankEditField} maxLength="150" />
+                        <label htmlFor="bankEditName">Bank Name <span className="es-mandatory-star">*</span></label>
+                        <div className="es-modal-input-wrap">
+                            <input id="bankEditName" className={`form-control ${bankFieldErrors.bankName ? "is-invalid border-danger" : ""}`} name="bankName" value={bankEditForm.bankName} onChange={updateBankEditField} maxLength="150" />
+                            {bankFieldErrors.bankName && <span className="es-field-error-icon"><i className="bi bi-exclamation-circle-fill"></i></span>}
+                        </div>
                     </div>
                     <div className="col-12 col-md-6 es-edit-field">
-                        <label htmlFor="bankEditHolder">Account Holder Name</label>
-                        <input id="bankEditHolder" className="form-control" name="accountHolderName" value={bankEditForm.accountHolderName} onChange={updateBankEditField} maxLength="150" />
+                        <label htmlFor="bankEditHolder">Account Holder Name <span className="es-mandatory-star">*</span></label>
+                        <div className="es-modal-input-wrap">
+                            <input id="bankEditHolder" className={`form-control ${bankFieldErrors.accountHolderName ? "is-invalid border-danger" : ""}`} name="accountHolderName" value={bankEditForm.accountHolderName} onChange={updateBankEditField} maxLength="150" />
+                            {bankFieldErrors.accountHolderName && <span className="es-field-error-icon"><i className="bi bi-exclamation-circle-fill"></i></span>}
+                        </div>
                     </div>
                     <div className="col-12 col-md-6 es-edit-field">
-                        <label htmlFor="bankEditAccount">Account Number</label>
+                        <label htmlFor="bankEditAccount">Account Number <span className="es-mandatory-star">*</span></label>
                         <input
                             id="bankEditAccount"
                             type="password"
@@ -2966,7 +3154,7 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
                         )}
                     </div>
                     <div className="col-12 col-md-6 es-edit-field">
-                        <label htmlFor="bankEditConfirmAccount">Confirm Account Number</label>
+                        <label htmlFor="bankEditConfirmAccount">Confirm Account Number <span className="es-mandatory-star">*</span></label>
                         <input
                             id="bankEditConfirmAccount"
                             type="text"
@@ -2985,7 +3173,7 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
                         )}
                     </div>
                     <div className="col-12 col-md-6 es-edit-field">
-                        <label htmlFor="bankEditIfsc">IFSC Code</label>
+                        <label htmlFor="bankEditIfsc">IFSC Code <span className="es-mandatory-star">*</span></label>
                         <input
                             id="bankEditIfsc"
                             className={`form-control ${bankFieldErrors.ifscCode ? "is-invalid border-danger" : ""}`}
@@ -3002,11 +3190,14 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
                         )}
                     </div>
                     <div className="col-12 col-md-6 es-edit-field">
-                        <label htmlFor="bankEditBranch">Branch Name</label>
-                        <input id="bankEditBranch" className="form-control" name="branchName" value={bankEditForm.branchName} onChange={updateBankEditField} maxLength="100" placeholder="Enter branch name" />
+                        <label htmlFor="bankEditBranch">Branch Name <span className="es-mandatory-star">*</span></label>
+                        <div className="es-modal-input-wrap">
+                            <input id="bankEditBranch" className={`form-control ${bankFieldErrors.branchName ? "is-invalid border-danger" : ""}`} name="branchName" value={bankEditForm.branchName} onChange={updateBankEditField} maxLength="100" placeholder="Enter branch name" />
+                            {bankFieldErrors.branchName && <span className="es-field-error-icon"><i className="bi bi-exclamation-circle-fill"></i></span>}
+                        </div>
                     </div>
                     <div className="col-12 col-md-6 es-edit-field">
-                        <label htmlFor="bankEditType">Account Type</label>
+                        <label htmlFor="bankEditType">Account Type <span className="es-mandatory-star">*</span></label>
                         <select id="bankEditType" className="form-select" name="accountType" value={bankEditForm.accountType} onChange={updateBankEditField}>
                             <option value="Salary / Savings">Salary / Savings</option>
                             <option value="Savings">Savings</option>
@@ -3014,8 +3205,11 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
                         </select>
                     </div>
                     <div className="col-12 col-md-6 es-edit-field">
-                        <label htmlFor="bankEditReason">Reason for Change</label>
-                        <textarea id="bankEditReason" className="form-control" name="reason" value={bankEditForm.reason} onChange={updateBankEditField} rows="3" maxLength="2000" placeholder="Enter reason for change"></textarea>
+                        <label htmlFor="bankEditReason">Reason for Change <span className="es-mandatory-star">*</span></label>
+                        <div className="es-modal-input-wrap">
+                            <textarea id="bankEditReason" className={`form-control ${bankFieldErrors.reason ? "is-invalid border-danger" : ""}`} name="reason" value={bankEditForm.reason} onChange={updateBankEditField} rows="3" maxLength="2000" placeholder="Enter reason for change"></textarea>
+                            {bankFieldErrors.reason && <span className="es-field-error-icon" style={{top:"16px",transform:"none"}}><i className="bi bi-exclamation-circle-fill"></i></span>}
+                        </div>
                     </div>
                 </div>
                 <div className="es-security-note mt-3">
@@ -3056,38 +3250,63 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
                 <button type="button" className="btn-close" aria-label="Close" onClick={() => setIsContactEditOpen(false)}></button>
             </div>
             <div className="modal-body">
+                {contactEditErrorBanner && (
+                    <div className="es-mandatory-banner" role="alert">
+                        <div className="es-mandatory-banner-icon"><i className="bi bi-exclamation-triangle-fill"></i></div>
+                        <div><strong>Mandatory Fields Missing</strong><div>{contactEditErrorBanner}</div></div>
+                        <button type="button" className="es-mandatory-banner-close" onClick={() => setContactEditErrorBanner("")}><i className="bi bi-x-lg"></i></button>
+                    </div>
+                )}
+                <div className="es-mandatory-notice">
+                    <i className="bi bi-info-circle"></i>
+                    <span>Fields marked with <span className="es-mandatory-star">*</span> are mandatory and must be completed.</span>
+                </div>
                 <div className="row g-3">
-                    {/* <div className="col-12 col-md-6 es-edit-field">
-                        <label htmlFor="contactEditWorkEmail">Work Email</label>
-                        <input id="contactEditWorkEmail" type="email" className="form-control" name="workEmail" value={contactEditForm.workEmail} onChange={updateContactEditField} />
-                    </div> */}
                     <div className="col-12 col-md-6 es-edit-field">
-                        <label htmlFor="contactEditPersonalEmail">Personal Email</label>
-                        <input id="contactEditPersonalEmail" type="email" className="form-control" name="personalEmail" value={contactEditForm.personalEmail} onChange={updateContactEditField} placeholder="Enter personal email" />
+                        <label htmlFor="contactEditPersonalEmail">Personal Email <span className="es-mandatory-star">*</span></label>
+                        <div className="es-modal-input-wrap">
+                            <input id="contactEditPersonalEmail" type="email" className={`form-control ${contactEditErrors.personalEmail ? "is-invalid border-danger" : ""}`} name="personalEmail" value={contactEditForm.personalEmail} onChange={updateContactEditField} placeholder="Enter personal email" />
+                            {contactEditErrors.personalEmail && <span className="es-field-error-icon"><i className="bi bi-exclamation-circle-fill"></i></span>}
+                        </div>
                     </div>
                     <div className="col-12 col-md-6 es-edit-field">
-                        <label htmlFor="contactEditMobile">Mobile Number</label>
-                        <input id="contactEditMobile" type="tel" inputMode="numeric" className="form-control" name="mobile" value={contactEditForm.mobile} onChange={updateContactEditField} placeholder="Enter mobile number" maxlength="10" />
+                        <label htmlFor="contactEditMobile">Mobile Number <span className="es-mandatory-star">*</span></label>
+                        <div className="es-modal-input-wrap">
+                            <input id="contactEditMobile" type="tel" inputMode="numeric" className={`form-control ${contactEditErrors.mobile ? "is-invalid border-danger" : ""}`} name="mobile" value={contactEditForm.mobile} onChange={updateContactEditField} placeholder="Enter mobile number" maxLength="10" />
+                            {contactEditErrors.mobile && <span className="es-field-error-icon"><i className="bi bi-exclamation-circle-fill"></i></span>}
+                        </div>
                     </div>
                     <div className="col-12 col-md-6 es-edit-field">
                         <label htmlFor="contactEditAlternatePhone">Alternate Phone</label>
-                        <input id="contactEditAlternatePhone" type="tel" inputMode="numeric" className="form-control" name="alternatePhone" value={contactEditForm.alternatePhone} onChange={updateContactEditField} placeholder="Enter alternate phone" maxlength="10" />
+                        <input id="contactEditAlternatePhone" type="tel" inputMode="numeric" className="form-control" name="alternatePhone" value={contactEditForm.alternatePhone} onChange={updateContactEditField} placeholder="Enter alternate phone" maxLength="10" />
                     </div>
                     <div className="col-12 col-md-6 es-edit-field">
-                        <label htmlFor="contactEditCurrentAddress">Current Address</label>
-                        <input id="contactEditCurrentAddress" className="form-control" name="currentAddress" value={contactEditForm.currentAddress} onChange={updateContactEditField} placeholder="Enter current address" />
+                        <label htmlFor="contactEditCurrentAddress">Current Address <span className="es-mandatory-star">*</span></label>
+                        <div className="es-modal-input-wrap">
+                            <input id="contactEditCurrentAddress" className={`form-control ${contactEditErrors.currentAddress ? "is-invalid border-danger" : ""}`} name="currentAddress" value={contactEditForm.currentAddress} onChange={updateContactEditField} placeholder="Enter current address" />
+                            {contactEditErrors.currentAddress && <span className="es-field-error-icon"><i className="bi bi-exclamation-circle-fill"></i></span>}
+                        </div>
                     </div>
                     <div className="col-12 col-md-6 es-edit-field">
-                        <label htmlFor="contactEditCurrentCity">Current City</label>
-                        <input id="contactEditCurrentCity" className="form-control" name="currentCity" value={contactEditForm.currentCity} onChange={updateContactEditField} placeholder="Enter current city" />
+                        <label htmlFor="contactEditCurrentCity">Current City <span className="es-mandatory-star">*</span></label>
+                        <div className="es-modal-input-wrap">
+                            <input id="contactEditCurrentCity" className={`form-control ${contactEditErrors.currentCity ? "is-invalid border-danger" : ""}`} name="currentCity" value={contactEditForm.currentCity} onChange={updateContactEditField} placeholder="Enter current city" />
+                            {contactEditErrors.currentCity && <span className="es-field-error-icon"><i className="bi bi-exclamation-circle-fill"></i></span>}
+                        </div>
                     </div>
                     <div className="col-12 col-md-6 es-edit-field">
-                        <label htmlFor="contactEditCurrentState">Current State</label>
-                        <input id="contactEditCurrentState" className="form-control" name="currentState" value={contactEditForm.currentState} onChange={updateContactEditField} placeholder="Enter current state" />
+                        <label htmlFor="contactEditCurrentState">Current State <span className="es-mandatory-star">*</span></label>
+                        <div className="es-modal-input-wrap">
+                            <input id="contactEditCurrentState" className={`form-control ${contactEditErrors.currentState ? "is-invalid border-danger" : ""}`} name="currentState" value={contactEditForm.currentState} onChange={updateContactEditField} placeholder="Enter current state" />
+                            {contactEditErrors.currentState && <span className="es-field-error-icon"><i className="bi bi-exclamation-circle-fill"></i></span>}
+                        </div>
                     </div>
                     <div className="col-12 col-md-6 es-edit-field">
-                        <label htmlFor="contactEditCurrentPostalCode">Current Postal Code</label>
-                        <input id="contactEditCurrentPostalCode" inputMode="numeric" className="form-control" name="currentPostalCode" value={contactEditForm.currentPostalCode} onChange={updateContactEditField} placeholder="Enter current postal code" maxlength="6" />
+                        <label htmlFor="contactEditCurrentPostalCode">Current Postal Code <span className="es-mandatory-star">*</span></label>
+                        <div className="es-modal-input-wrap">
+                            <input id="contactEditCurrentPostalCode" inputMode="numeric" className={`form-control ${contactEditErrors.currentPostalCode ? "is-invalid border-danger" : ""}`} name="currentPostalCode" value={contactEditForm.currentPostalCode} onChange={updateContactEditField} placeholder="Enter current postal code" maxLength="6" />
+                            {contactEditErrors.currentPostalCode && <span className="es-field-error-icon"><i className="bi bi-exclamation-circle-fill"></i></span>}
+                        </div>
                     </div>
                     {/* <div className="col-12 col-md-6 es-edit-field">
                         <label htmlFor="contactEditCurrentCountry">Current Country</label>
@@ -3100,24 +3319,39 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
                         </div>
                     </div>
                     <div className="col-12 col-md-6 es-edit-field">
-                        <label htmlFor="contactEditPermanentAddress">Permanent Address</label>
-                        <input id="contactEditPermanentAddress" className="form-control" name="permanentAddress" value={contactEditForm.permanentAddress} onChange={updateContactEditField} disabled={contactEditForm.sameAsCurrentAddress} placeholder="Enter permanent address" />
+                        <label htmlFor="contactEditPermanentAddress">Permanent Address {!contactEditForm.sameAsCurrentAddress && <span className="es-mandatory-star">*</span>}</label>
+                        <div className="es-modal-input-wrap">
+                            <input id="contactEditPermanentAddress" className={`form-control ${contactEditErrors.permanentAddress ? "is-invalid border-danger" : ""}`} name="permanentAddress" value={contactEditForm.permanentAddress} onChange={updateContactEditField} disabled={contactEditForm.sameAsCurrentAddress} placeholder="Enter permanent address" />
+                            {contactEditErrors.permanentAddress && <span className="es-field-error-icon"><i className="bi bi-exclamation-circle-fill"></i></span>}
+                        </div>
                     </div>
                     <div className="col-12 col-md-6 es-edit-field">
-                        <label htmlFor="contactEditPermanentCity">Permanent City</label>
-                        <input id="contactEditPermanentCity" className="form-control" name="permanentCity" value={contactEditForm.permanentCity} onChange={updateContactEditField} disabled={contactEditForm.sameAsCurrentAddress} placeholder="Enter permanent city" />
+                        <label htmlFor="contactEditPermanentCity">Permanent City {!contactEditForm.sameAsCurrentAddress && <span className="es-mandatory-star">*</span>}</label>
+                        <div className="es-modal-input-wrap">
+                            <input id="contactEditPermanentCity" className={`form-control ${contactEditErrors.permanentCity ? "is-invalid border-danger" : ""}`} name="permanentCity" value={contactEditForm.permanentCity} onChange={updateContactEditField} disabled={contactEditForm.sameAsCurrentAddress} placeholder="Enter permanent city" />
+                            {contactEditErrors.permanentCity && <span className="es-field-error-icon"><i className="bi bi-exclamation-circle-fill"></i></span>}
+                        </div>
                     </div>
                     <div className="col-12 col-md-6 es-edit-field">
-                        <label htmlFor="contactEditPermanentState">Permanent State</label>
-                        <input id="contactEditPermanentState" className="form-control" name="permanentState" value={contactEditForm.permanentState} onChange={updateContactEditField} disabled={contactEditForm.sameAsCurrentAddress} placeholder="Enter permanent state" />
+                        <label htmlFor="contactEditPermanentState">Permanent State {!contactEditForm.sameAsCurrentAddress && <span className="es-mandatory-star">*</span>}</label>
+                        <div className="es-modal-input-wrap">
+                            <input id="contactEditPermanentState" className={`form-control ${contactEditErrors.permanentState ? "is-invalid border-danger" : ""}`} name="permanentState" value={contactEditForm.permanentState} onChange={updateContactEditField} disabled={contactEditForm.sameAsCurrentAddress} placeholder="Enter permanent state" />
+                            {contactEditErrors.permanentState && <span className="es-field-error-icon"><i className="bi bi-exclamation-circle-fill"></i></span>}
+                        </div>
                     </div>
                     <div className="col-12 col-md-6 es-edit-field">
-                        <label htmlFor="contactEditPermanentPostalCode">Permanent Postal Code</label>
-                        <input id="contactEditPermanentPostalCode" className="form-control" name="permanentPostalCode" value={contactEditForm.permanentPostalCode} onChange={updateContactEditField} disabled={contactEditForm.sameAsCurrentAddress} placeholder="Enter permanent postal code" />
+                        <label htmlFor="contactEditPermanentPostalCode">Permanent Postal Code {!contactEditForm.sameAsCurrentAddress && <span className="es-mandatory-star">*</span>}</label>
+                        <div className="es-modal-input-wrap">
+                            <input id="contactEditPermanentPostalCode" className={`form-control ${contactEditErrors.permanentPostalCode ? "is-invalid border-danger" : ""}`} name="permanentPostalCode" value={contactEditForm.permanentPostalCode} onChange={updateContactEditField} disabled={contactEditForm.sameAsCurrentAddress} placeholder="Enter permanent postal code" />
+                            {contactEditErrors.permanentPostalCode && <span className="es-field-error-icon"><i className="bi bi-exclamation-circle-fill"></i></span>}
+                        </div>
                     </div>
                     <div className="col-12 col-md-6 es-edit-field">
-                        <label htmlFor="contactEditPermanentCountry">Permanent Country</label>
-                        <input id="contactEditPermanentCountry" className="form-control" name="permanentCountry" value={contactEditForm.permanentCountry} onChange={updateContactEditField} disabled={contactEditForm.sameAsCurrentAddress} placeholder="Enter permanent country" />
+                        <label htmlFor="contactEditPermanentCountry">Permanent Country {!contactEditForm.sameAsCurrentAddress && <span className="es-mandatory-star">*</span>}</label>
+                        <div className="es-modal-input-wrap">
+                            <input id="contactEditPermanentCountry" className={`form-control ${contactEditErrors.permanentCountry ? "is-invalid border-danger" : ""}`} name="permanentCountry" value={contactEditForm.permanentCountry} onChange={updateContactEditField} disabled={contactEditForm.sameAsCurrentAddress} placeholder="Enter permanent country" />
+                            {contactEditErrors.permanentCountry && <span className="es-field-error-icon"><i className="bi bi-exclamation-circle-fill"></i></span>}
+                        </div>
                     </div>
                 </div>
                 <div className="es-security-note mt-3">
@@ -3159,6 +3393,17 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
                 <button type="button" className="btn-close" aria-label="Close" onClick={() => setIsIdentityEditOpen(false)}></button>
             </div>
             <div className="modal-body">
+                {identityEditErrorBanner && (
+                    <div className="es-mandatory-banner" role="alert">
+                        <div className="es-mandatory-banner-icon"><i className="bi bi-exclamation-triangle-fill"></i></div>
+                        <div><strong>Mandatory Fields Missing</strong><div>{identityEditErrorBanner}</div></div>
+                        <button type="button" className="es-mandatory-banner-close" onClick={() => setIdentityEditErrorBanner("")}><i className="bi bi-x-lg"></i></button>
+                    </div>
+                )}
+                <div className="es-mandatory-notice">
+                    <i className="bi bi-info-circle"></i>
+                    <span>Fields marked with <span className="es-mandatory-star">*</span> are mandatory and must be completed.</span>
+                </div>
                 <div className="row g-3">
                     <div className="col-12 col-md-6 es-edit-field">
                         <label htmlFor="identityEditAadhaar">Aadhaar Number</label>
@@ -3232,8 +3477,11 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
                         )}
                     </div>
                     <div className="col-12 es-edit-field">
-                        <label htmlFor="identityEditReason">Reason for Change</label>
-                        <textarea id="identityEditReason" className="form-control" name="reason" value={identityEditForm.reason} onChange={updateIdentityEditField} rows="3" maxLength="2000" placeholder="Enter reason for change"></textarea>
+                        <label htmlFor="identityEditReason">Reason for Change <span className="es-mandatory-star">*</span></label>
+                        <div className="es-modal-input-wrap">
+                            <textarea id="identityEditReason" className={`form-control ${identityEditErrorBanner ? "is-invalid border-danger" : ""}`} name="reason" value={identityEditForm.reason} onChange={updateIdentityEditField} rows="3" maxLength="2000" placeholder="Enter reason for change"></textarea>
+                            {identityEditErrorBanner && <span className="es-field-error-icon" style={{top:"16px",transform:"none"}}><i className="bi bi-exclamation-circle-fill"></i></span>}
+                        </div>
                     </div>
                 </div>
                 <div className="es-security-note mt-3">
@@ -3273,31 +3521,50 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
                 </div>
                 <button type="button" className="btn-close" aria-label="Close" onClick={() => setIsEmergencyEditOpen(false)}></button>
             </div>
+            <div className="modal-body-top-notices px-4 pt-3">
+                {emergencyEditErrorBanner && (
+                    <div className="es-mandatory-banner mb-2" role="alert">
+                        <div className="es-mandatory-banner-icon"><i className="bi bi-exclamation-triangle-fill"></i></div>
+                        <div><strong>Mandatory Fields Missing</strong><div>{emergencyEditErrorBanner}</div></div>
+                        <button type="button" className="es-mandatory-banner-close" onClick={() => setEmergencyEditErrorBanner("")}><i className="bi bi-x-lg"></i></button>
+                    </div>
+                )}
+                <div className="es-mandatory-notice mb-0">
+                    <i className="bi bi-info-circle"></i>
+                    <span>Fields marked with <span className="es-mandatory-star">*</span> are mandatory and must be completed.</span>
+                </div>
+            </div>
             <div className="modal-body">
                 <div className="row g-3">
                     <div className="col-12 es-edit-section-heading">
                         <h6>Primary Emergency Contact (Mandatory)</h6>
                     </div>
                     <div className="col-12 col-md-6 es-edit-field">
-                        <label htmlFor="emergencyEditName">Contact Name</label>
-                        <input id="emergencyEditName" className="form-control" name="contactName" value={emergencyEditForm.contactName} onChange={updateEmergencyEditField} maxLength="150" placeholder="Enter contact name" required />
+                        <label htmlFor="emergencyEditName">Contact Name <span className="es-mandatory-star">*</span></label>
+                        <div className="es-modal-input-wrap">
+<input id="emergencyEditName" className={`form-control ${emergencyEditErrors.contactName ? "is-invalid border-danger" : ""}`} name="contactName" value={emergencyEditForm.contactName} onChange={updateEmergencyEditField} maxLength="150" placeholder="Enter contact name" required />
+                            {emergencyEditErrors.contactName && <span className="es-field-error-icon"><i className="bi bi-exclamation-circle-fill"></i></span>}
+                        </div>
                     </div>
                     <div className="col-12 col-md-6 es-edit-field">
-                        <label htmlFor="emergencyEditRelationship">Relationship <span className="text-danger">*</span></label>
-                        <select id="emergencyEditRelationship" className="form-select" name="relationship" value={emergencyEditForm.relationship} onChange={updateEmergencyEditField} required>
-                            <option value="">Select relationship</option>
-                            <option value="Father">Father</option>
-                            <option value="Mother">Mother</option>
-                            <option value="Spouse">Spouse</option>
-                            <option value="Brother">Brother</option>
-                            <option value="Sister">Sister</option>
-                            <option value="Friend">Friend</option>
-                            <option value="Other">Other</option>
-                        </select>
+                        <label htmlFor="emergencyEditRelationship">Relationship <span className="es-mandatory-star">*</span></label>
+                        <div className="es-modal-input-wrap">
+                            <select id="emergencyEditRelationship" className={`form-select ${emergencyEditErrors.relationship ? "is-invalid border-danger" : ""}`} name="relationship" value={emergencyEditForm.relationship} onChange={updateEmergencyEditField}>
+                                <option value="">Select relationship</option>
+                                <option value="Father">Father</option>
+                                <option value="Mother">Mother</option>
+                                <option value="Spouse">Spouse</option>
+                                <option value="Brother">Brother</option>
+                                <option value="Sister">Sister</option>
+                                <option value="Friend">Friend</option>
+                                <option value="Other">Other</option>
+                            </select>
+                            {emergencyEditErrors.relationship && <span className="es-field-error-icon"><i className="bi bi-exclamation-circle-fill"></i></span>}
+                        </div>
                     </div>
                     {emergencyEditForm.relationship === "Other" && (
                         <div className="col-12 col-md-6 es-edit-field">
-                            <label htmlFor="emergencyEditOtherRelationship">Specify Relationship <span className="text-danger">*</span></label>
+                            <label htmlFor="emergencyEditOtherRelationship">Specify Relationship <span className="es-mandatory-star">*</span></label>
                             <input
                                 id="emergencyEditOtherRelationship"
                                 className="form-control"
@@ -3311,8 +3578,11 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
                         </div>
                     )}
                     <div className="col-12 col-md-6 es-edit-field">
-                        <label htmlFor="emergencyEditPhone">Phone Number</label>
-                        <input id="emergencyEditPhone" type="tel" className="form-control" name="phoneNumber" value={emergencyEditForm.phoneNumber} onChange={updateEmergencyEditField} maxLength="25" placeholder="Enter phone number" required />
+                        <label htmlFor="emergencyEditPhone">Phone Number <span className="es-mandatory-star">*</span></label>
+                        <div className="es-modal-input-wrap">
+                            <input id="emergencyEditPhone" type="tel" className={`form-control ${emergencyEditErrors.phoneNumber ? "is-invalid border-danger" : ""}`} name="phoneNumber" value={emergencyEditForm.phoneNumber} onChange={updateEmergencyEditField} maxLength="25" placeholder="Enter phone number" />
+                            {emergencyEditErrors.phoneNumber && <span className="es-field-error-icon"><i className="bi bi-exclamation-circle-fill"></i></span>}
+                        </div>
                     </div>
                     <div className="col-12 col-md-6 es-edit-field">
                         <label htmlFor="emergencyEditAddress">Address</label>
@@ -3340,7 +3610,7 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
                     </div>
                     {emergencyEditForm.secondRelationship === "Other" && (
                         <div className="col-12 col-md-6 es-edit-field">
-                            <label htmlFor="emergencyEditSecondOtherRelationship">Specify Relationship <span className="text-danger">*</span></label>
+                            <label htmlFor="emergencyEditSecondOtherRelationship">Specify Relationship <span className="es-mandatory-star">*</span></label>
                             <input
                                 id="emergencyEditSecondOtherRelationship"
                                 className="form-control"
