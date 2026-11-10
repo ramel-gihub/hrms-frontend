@@ -234,6 +234,8 @@ export default function EmployeeRequests({ employeeProfile, currentUser }) {
   const [requestError, setRequestError] = useState("");
   const [formError, setFormError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [scheduleConflict, setScheduleConflict] = useState(null); // { message, type, status, dateRange }
+  const [hasActiveConflict, setHasActiveConflict] = useState(false);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [categoryFilter, setCategoryFilter] = useState("all");
@@ -255,6 +257,56 @@ export default function EmployeeRequests({ employeeProfile, currentUser }) {
   const [deleteConfirmTarget, setDeleteConfirmTarget] = useState(null);
   const [deletingRequest, setDeletingRequest] = useState(false);
   const [updatingPriorityId, setUpdatingPriorityId] = useState(null);
+
+  // Auto-check existing Leave or WFH overlap on date selection with 10s auto-dismiss
+  useEffect(() => {
+    const effectiveUserId = currentUser?.id || profile?.user_id || profile?.id;
+    if (!effectiveUserId || !form?.startDate) {
+      setScheduleConflict(null);
+      setHasActiveConflict(false);
+      return;
+    }
+    // Only check when category is Leave Request or Work From Home (WFH)
+    if (form.category !== "Work From Home (WFH)" && form.category !== "Leave Request") {
+      setScheduleConflict(null);
+      setHasActiveConflict(false);
+      return;
+    }
+    const finalEnd = form.isHalfDay ? form.startDate : (form.endDate || form.startDate);
+    const excludeReqId = editingRequest?.source_type === "leave" ? null : (editingRequest?.id || null);
+    const excludeLeaveId = editingRequest?.source_type === "leave" ? editingRequest?.source_id : null;
+
+    let isMounted = true;
+    let timer = null;
+
+    fetch(`${API_BASE}/api/employee/check-conflict?userId=${effectiveUserId}&startDate=${form.startDate}&endDate=${finalEnd}${excludeReqId ? `&excludeRequestId=${excludeReqId}` : ""}${excludeLeaveId ? `&excludeLeaveId=${excludeLeaveId}` : ""}`)
+      .then(res => res.json())
+      .then(data => {
+        if (!isMounted) return;
+        if (data && data.conflict) {
+          setScheduleConflict(data);
+          setHasActiveConflict(true);
+          // Auto-close alert banner after 10 seconds
+          timer = setTimeout(() => {
+            if (isMounted) setScheduleConflict(null);
+          }, 10000);
+        } else {
+          setScheduleConflict(null);
+          setHasActiveConflict(false);
+        }
+      })
+      .catch(() => {
+        if (isMounted) {
+          setScheduleConflict(null);
+          setHasActiveConflict(false);
+        }
+      });
+
+    return () => {
+      isMounted = false;
+      if (timer) clearTimeout(timer);
+    };
+  }, [currentUser?.id, profile?.user_id, profile?.id, form?.category, form?.startDate, form?.endDate, form?.isHalfDay, editingRequest]);
   const pageSize = 5;
 
   useEffect(() => {
@@ -686,6 +738,7 @@ export default function EmployeeRequests({ employeeProfile, currentUser }) {
 
   const handleCreate = async (event) => {
     event.preventDefault();
+    if (scheduleConflict || hasActiveConflict) return;
     const errors = validateRequestForm();
     if (Object.keys(errors).length > 0) {
       setFieldErrors(errors);
@@ -1265,8 +1318,9 @@ export default function EmployeeRequests({ employeeProfile, currentUser }) {
         tabIndex="-1"
         aria-labelledby="raise-request-title"
         aria-hidden="true"
+        data-bs-backdrop="static"
       >
-        <div className="modal-dialog modal-dialog-centered modal-dialog-scrollable request-modal-dialog">
+        <div className="modal-dialog modal-dialog-centered modal-dialog-scrollable request-modal-dialog employee-requests-page">
           <section className="modal-content request-modal">
             <header className="request-modal-header">
               <div>
@@ -1284,13 +1338,53 @@ export default function EmployeeRequests({ employeeProfile, currentUser }) {
             </header>
             <form className="request-modal-form" noValidate onSubmit={handleCreate}>
               <div className="request-modal-body">
+                {scheduleConflict && (
+                  <div className="alert alert-warning border-warning d-flex align-items-start justify-content-between p-3 rounded-3 shadow-sm mb-3" role="alert">
+                    <div className="d-flex align-items-start gap-2">
+                      <i className="bi bi-exclamation-triangle-fill text-warning fs-5 mt-0.5"></i>
+                      <div>
+                        <strong className="d-block text-dark mb-1">Existing Schedule Conflict Detected</strong>
+                        <span style={{ fontSize: '13.5px', color: '#854d0e', lineHeight: 1.5 }}>
+                          {scheduleConflict.message}
+                        </span>
+                        <div className="mt-1 small text-muted">
+                          Status: <strong className="text-dark">{scheduleConflict.status}</strong> · This alert will auto-dismiss in 10 seconds.
+                        </div>
+                      </div>
+                    </div>
+                    <button type="button" className="btn-close" onClick={() => setScheduleConflict(null)} aria-label="Close"></button>
+                  </div>
+                )}
+                {formError && (
+                  <div className="es-mandatory-banner" role="alert">
+                    <div className="es-mandatory-banner-icon">
+                      <i className="bi bi-exclamation-triangle-fill" aria-hidden="true"></i>
+                    </div>
+                    <div>
+                      <strong>Mandatory Fields Missing</strong>
+                      <div>{formError}</div>
+                    </div>
+                    <button
+                      type="button"
+                      className="es-mandatory-banner-close"
+                      onClick={() => setFormError("")}
+                      aria-label="Close"
+                    >
+                      <i className="bi bi-x-lg" aria-hidden="true"></i>
+                    </button>
+                  </div>
+                )}
+                <div className="es-mandatory-notice">
+                  <i className="bi bi-info-circle" aria-hidden="true"></i>
+                  <span>Fields marked with <span className="es-mandatory-star">*</span> are mandatory and must be completed.</span>
+                </div>
                 <div className="request-form-grid">
-                  <div className="request-form-group full">
-                    <label htmlFor="request-category">Request Category <span className="text-danger">*</span></label>
+                  <div className={fieldErrors.category ? "request-form-group full has-error" : "request-form-group full"}>
+                    <label htmlFor="request-category">Request Category <span className="es-mandatory-star">*</span></label>
                     <select
                       id="request-category"
                       value={form.category}
-                      style={{ borderColor: fieldErrors.category ? '#dc2626' : undefined }}
+                      className={fieldErrors.category ? "request-field-error" : ""}
                       onChange={(event) => {
                         const newCat = event.target.value;
                         setForm((prev) => ({
@@ -1311,39 +1405,39 @@ export default function EmployeeRequests({ employeeProfile, currentUser }) {
                       ))}
                     </select>
                     {fieldErrors.category && (
-                      <span className="text-danger small mt-1 d-block" style={{ fontSize: '12px', color: '#dc2626' }}>
+                      <span className="request-field-error-text">
                         {fieldErrors.category}
                       </span>
                     )}
                   </div>
-                  <div className="request-form-group full">
-                    <label htmlFor="request-subject">Request Subject <span className="text-danger">*</span></label>
+                  <div className={fieldErrors.subject ? "request-form-group full has-error" : "request-form-group full"}>
+                    <label htmlFor="request-subject">Request Subject <span className="es-mandatory-star">*</span></label>
                     <input
                       id="request-subject"
                       type="text"
                       maxLength={120}
                       placeholder="Enter a short subject for your request"
                       value={form.subject}
-                      style={{ borderColor: fieldErrors.subject ? '#dc2626' : undefined }}
+                      className={fieldErrors.subject ? "request-field-error" : ""}
                       onChange={(event) => {
                         setForm({ ...form, subject: event.target.value });
                         clearFieldError("subject");
                       }}
                     />
                     {fieldErrors.subject && (
-                      <span className="text-danger small mt-1 d-block" style={{ fontSize: '12px', color: '#dc2626' }}>
+                      <span className="request-field-error-text">
                         {fieldErrors.subject}
                       </span>
                     )}
                   </div>
                   {form.category === "Asset Request" && (
                     <>
-                      <div className="request-form-group">
-                        <label htmlFor="request-asset-type">Asset Type <span className="text-danger">*</span></label>
+                      <div className={fieldErrors.assetType ? "request-form-group has-error" : "request-form-group"}>
+                        <label htmlFor="request-asset-type">Asset Type <span className="es-mandatory-star">*</span></label>
                         <select
                           id="request-asset-type"
                           value={form.assetType}
-                          style={{ borderColor: fieldErrors.assetType ? '#dc2626' : undefined }}
+                          className={fieldErrors.assetType ? "request-field-error" : ""}
                           onChange={(event) => {
                             setForm({ ...form, assetType: event.target.value });
                             clearFieldError("assetType");
@@ -1361,7 +1455,7 @@ export default function EmployeeRequests({ employeeProfile, currentUser }) {
                           <option value="other">Other Equipment</option>
                         </select>
                         {fieldErrors.assetType && (
-                          <span className="text-danger small mt-1 d-block" style={{ fontSize: '12px', color: '#dc2626' }}>
+                          <span className="request-field-error-text">
                             {fieldErrors.assetType}
                           </span>
                         )}
@@ -1420,12 +1514,12 @@ export default function EmployeeRequests({ employeeProfile, currentUser }) {
                   )}
                   {form.category === "Leave Request" && (
                     <>
-                      <div className="request-form-group">
-                        <label htmlFor="request-leave-type">Leave Type <span className="text-danger">*</span></label>
+                      <div className={fieldErrors.leaveTypeId ? "request-form-group has-error" : "request-form-group"}>
+                        <label htmlFor="request-leave-type">Leave Type <span className="es-mandatory-star">*</span></label>
                         <select
                           id="request-leave-type"
                           value={form.leaveTypeId}
-                          style={{ borderColor: fieldErrors.leaveTypeId ? '#dc2626' : undefined }}
+                          className={fieldErrors.leaveTypeId ? "request-field-error" : ""}
                           onChange={(event) => {
                             setForm({ ...form, leaveTypeId: event.target.value });
                             clearFieldError("leaveTypeId");
@@ -1437,17 +1531,17 @@ export default function EmployeeRequests({ employeeProfile, currentUser }) {
                           ))}
                         </select>
                         {fieldErrors.leaveTypeId && (
-                          <span className="text-danger small mt-1 d-block" style={{ fontSize: '12px', color: '#dc2626' }}>
+                          <span className="request-field-error-text">
                             {fieldErrors.leaveTypeId}
                           </span>
                         )}
                       </div>
-                      <div className="request-form-group">
-                        <label htmlFor="request-approver">Approver <span className="text-danger">*</span></label>
+                      <div className={fieldErrors.approverId ? "request-form-group has-error" : "request-form-group"}>
+                        <label htmlFor="request-approver">Approver <span className="es-mandatory-star">*</span></label>
                         <select
                           id="request-approver"
                           value={form.approverId}
-                          style={{ borderColor: fieldErrors.approverId ? '#dc2626' : undefined }}
+                          className={fieldErrors.approverId ? "request-field-error" : ""}
                           onChange={(event) => {
                             setForm({ ...form, approverId: event.target.value });
                             clearFieldError("approverId");
@@ -1462,7 +1556,7 @@ export default function EmployeeRequests({ employeeProfile, currentUser }) {
                           ))}
                         </select>
                         {fieldErrors.approverId && (
-                          <span className="text-danger small mt-1 d-block" style={{ fontSize: '12px', color: '#dc2626' }}>
+                          <span className="request-field-error-text">
                             {fieldErrors.approverId}
                           </span>
                         )}
@@ -1512,13 +1606,14 @@ export default function EmployeeRequests({ employeeProfile, currentUser }) {
                           )}
                         </div>
                       </div>
-                      <div className="request-form-group">
-                        <label htmlFor="request-start-date">{form.isHalfDay ? "Date" : "From Date"} <span className="text-danger">*</span></label>
+                      <div className={fieldErrors.startDate ? "request-form-group has-error" : "request-form-group"}>
+                        <label htmlFor="request-start-date">{form.isHalfDay ? "Date" : "From Date"} <span className="es-mandatory-star">*</span></label>
                         <input
                           id="request-start-date"
                           type="date"
                           value={form.startDate}
-                          style={{ cursor: "pointer", borderColor: fieldErrors.startDate ? '#dc2626' : undefined }}
+                          className={fieldErrors.startDate ? "request-field-error" : ""}
+                          style={{ cursor: "pointer" }}
                           onChange={(event) => {
                             const val = event.target.value;
                             setForm(prev => ({
@@ -1536,20 +1631,21 @@ export default function EmployeeRequests({ employeeProfile, currentUser }) {
                           }}
                         />
                         {fieldErrors.startDate && (
-                          <span className="text-danger small mt-1 d-block" style={{ fontSize: '12px', color: '#dc2626' }}>
+                          <span className="request-field-error-text">
                             {fieldErrors.startDate}
                           </span>
                         )}
                       </div>
                       {!form.isHalfDay ? (
-                        <div className="request-form-group">
-                          <label htmlFor="request-end-date">To Date <span className="text-danger">*</span></label>
+                        <div className={fieldErrors.endDate ? "request-form-group has-error" : "request-form-group"}>
+                          <label htmlFor="request-end-date">To Date <span className="es-mandatory-star">*</span></label>
                           <input
                             id="request-end-date"
                             type="date"
                             min={form.startDate || undefined}
                             value={form.endDate}
-                            style={{ cursor: "pointer", borderColor: fieldErrors.endDate ? '#dc2626' : undefined }}
+                            className={fieldErrors.endDate ? "request-field-error" : ""}
+                            style={{ cursor: "pointer" }}
                             onChange={(event) => {
                               setForm({ ...form, endDate: event.target.value });
                               clearFieldError("endDate");
@@ -1562,7 +1658,7 @@ export default function EmployeeRequests({ employeeProfile, currentUser }) {
                             }}
                           />
                           {fieldErrors.endDate && (
-                            <span className="text-danger small mt-1 d-block" style={{ fontSize: '12px', color: '#dc2626' }}>
+                            <span className="request-field-error-text">
                               {fieldErrors.endDate}
                             </span>
                           )}
@@ -1582,13 +1678,14 @@ export default function EmployeeRequests({ employeeProfile, currentUser }) {
                   )}
                   {form.category === "Work From Home (WFH)" && (
                     <>
-                      <div className="request-form-group">
-                        <label htmlFor="wfh-start-date">From Date <span className="text-danger">*</span></label>
+                      <div className={fieldErrors.startDate ? "request-form-group has-error" : "request-form-group"}>
+                        <label htmlFor="wfh-start-date">From Date <span className="es-mandatory-star">*</span></label>
                         <input
                           id="wfh-start-date"
                           type="date"
                           value={form.startDate}
-                          style={{ cursor: "pointer", borderColor: fieldErrors.startDate ? '#dc2626' : undefined }}
+                          className={fieldErrors.startDate ? "request-field-error" : ""}
+                          style={{ cursor: "pointer" }}
                           onChange={(e) => {
                             const val = e.target.value;
                             setForm(prev => ({
@@ -1606,19 +1703,20 @@ export default function EmployeeRequests({ employeeProfile, currentUser }) {
                           }}
                         />
                         {fieldErrors.startDate && (
-                          <span className="text-danger small mt-1 d-block" style={{ fontSize: '12px', color: '#dc2626' }}>
+                          <span className="request-field-error-text">
                             {fieldErrors.startDate}
                           </span>
                         )}
                       </div>
-                      <div className="request-form-group">
-                        <label htmlFor="wfh-end-date">To Date <span className="text-danger">*</span></label>
+                      <div className={fieldErrors.endDate ? "request-form-group has-error" : "request-form-group"}>
+                        <label htmlFor="wfh-end-date">To Date <span className="es-mandatory-star">*</span></label>
                         <input
                           id="wfh-end-date"
                           type="date"
                           min={form.startDate || undefined}
                           value={form.endDate || form.startDate}
-                          style={{ cursor: "pointer", borderColor: fieldErrors.endDate ? '#dc2626' : undefined }}
+                          className={fieldErrors.endDate ? "request-field-error" : ""}
+                          style={{ cursor: "pointer" }}
                           onChange={(e) => {
                             setForm({ ...form, endDate: e.target.value });
                             clearFieldError("endDate");
@@ -1631,11 +1729,27 @@ export default function EmployeeRequests({ employeeProfile, currentUser }) {
                           }}
                         />
                         {fieldErrors.endDate && (
-                          <span className="text-danger small mt-1 d-block" style={{ fontSize: '12px', color: '#dc2626' }}>
+                          <span className="request-field-error-text">
                             {fieldErrors.endDate}
                           </span>
                         )}
                       </div>
+                      {scheduleConflict && (
+                        <div className="request-form-group full">
+                          <div className="alert alert-warning border-warning d-flex align-items-start justify-content-between p-2.5 rounded-3 mb-0" style={{ backgroundColor: '#fefce8' }} role="alert">
+                            <div className="d-flex align-items-start gap-2">
+                              <i className="bi bi-exclamation-triangle-fill text-warning fs-6 mt-0.5"></i>
+                              <div>
+                                <strong className="d-block text-dark small mb-0.5">Existing Schedule Conflict Detected</strong>
+                                <span style={{ fontSize: '12.5px', color: '#854d0e', lineHeight: 1.4 }}>
+                                  {scheduleConflict.message}
+                                </span>
+                              </div>
+                            </div>
+                            <button type="button" className="btn-close btn-close-sm" onClick={() => setScheduleConflict(null)} aria-label="Close"></button>
+                          </div>
+                        </div>
+                      )}
                       <div className="request-form-group">
                         <label htmlFor="wfh-days-display">Total WFH Days</label>
                         <input
@@ -1664,12 +1778,12 @@ export default function EmployeeRequests({ employeeProfile, currentUser }) {
                   )}
                   {form.category === "Expenses & Claims" && (
                     <>
-                      <div className="request-form-group">
-                        <label htmlFor="request-expense-category">Expense Category <span className="text-danger">*</span></label>
+                      <div className={fieldErrors.expenseCategory ? "request-form-group has-error" : "request-form-group"}>
+                        <label htmlFor="request-expense-category">Expense Category <span className="es-mandatory-star">*</span></label>
                         <select
                           id="request-expense-category"
                           value={form.expenseCategory || "Travel & Cab"}
-                          style={{ borderColor: fieldErrors.expenseCategory ? '#dc2626' : undefined }}
+                          className={fieldErrors.expenseCategory ? "request-field-error" : ""}
                           onChange={(event) => {
                             setForm({ ...form, expenseCategory: event.target.value });
                             clearFieldError("expenseCategory");
@@ -1682,13 +1796,13 @@ export default function EmployeeRequests({ employeeProfile, currentUser }) {
                           <option value="Certification Fees">Certification Fees</option>
                         </select>
                         {fieldErrors.expenseCategory && (
-                          <span className="text-danger small mt-1 d-block" style={{ fontSize: '12px', color: '#dc2626' }}>
+                          <span className="request-field-error-text">
                             {fieldErrors.expenseCategory}
                           </span>
                         )}
                       </div>
-                      <div className="request-form-group">
-                        <label htmlFor="request-claim-amount">Claim Amount (₹) <span className="text-danger">*</span></label>
+                      <div className={fieldErrors.claimAmount ? "request-form-group has-error" : "request-form-group"}>
+                        <label htmlFor="request-claim-amount">Claim Amount (₹) <span className="es-mandatory-star">*</span></label>
                         <input
                           id="request-claim-amount"
                           type="number"
@@ -1696,45 +1810,46 @@ export default function EmployeeRequests({ employeeProfile, currentUser }) {
                           min="0.01"
                           placeholder="e.g. 1500.00"
                           value={form.claimAmount || ""}
-                          style={{ borderColor: fieldErrors.claimAmount ? '#dc2626' : undefined }}
+                          className={fieldErrors.claimAmount ? "request-field-error" : ""}
                           onChange={(event) => {
                             setForm({ ...form, claimAmount: event.target.value });
                             clearFieldError("claimAmount");
                           }}
                         />
                         {fieldErrors.claimAmount && (
-                          <span className="text-danger small mt-1 d-block" style={{ fontSize: '12px', color: '#dc2626' }}>
+                          <span className="request-field-error-text">
                             {fieldErrors.claimAmount}
                           </span>
                         )}
                       </div>
-                      <div className="request-form-group">
-                        <label htmlFor="request-merchant-name">Merchant / Vendor Name <span className="text-danger">*</span></label>
+                      <div className={fieldErrors.merchantName ? "request-form-group has-error" : "request-form-group"}>
+                        <label htmlFor="request-merchant-name">Merchant / Vendor Name <span className="es-mandatory-star">*</span></label>
                         <input
                           id="request-merchant-name"
                           type="text"
                           placeholder="e.g. Uber, Airtel, Crossword"
                           value={form.merchantName || ""}
-                          style={{ borderColor: fieldErrors.merchantName ? '#dc2626' : undefined }}
+                          className={fieldErrors.merchantName ? "request-field-error" : ""}
                           onChange={(event) => {
                             setForm({ ...form, merchantName: event.target.value });
                             clearFieldError("merchantName");
                           }}
                         />
                         {fieldErrors.merchantName && (
-                          <span className="text-danger small mt-1 d-block" style={{ fontSize: '12px', color: '#dc2626' }}>
+                          <span className="request-field-error-text">
                             {fieldErrors.merchantName}
                           </span>
                         )}
                       </div>
-                      <div className="request-form-group">
-                        <label htmlFor="request-expense-date">Expense Date <span className="text-danger">*</span></label>
+                      <div className={fieldErrors.expenseDate ? "request-form-group has-error" : "request-form-group"}>
+                        <label htmlFor="request-expense-date">Expense Date <span className="es-mandatory-star">*</span></label>
                         <input
                           id="request-expense-date"
                           type="date"
                           max={new Date().toISOString().split("T")[0]}
                           value={form.expenseDate || ""}
-                          style={{ cursor: "pointer", borderColor: fieldErrors.expenseDate ? '#dc2626' : undefined }}
+                          className={fieldErrors.expenseDate ? "request-field-error" : ""}
+                          style={{ cursor: "pointer" }}
                           onChange={(event) => {
                             setForm({ ...form, expenseDate: event.target.value });
                             clearFieldError("expenseDate");
@@ -1747,7 +1862,7 @@ export default function EmployeeRequests({ employeeProfile, currentUser }) {
                           }}
                         />
                         {fieldErrors.expenseDate && (
-                          <span className="text-danger small mt-1 d-block" style={{ fontSize: '12px', color: '#dc2626' }}>
+                          <span className="request-field-error-text">
                             {fieldErrors.expenseDate}
                           </span>
                         )}
@@ -1778,22 +1893,22 @@ export default function EmployeeRequests({ employeeProfile, currentUser }) {
                       <option>Phone Call</option>
                     </select>
                   </div>
-                  <div className="request-form-group full">
-                    <label htmlFor="request-description">Request Details <span className="text-danger">*</span></label>
+                  <div className={fieldErrors.description ? "request-form-group request-details-group full has-error" : "request-form-group request-details-group full"}>
+                    <label htmlFor="request-description">Request Details <span className="es-mandatory-star">*</span></label>
                     <textarea
                       id="request-description"
                       rows="5"
                       maxLength={2000}
                       placeholder="Explain your request clearly..."
                       value={form.description}
-                      style={{ borderColor: fieldErrors.description ? '#dc2626' : undefined }}
+                      className={fieldErrors.description ? "request-field-error" : ""}
                       onChange={(event) => {
                         setForm({ ...form, description: event.target.value });
                         clearFieldError("description");
                       }}
                     ></textarea>
                     {fieldErrors.description && (
-                      <span className="text-danger small mt-1 d-block" style={{ fontSize: '12px', color: '#dc2626' }}>
+                      <span className="request-field-error-text">
                         {fieldErrors.description}
                       </span>
                     )}
@@ -1906,15 +2021,16 @@ export default function EmployeeRequests({ employeeProfile, currentUser }) {
                   </div>
                 </div>
               </div>
-              {formError && <div className="request-form-error" role="alert">{formError}</div>}
               <footer className="request-modal-footer">
                 <button className="requests-secondary-btn" type="button" onClick={closeRequestModal}>
                   Cancel
                 </button>
-                <button className="requests-primary-btn" type="submit" disabled={submitting}>
-                  <i className="bi bi-send" aria-hidden="true"></i>
-                  {submitting ? "Saving..." : editingRequest ? "Save Changes" : "Submit Request"}
-                </button>
+                {!scheduleConflict && !hasActiveConflict && (
+                  <button className="requests-primary-btn" type="submit" disabled={submitting}>
+                    <i className="bi bi-send" aria-hidden="true"></i>
+                    {submitting ? "Saving..." : editingRequest ? "Save Changes" : "Submit Request"}
+                  </button>
+                )}
               </footer>
             </form>
           </section>

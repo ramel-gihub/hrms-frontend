@@ -2893,12 +2893,12 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
 </div>
 
 
-{isPersonalEditOpen && <div className="modal-backdrop fade show" onClick={() => setIsPersonalEditOpen(false)}></div>}
-{isContactEditOpen && <div className="modal-backdrop fade show" onClick={() => setIsContactEditOpen(false)}></div>}
-{isBankEditOpen && <div className="modal-backdrop fade show" onClick={closeBankEdit}></div>}
-{isIdentityEditOpen && <div className="modal-backdrop fade show" onClick={() => setIsIdentityEditOpen(false)}></div>}
-{isEmergencyEditOpen && <div className="modal-backdrop fade show" onClick={() => setIsEmergencyEditOpen(false)}></div>}
-{accountRevealModalOpen && <div className="modal-backdrop fade show" onClick={closeAccountRevealModal}></div>}
+{isPersonalEditOpen && <div className="modal-backdrop fade show"></div>}
+{isContactEditOpen && <div className="modal-backdrop fade show"></div>}
+{isBankEditOpen && <div className="modal-backdrop fade show"></div>}
+{isIdentityEditOpen && <div className="modal-backdrop fade show"></div>}
+{isEmergencyEditOpen && <div className="modal-backdrop fade show"></div>}
+{accountRevealModalOpen && <div className="modal-backdrop fade show"></div>}
 <div
     className={`modal fade${isPersonalEditOpen ? " show d-block" : ""}`}
     id="esEditModal"
@@ -2906,9 +2906,6 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
     aria-hidden={!isPersonalEditOpen}
     aria-modal={isPersonalEditOpen || undefined}
     role={isPersonalEditOpen ? "dialog" : undefined}
-    onClick={(event) => {
-        if (event.target === event.currentTarget) setIsPersonalEditOpen(false);
-    }}
 >
     <div className="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-lg">
         <form id="esEditForm" className="modal-content es-modal-content" onSubmit={submitPersonalEditRequest}>
@@ -3049,9 +3046,6 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
     aria-hidden={!accountRevealModalOpen}
     aria-modal={accountRevealModalOpen || undefined}
     role={accountRevealModalOpen ? "dialog" : undefined}
-    onClick={(event) => {
-        if (event.target === event.currentTarget) closeAccountRevealModal();
-    }}
 >
     <div className="modal-dialog modal-dialog-centered modal-dialog-scrollable">
         <form className="modal-content es-modal-content" onSubmit={submitAccountReveal}>
@@ -3094,9 +3088,6 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
     aria-hidden={!isBankEditOpen}
     aria-modal={isBankEditOpen || undefined}
     role={isBankEditOpen ? "dialog" : undefined}
-    onClick={(event) => {
-        if (event.target === event.currentTarget) setIsBankEditOpen(false);
-    }}
 >
     <div className="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-lg">
         <form className="modal-content es-modal-content" onSubmit={submitBankEdit} noValidate>
@@ -3236,9 +3227,6 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
     aria-hidden={!isContactEditOpen}
     aria-modal={isContactEditOpen || undefined}
     role={isContactEditOpen ? "dialog" : undefined}
-    onClick={(event) => {
-        if (event.target === event.currentTarget) setIsContactEditOpen(false);
-    }}
 >
     <div className="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-lg">
         <form className="modal-content es-modal-content" onSubmit={submitContactEdit} noValidate>
@@ -3379,9 +3367,6 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
     aria-hidden={!isIdentityEditOpen}
     aria-modal={isIdentityEditOpen || undefined}
     role={isIdentityEditOpen ? "dialog" : undefined}
-    onClick={(event) => {
-        if (event.target === event.currentTarget) setIsIdentityEditOpen(false);
-    }}
 >
     <div className="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-lg">
         <form className="modal-content es-modal-content" onSubmit={submitIdentityEdit} noValidate>
@@ -3508,9 +3493,6 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
     aria-hidden={!isEmergencyEditOpen}
     aria-modal={isEmergencyEditOpen || undefined}
     role={isEmergencyEditOpen ? "dialog" : undefined}
-    onClick={(event) => {
-        if (event.target === event.currentTarget) setIsEmergencyEditOpen(false);
-    }}
 >
     <div className="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-lg">
         <form className="modal-content es-modal-content" onSubmit={handleEmergencyEditSubmit}>
@@ -3684,7 +3666,7 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
 
             {/* Set Up Security Questions Modal */}
             {isSecurityModalOpen && (
-                <div className="modal-backdrop fade show" onClick={() => setIsSecurityModalOpen(false)}></div>
+                <div className="modal-backdrop fade show"></div>
             )}
             <div
                 className={`modal fade${isSecurityModalOpen ? " show d-block" : ""}`}
@@ -3693,9 +3675,6 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
                 aria-hidden={!isSecurityModalOpen}
                 aria-modal={isSecurityModalOpen || undefined}
                 role={isSecurityModalOpen ? "dialog" : undefined}
-                onClick={(event) => {
-                    if (event.target === event.currentTarget) setIsSecurityModalOpen(false);
-                }}
             >
                 <div className="modal-dialog modal-dialog-centered modal-dialog-scrollable" style={{ maxWidth: 540 }}>
                     <form className="modal-content es-modal-content" onSubmit={submitSecurityQuestions} noValidate>
@@ -3837,7 +3816,7 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
 
             {/* Change Password Modal */}
             {isPasswordModalOpen && (
-                <div className="modal-backdrop fade show" onClick={() => setIsPasswordModalOpen(false)}></div>
+                <div className="modal-backdrop fade show"></div>
             )}
             <div
                 className={`modal fade${isPasswordModalOpen ? " show d-block" : ""}`}
@@ -3846,9 +3825,6 @@ export default function Settings({ currentUser, employeeProfile, onProfileUpdate
                 aria-hidden={!isPasswordModalOpen}
                 aria-modal={isPasswordModalOpen || undefined}
                 role={isPasswordModalOpen ? "dialog" : undefined}
-                onClick={(event) => {
-                    if (event.target === event.currentTarget) setIsPasswordModalOpen(false);
-                }}
             >
                 <div className="modal-dialog modal-dialog-centered modal-dialog-scrollable">
                     <form className="modal-content es-modal-content" onSubmit={submitPasswordChange} noValidate>

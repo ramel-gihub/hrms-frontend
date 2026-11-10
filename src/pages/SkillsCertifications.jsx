@@ -62,6 +62,8 @@ export default function SkillsCertifications({ currentUser, employeeProfile, emb
   const [certFile, setCertFile] = useState(null);
   const [certSubmitting, setCertSubmitting] = useState(false);
   const [certFeedback, setCertFeedback] = useState({ type: "", text: "" });
+  const [certFieldErrors, setCertFieldErrors] = useState({});
+  const [certErrorBanner, setCertErrorBanner] = useState("");
   const [certMode, setCertMode] = useState("add");
   const [selectedCert, setSelectedCert] = useState(null);
 
@@ -197,12 +199,7 @@ export default function SkillsCertifications({ currentUser, employeeProfile, emb
             </div>
           </div>
 
-          <div className="esc-cert-footer">
-            <span className="esc-cert-verified" style={verified ? undefined : { color: "#f59a42" }}>
-              <i className={`bi ${verified ? "bi-patch-check-fill" : "bi-clock-fill"}`}></i>
-              {verified ? "Verified" : "Pending"}
-            </span>
-
+          <div className="esc-cert-footer" style={{ justifyContent: "flex-end" }}>
             {(cert.file_path || cert.id) && (
               <button
                 type="button"
@@ -221,6 +218,8 @@ export default function SkillsCertifications({ currentUser, employeeProfile, emb
 
   const updateCertField = (event) => {
     const { name, value } = event.target;
+    setCertFieldErrors((current) => ({ ...current, [name]: false }));
+    setCertErrorBanner("");
     if (name === "issueDate" && value) {
       const today = new Date().toISOString().split("T")[0];
       if (value > today) {
@@ -248,6 +247,8 @@ export default function SkillsCertifications({ currentUser, employeeProfile, emb
     setIsCertOpen(false);
     setCertForm(EMPTY_CERT_FORM);
     setCertFile(null);
+    setCertFieldErrors({});
+    setCertErrorBanner("");
     setCertFeedback({ type: "", text: "" });
     setCertMode("add");
     setSelectedCert(null);
@@ -258,6 +259,8 @@ export default function SkillsCertifications({ currentUser, employeeProfile, emb
     setSelectedCert(null);
     setCertForm(EMPTY_CERT_FORM);
     setCertFile(null);
+    setCertFieldErrors({});
+    setCertErrorBanner("");
     setCertFeedback({ type: "", text: "" });
     setIsCertOpen(true);
   };
@@ -274,6 +277,8 @@ export default function SkillsCertifications({ currentUser, employeeProfile, emb
       expiryDate: cert.expiry_date || "",
     });
     setCertFile(null);
+    setCertFieldErrors({});
+    setCertErrorBanner("");
     setCertFeedback({ type: "", text: "" });
     setIsCertOpen(true);
   };
@@ -291,10 +296,20 @@ export default function SkillsCertifications({ currentUser, employeeProfile, emb
   };
 
   const saveCertification = async () => {
-    if (!certForm.skillCategory || !certForm.certificationName.trim()) {
-      setCertFeedback({ type: "danger", text: "Skill category and certification name are required." });
+    const missingFields = {};
+    if (!certForm.skillCategory) missingFields.skillCategory = true;
+    if (!certForm.certificationName.trim()) missingFields.certificationName = true;
+    const missingFieldCount = Object.keys(missingFields).length;
+    if (missingFieldCount > 0) {
+      setCertFieldErrors(missingFields);
+      setCertErrorBanner(
+        `Please fill in the highlighted ${missingFieldCount} mandatory field${missingFieldCount > 1 ? "s" : ""} to submit.`
+      );
+      setCertFeedback({ type: "", text: "" });
       return;
     }
+    setCertFieldErrors({});
+    setCertErrorBanner("");
 
     const today = new Date().toISOString().split("T")[0];
     if (certForm.issueDate && certForm.issueDate > today) {
@@ -358,6 +373,8 @@ export default function SkillsCertifications({ currentUser, employeeProfile, emb
   const [skillForm, setSkillForm] = useState(EMPTY_SKILL_FORM);
   const [skillSubmitting, setSkillSubmitting] = useState(false);
   const [skillFeedback, setSkillFeedback] = useState({ type: "", text: "" });
+  const [skillFieldErrors, setSkillFieldErrors] = useState({});
+  const [skillErrorBanner, setSkillErrorBanner] = useState("");
   const skillCategory = skillForm.skillCategory;
   const [skills, setSkills] = useState([]);
   const [skillsLoading, setSkillsLoading] = useState(true);
@@ -415,6 +432,8 @@ export default function SkillsCertifications({ currentUser, employeeProfile, emb
       yearsOfExperience: skill.years_of_experience ?? "",
       lastUsed: skill.last_used || "",
     });
+    setSkillFieldErrors({});
+    setSkillErrorBanner("");
     setSkillFeedback({ type: "", text: "" });
     setIsSkillOpen(true);
   };
@@ -423,6 +442,8 @@ export default function SkillsCertifications({ currentUser, employeeProfile, emb
     setSkillMode("add");
     setSelectedSkill(null);
     setSkillForm(EMPTY_SKILL_FORM);
+    setSkillFieldErrors({});
+    setSkillErrorBanner("");
     setSkillFeedback({ type: "", text: "" });
     setIsSkillOpen(true);
   };
@@ -509,10 +530,7 @@ export default function SkillsCertifications({ currentUser, employeeProfile, emb
           <span>Experience</span>
         </div>
 
-        <div className="esc-skill-verified" style={verified ? undefined : { color: "#f59a42" }}>
-          <i className={`bi ${verified ? "bi-patch-check-fill" : "bi-clock-fill"}`}></i>
-          {verified ? "Verified" : "Pending"}
-        </div>
+        {/* Status hidden per requirement */}
 
         <div className="dropdown esc-skill-actions">
           <button
@@ -549,26 +567,41 @@ export default function SkillsCertifications({ currentUser, employeeProfile, emb
 
   const updateSkillField = (event) => {
     const { name, value } = event.target;
+    setSkillFieldErrors((current) => ({
+      ...current,
+      [name]: false,
+      ...(name === "skillCategory" && value !== "Others" ? { otherSkill: false } : {}),
+    }));
+    setSkillErrorBanner("");
     setSkillForm((prev) => ({ ...prev, [name]: value }));
   };
 
   const closeSkill = () => {
     setIsSkillOpen(false);
     setSkillForm(EMPTY_SKILL_FORM);
+    setSkillFieldErrors({});
+    setSkillErrorBanner("");
     setSkillFeedback({ type: "", text: "" });
     setSkillMode("add");
     setSelectedSkill(null);
   };
 
   const saveSkill = async () => {
-    if (!skillForm.skillName.trim() || !skillForm.skillCategory) {
-      setSkillFeedback({ type: "danger", text: "Skill and skill category are required." });
+    const missingFields = {};
+    if (!skillForm.skillName.trim()) missingFields.skillName = true;
+    if (!skillForm.skillCategory) missingFields.skillCategory = true;
+    if (skillForm.skillCategory === "Others" && !skillForm.otherSkill.trim()) missingFields.otherSkill = true;
+    const missingFieldCount = Object.keys(missingFields).length;
+    if (missingFieldCount > 0) {
+      setSkillFieldErrors(missingFields);
+      setSkillErrorBanner(
+        `Please fill in the highlighted ${missingFieldCount} mandatory field${missingFieldCount > 1 ? "s" : ""} to submit.`
+      );
+      setSkillFeedback({ type: "", text: "" });
       return;
     }
-    if (skillForm.skillCategory === "Others" && !skillForm.otherSkill.trim()) {
-      setSkillFeedback({ type: "danger", text: "Enter the other skill name." });
-      return;
-    }
+    setSkillFieldErrors({});
+    setSkillErrorBanner("");
 
     try {
       setSkillSubmitting(true);
@@ -1097,16 +1130,13 @@ export default function SkillsCertifications({ currentUser, employeeProfile, emb
 
                     
 
-                    {isSkillOpen && <div className="modal-backdrop fade show" onClick={closeSkill}></div>}
+                    {isSkillOpen && <div className="modal-backdrop fade show"></div>}
 
                     <div
                         className={`modal fade${isSkillOpen ? " show d-block" : ""}`}
                         id="escSkillModal"
                         tabIndex="-1"
                         aria-hidden={!isSkillOpen}
-                        onClick={(event) => {
-                            if (event.target === event.currentTarget) closeSkill();
-                        }}
                     >
 
                         <div className="modal-dialog modal-dialog-centered modal-lg">
@@ -1133,43 +1163,88 @@ export default function SkillsCertifications({ currentUser, employeeProfile, emb
 
                                 <div className="modal-body">
 
+                                    {skillErrorBanner && (
+                                        <div className="es-mandatory-banner" role="alert">
+                                            <div className="es-mandatory-banner-icon"><i className="bi bi-exclamation-triangle-fill"></i></div>
+                                            <div><strong>Mandatory Fields Missing</strong><div>{skillErrorBanner}</div></div>
+                                            <button type="button" className="es-mandatory-banner-close" onClick={() => setSkillErrorBanner("")} aria-label="Close">
+                                                <i className="bi bi-x-lg"></i>
+                                            </button>
+                                        </div>
+                                    )}
+                                    <div className="es-mandatory-notice">
+                                        <i className="bi bi-info-circle"></i>
+                                        <span>Fields marked with <span className="es-mandatory-star">*</span> are mandatory and must be completed.</span>
+                                    </div>
+
                                     <div className="row g-3">
 
                                         <div className="col-md-6">
-                                            <label className="form-label">Skill</label>
-                                            <input
-                                                type="text"
-                                                className="form-control"
-                                                id="escSkillInput"
-                                                name="skillName"
-                                                value={skillForm.skillName}
-                                                onChange={updateSkillField}
-                                                placeholder="e.g. Java"
-                                             />
+                                            <label className="form-label" htmlFor="escSkillInput">
+                                                Skill <span className="es-mandatory-star">*</span>
+                                            </label>
+                                            <div className="es-modal-input-wrap">
+                                                <input
+                                                    type="text"
+                                                    className={`form-control ${skillFieldErrors.skillName ? "is-invalid border-danger" : ""}`}
+                                                    id="escSkillInput"
+                                                    name="skillName"
+                                                    value={skillForm.skillName}
+                                                    onChange={updateSkillField}
+                                                    placeholder="e.g. Java"
+                                                    aria-invalid={skillFieldErrors.skillName || undefined}
+                                                />
+                                                {skillFieldErrors.skillName && <span className="es-field-error-icon"><i className="bi bi-exclamation-circle-fill"></i></span>}
+                                            </div>
                                         </div>
 
                                         <div className="col-md-6">
-                                            <label className="form-label">Skill Category</label>
-                                            <select className="form-select" id="escSkillCategoryInput" name="skillCategory" value={skillCategory} onChange={updateSkillField}>
-                                                <option value="">Select category</option>
-                                                <option>Programming</option>
-                                                <option>Framework</option>
-                                                <option>Database</option>
-                                                <option>Cloud</option>
-                                                <option>DevOps</option>
-                                                <option>Testing</option>
-                                                <option>UI/UX</option>
-                                                <option>Project Management</option>
-                                                <option>Soft Skills</option>
-                                                <option>Domain Knowledge</option>
-                                                <option>Others</option>
-                                            </select>
+                                            <label className="form-label" htmlFor="escSkillCategoryInput">
+                                                Skill Category <span className="es-mandatory-star">*</span>
+                                            </label>
+                                            <div className="es-modal-input-wrap">
+                                                <select
+                                                    className={`form-select ${skillFieldErrors.skillCategory ? "is-invalid border-danger" : ""}`}
+                                                    id="escSkillCategoryInput"
+                                                    name="skillCategory"
+                                                    value={skillCategory}
+                                                    onChange={updateSkillField}
+                                                    aria-invalid={skillFieldErrors.skillCategory || undefined}
+                                                >
+                                                    <option value="">Select category</option>
+                                                    <option>Programming</option>
+                                                    <option>Framework</option>
+                                                    <option>Database</option>
+                                                    <option>Cloud</option>
+                                                    <option>DevOps</option>
+                                                    <option>Testing</option>
+                                                    <option>UI/UX</option>
+                                                    <option>Project Management</option>
+                                                    <option>Soft Skills</option>
+                                                    <option>Domain Knowledge</option>
+                                                    <option>Others</option>
+                                                </select>
+                                                {skillFieldErrors.skillCategory && <span className="es-field-error-icon"><i className="bi bi-exclamation-circle-fill"></i></span>}
+                                            </div>
                                         </div>
 
                                         <div className="col-md-6">
-                                            <label className="form-label">Other Skill</label>
-
-                                            <input className="form-control" placeholder="...." name="otherSkill" value={skillForm.otherSkill} onChange={updateSkillField} disabled={skillCategory !== "Others"} />
+                                            <label className="form-label" htmlFor="escOtherSkillInput">
+                                                Other Skill {skillCategory === "Others" && <span className="es-mandatory-star">*</span>}
+                                            </label>
+                                            <div className="es-modal-input-wrap">
+                                                <input
+                                                    className={`form-control ${skillFieldErrors.otherSkill ? "is-invalid border-danger" : ""}`}
+                                                    id="escOtherSkillInput"
+                                                    placeholder="...."
+                                                    name="otherSkill"
+                                                    value={skillForm.otherSkill}
+                                                    onChange={updateSkillField}
+                                                    disabled={skillCategory !== "Others"}
+                                                    aria-invalid={skillFieldErrors.otherSkill || undefined}
+                                                />
+                                                {skillFieldErrors.otherSkill && <span className="es-field-error-icon"><i className="bi bi-exclamation-circle-fill"></i></span>}
+                                            </div>
                                         </div>
 
                                         <div className="col-md-6">
@@ -1328,13 +1403,7 @@ export default function SkillsCertifications({ currentUser, employeeProfile, emb
                                     <span>Experience</span>
                                     <strong>{selectedSkill.years_of_experience == null ? "—" : `${selectedSkill.years_of_experience} ${Number(selectedSkill.years_of_experience) === 1 ? "year" : "years"}`}</strong>
                                   </div>
-                                  <div className="esc-skill-detail-item">
-                                    <span>Verification</span>
-                                    <strong className={selectedSkill.verification_status === "Verified" ? "esc-skill-detail-verified" : ""}>
-                                      {selectedSkill.verification_status === "Verified" && <i className="bi bi-patch-check-fill"></i>}
-                                      {selectedSkill.verification_status || "Pending"}
-                                    </strong>
-                                  </div>
+
                                   <div className="esc-skill-detail-item">
                                     <span>Proficiency Level</span>
                                     <div className="esc-skill-proficiency-track">
@@ -1395,16 +1464,13 @@ export default function SkillsCertifications({ currentUser, employeeProfile, emb
                       </div>
                     </div>
 
-                    {isCertOpen && <div className="modal-backdrop fade show" onClick={closeCert}></div>}
+                    {isCertOpen && <div className="modal-backdrop fade show"></div>}
 
                     <div
                         className={`modal fade${isCertOpen ? " show d-block" : ""}`}
                         id="escCertificationModal"
                         tabIndex="-1"
                         aria-hidden={!isCertOpen}
-                        onClick={(event) => {
-                            if (event.target === event.currentTarget) closeCert();
-                        }}
                     >
 
                         <div className="modal-dialog modal-dialog-centered modal-lg">
@@ -1431,41 +1497,71 @@ export default function SkillsCertifications({ currentUser, employeeProfile, emb
 
                                 <div className="modal-body">
 
-                                    <div className="row g-3">
+                                            {certErrorBanner && (
+                                                <div className="es-mandatory-banner" role="alert">
+                                                    <div className="es-mandatory-banner-icon"><i className="bi bi-exclamation-triangle-fill"></i></div>
+                                                    <div><strong>Mandatory Fields Missing</strong><div>{certErrorBanner}</div></div>
+                                                    <button type="button" className="es-mandatory-banner-close" onClick={() => setCertErrorBanner("")} aria-label="Close">
+                                                        <i className="bi bi-x-lg"></i>
+                                                    </button>
+                                                </div>
+                                            )}
+                                            <div className="es-mandatory-notice">
+                                                <i className="bi bi-info-circle"></i>
+                                                <span>Fields marked with <span className="es-mandatory-star">*</span> are mandatory and must be completed.</span>
+                                            </div>
 
-                                        <div className="col-md-6">
-                                            <label className="form-label">Skill Category</label>
-                                            <select className="form-select" id="escSkillCategoryInput" name="skillCategory" value={certForm.skillCategory} onChange={updateCertField}>
-                                                <option value="">Select category</option>
-                                                <option>Programming</option>
-                                                <option>Framework</option>
-                                                <option>Database</option>
-                                                <option>Cloud</option>
-                                                <option>DevOps</option>
-                                                <option>Testing</option>
-                                                <option>UI/UX</option>
-                                                <option>Project Management</option>
-                                                <option>Soft Skills</option>
-                                                <option>Domain Knowledge</option>
-                                                <option>Others</option>
-                                            </select>
-                                        </div>
+                                            <div className="row g-3">
 
-                                        <div className="col-md-6">
-                                            <label className="form-label">
-                                                Certification Name
-                                            </label>
+                                                <div className="col-md-6">
+                                                    <label className="form-label" htmlFor="escCertSkillCategoryInput">
+                                                        Skill Category <span className="es-mandatory-star">*</span>
+                                                    </label>
+                                                    <div className="es-modal-input-wrap">
+                                                        <select
+                                                            className={`form-select ${certFieldErrors.skillCategory ? "is-invalid border-danger" : ""}`}
+                                                            id="escCertSkillCategoryInput"
+                                                            name="skillCategory"
+                                                            value={certForm.skillCategory}
+                                                            onChange={updateCertField}
+                                                            aria-invalid={certFieldErrors.skillCategory || undefined}
+                                                        >
+                                                            <option value="">Select category</option>
+                                                            <option>Programming</option>
+                                                            <option>Framework</option>
+                                                            <option>Database</option>
+                                                            <option>Cloud</option>
+                                                            <option>DevOps</option>
+                                                            <option>Testing</option>
+                                                            <option>UI/UX</option>
+                                                            <option>Project Management</option>
+                                                            <option>Soft Skills</option>
+                                                            <option>Domain Knowledge</option>
+                                                            <option>Others</option>
+                                                        </select>
+                                                        {certFieldErrors.skillCategory && <span className="es-field-error-icon"><i className="bi bi-exclamation-circle-fill"></i></span>}
+                                                    </div>
+                                                </div>
 
-                                            <input
-                                                type="text"
-                                                className="form-control"
-                                                id="escCertificationName"
-                                                name="certificationName"
-                                                value={certForm.certificationName}
-                                                onChange={updateCertField}
-                                                placeholder="e.g. AWS Certified Developer"
-                                             />
-                                        </div>
+                                                <div className="col-md-6">
+                                                    <label className="form-label" htmlFor="escCertificationName">
+                                                        Certification Name <span className="es-mandatory-star">*</span>
+                                                    </label>
+
+                                                    <div className="es-modal-input-wrap">
+                                                        <input
+                                                            type="text"
+                                                            className={`form-control ${certFieldErrors.certificationName ? "is-invalid border-danger" : ""}`}
+                                                            id="escCertificationName"
+                                                            name="certificationName"
+                                                            value={certForm.certificationName}
+                                                            onChange={updateCertField}
+                                                            placeholder="e.g. AWS Certified Developer"
+                                                            aria-invalid={certFieldErrors.certificationName || undefined}
+                                                        />
+                                                        {certFieldErrors.certificationName && <span className="es-field-error-icon"><i className="bi bi-exclamation-circle-fill"></i></span>}
+                                                    </div>
+                                                </div>
 
                                         <div className="col-md-6">
                                             <label className="form-label">
@@ -1709,7 +1805,7 @@ export default function SkillsCertifications({ currentUser, employeeProfile, emb
                                                           <div className="esc-skill-detail-item"><span>Certificate Number</span><strong>{selectedCert.certificate_number || "—"}</strong></div>
                                                           <div className="esc-skill-detail-item"><span>Issue Date</span><strong>{formatCertDate(selectedCert.issue_date)}</strong></div>
                                                           <div className="esc-skill-detail-item"><span>Expiry Date</span><strong>{formatCertDate(selectedCert.expiry_date)}</strong></div>
-                                                          <div className="esc-skill-detail-item"><span>Verification</span><strong className={selectedCert.verification_status === "Verified" ? "esc-skill-detail-verified" : ""}>{selectedCert.verification_status || "Pending"}</strong></div>
+
                                                         </div>
                                                       </div>
                                                       <div className="modal-footer esc-modal-footer">
@@ -1778,6 +1874,3 @@ export default function SkillsCertifications({ currentUser, employeeProfile, emb
     </>
   );
 }
-
-
-

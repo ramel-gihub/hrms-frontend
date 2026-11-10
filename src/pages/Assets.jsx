@@ -51,9 +51,18 @@ export default function Assets({ currentUser, employeeProfile, embedded = false 
   const [deleting, setDeleting] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [notice, setNotice] = useState(null);
+  const [assetFieldErrors, setAssetFieldErrors] = useState({});
+  const [assetFormError, setAssetFormError] = useState("");
   const emptyForm = { assetType: "", priority: "", preferredModel: "", dateNeeded: "", justification: "", workLocation: "", additionalRequirements: "" };
   const [form, setForm] = useState(emptyForm);
-  const setField = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
+  const setField = (k) => (e) => {
+    setForm((f) => ({ ...f, [k]: e.target.value }));
+    const nextErrors = { ...assetFieldErrors };
+    delete nextErrors[k];
+    setAssetFieldErrors(nextErrors);
+    const count = Object.keys(nextErrors).length;
+    setAssetFormError(count ? `Please fill in the highlighted ${count} mandatory field${count === 1 ? "" : "s"} to submit.` : "");
+  };
 
   useEffect(() => {
     const close = () => setOpenMenuId(null);
@@ -104,6 +113,18 @@ export default function Assets({ currentUser, employeeProfile, embedded = false 
 
   const submitRequest = async (e) => {
     e.preventDefault();
+    const errors = {};
+    if (!form.assetType) errors.assetType = "Please select an asset type.";
+    if (!form.priority) errors.priority = "Please select a priority.";
+    if (!form.justification.trim()) errors.justification = "Please provide a business justification.";
+    setAssetFieldErrors(errors);
+    if (Object.keys(errors).length > 0) {
+      const count = Object.keys(errors).length;
+      setAssetFormError(`Please fill in the highlighted ${count} mandatory field${count === 1 ? "" : "s"} to submit.`);
+      return;
+    }
+
+    setAssetFormError("");
     setSubmitting(true);
     try {
       const res = await fetch(`${API_BASE}/api/assets/request`, {
@@ -116,9 +137,11 @@ export default function Assets({ currentUser, employeeProfile, embedded = false 
       const modalEl = document.getElementById("eaAssignAssetModal");
     window.bootstrap?.Modal.getOrCreateInstance(modalEl)?.hide();
       setForm(emptyForm);
+      setAssetFieldErrors({});
       setNotice({ type: "success", text: `Request ${result.request.request_code} submitted. It is now pending admin review.` });
       loadRequests();
     } catch (err) {
+      setAssetFormError(err.message || "Unable to submit asset request.");
       setNotice({ type: "danger", text: err.message });
     } finally {
       setSubmitting(false);
@@ -227,7 +250,10 @@ export default function Assets({ currentUser, employeeProfile, embedded = false 
                             </button>} */}
 
                             <button className="btn ea-btn-primary" type="button" data-bs-toggle="modal"
-                                data-bs-target="#eaAssignAssetModal">
+                                data-bs-target="#eaAssignAssetModal" onClick={() => {
+                                  setAssetFieldErrors({});
+                                  setAssetFormError("");
+                                }}>
                                 <i className="bi bi-plus-lg"></i>
                                 New Asset Request
                             </button>
@@ -631,7 +657,26 @@ export default function Assets({ currentUser, employeeProfile, embedded = false 
 
                                 <div className="modal-body">
 
-                                    <form id="eaNewAssetRequestForm" onSubmit={submitRequest}>
+                                    <form id="eaNewAssetRequestForm" noValidate onSubmit={submitRequest}>
+
+                                        {assetFormError && (
+                                            <div className="es-mandatory-banner" role="alert">
+                                                <div className="es-mandatory-banner-icon">
+                                                    <i className="bi bi-exclamation-triangle-fill" aria-hidden="true"></i>
+                                                </div>
+                                                <div>
+                                                    <strong>{Object.keys(assetFieldErrors).some((field) => assetFieldErrors[field]) ? "Mandatory Fields Missing" : "Unable to Submit Request"}</strong>
+                                                    <div>{assetFormError}</div>
+                                                </div>
+                                                <button type="button" className="es-mandatory-banner-close" onClick={() => setAssetFormError("")} aria-label="Close">
+                                                    <i className="bi bi-x-lg" aria-hidden="true"></i>
+                                                </button>
+                                            </div>
+                                        )}
+                                        <div className="es-mandatory-notice">
+                                            <i className="bi bi-info-circle" aria-hidden="true"></i>
+                                            <span>Fields marked with <span className="es-mandatory-star">*</span> are mandatory and must be completed.</span>
+                                        </div>
 
                                         <div className="ea-form-section">
                                             <h5>Requested Asset</h5>
@@ -639,30 +684,38 @@ export default function Assets({ currentUser, employeeProfile, embedded = false 
                                             <div className="row g-3">
 
                                                 <div className="col-md-6">
-                                                    <label className="form-label">Asset Type</label>
-                                                    <select className="form-select" required value={form.assetType} onChange={setField("assetType")}>
-                                                        <option value="" disabled>Select asset type</option>
-                                                        <option value="laptop">Laptop</option>
-                                                        <option value="monitor">Monitor</option>
-                                                        <option value="mobile">Mobile</option>
-                                                        <option value="keyboard">Keyboard</option>
-                                                        <option value="mouse">Mouse</option>
-                                                        <option value="headset">Headset</option>
-                                                        <option value="access-card">Access Card</option>
-                                                        <option value="security-token">Security Token</option>
-                                                        <option value="other">Other Equipment</option>
-                                                    </select>
+                                                    <label className="form-label" htmlFor="eaAssetType">Asset Type <span className="es-mandatory-star">*</span></label>
+                                                    <div className="es-modal-input-wrap">
+                                                        <select id="eaAssetType" className={`form-select ${assetFieldErrors.assetType ? "is-invalid border-danger" : ""}`} aria-invalid={assetFieldErrors.assetType || undefined} value={form.assetType} onChange={setField("assetType")}>
+                                                            <option value="">Select asset type</option>
+                                                            <option value="laptop">Laptop</option>
+                                                            <option value="monitor">Monitor</option>
+                                                            <option value="mobile">Mobile</option>
+                                                            <option value="keyboard">Keyboard</option>
+                                                            <option value="mouse">Mouse</option>
+                                                            <option value="headset">Headset</option>
+                                                            <option value="access-card">Access Card</option>
+                                                            <option value="security-token">Security Token</option>
+                                                            <option value="other">Other Equipment</option>
+                                                        </select>
+                                                        {assetFieldErrors.assetType && <span className="es-field-error-icon"><i className="bi bi-exclamation-circle-fill"></i></span>}
+                                                    </div>
+                                                    {assetFieldErrors.assetType && <span className="ea-field-error-text">{assetFieldErrors.assetType}</span>}
                                                 </div>
 
                                                 <div className="col-md-6">
-                                                    <label className="form-label">Priority</label>
-                                                    <select className="form-select" required value={form.priority} onChange={setField("priority")}>
-                                                        <option value="" disabled>Select priority</option>
-                                                        <option>Low</option>
-                                                        <option>Normal</option>
-                                                        <option>High</option>
-                                                        <option>Urgent</option>
-                                                    </select>
+                                                    <label className="form-label" htmlFor="eaAssetPriority">Priority <span className="es-mandatory-star">*</span></label>
+                                                    <div className="es-modal-input-wrap">
+                                                        <select id="eaAssetPriority" className={`form-select ${assetFieldErrors.priority ? "is-invalid border-danger" : ""}`} aria-invalid={assetFieldErrors.priority || undefined} value={form.priority} onChange={setField("priority")}>
+                                                            <option value="">Select priority</option>
+                                                            <option>Low</option>
+                                                            <option>Normal</option>
+                                                            <option>High</option>
+                                                            <option>Urgent</option>
+                                                        </select>
+                                                        {assetFieldErrors.priority && <span className="es-field-error-icon"><i className="bi bi-exclamation-circle-fill"></i></span>}
+                                                    </div>
+                                                    {assetFieldErrors.priority && <span className="ea-field-error-text">{assetFieldErrors.priority}</span>}
                                                 </div>
 
                                                 <div className="col-md-6">
@@ -689,10 +742,14 @@ export default function Assets({ currentUser, employeeProfile, embedded = false 
                                                 </div>
 
                                                 <div className="col-12">
-                                                    <label className="form-label">Business Justification</label>
-                                                    <textarea className="form-control" rows="3" required
-                                                        placeholder="Explain how this asset will support your work..."
-                                                        value={form.justification} onChange={setField("justification")}></textarea>
+                                                    <label className="form-label" htmlFor="eaAssetJustification">Business Justification <span className="es-mandatory-star">*</span></label>
+                                                    <div className="es-modal-input-wrap">
+                                                        <textarea id="eaAssetJustification" className={`form-control ${assetFieldErrors.justification ? "is-invalid border-danger" : ""}`} rows="3" aria-invalid={assetFieldErrors.justification || undefined}
+                                                            placeholder="Explain how this asset will support your work..."
+                                                            value={form.justification} onChange={setField("justification")}></textarea>
+                                                        {assetFieldErrors.justification && <span className="es-field-error-icon"><i className="bi bi-exclamation-circle-fill"></i></span>}
+                                                    </div>
+                                                    {assetFieldErrors.justification && <span className="ea-field-error-text">{assetFieldErrors.justification}</span>}
                                                 </div>
 
                                             </div>

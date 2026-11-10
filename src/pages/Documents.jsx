@@ -174,6 +174,8 @@ export default function Documents({ currentUser, employeeProfile, embedded = fal
   const [form, setForm] = useState(EMPTY_FORM);
   const [submitting, setSubmitting] = useState(false);
   const [feedback, setFeedback] = useState({ type: "", text: "" });
+  const [documentFieldErrors, setDocumentFieldErrors] = useState({});
+  const [documentErrorBanner, setDocumentErrorBanner] = useState("");
   const fileInputRef = useRef(null);
   const [documents, setDocuments] = useState([]);
   const [listLoading, setListLoading] = useState(true);
@@ -199,6 +201,8 @@ export default function Documents({ currentUser, employeeProfile, embedded = fal
       expiryDate: doc.expiry_date || "",
       remarks: doc.remarks || "",
     });
+    setDocumentFieldErrors({});
+    setDocumentErrorBanner("");
     setFeedback({ type: "", text: "" });
     setIsUploadOpen(true);
   };
@@ -340,6 +344,8 @@ export default function Documents({ currentUser, employeeProfile, embedded = fal
   });
   const updateField = (event) => {
     const { name, value } = event.target;
+    setDocumentFieldErrors((current) => ({ ...current, [name]: false }));
+    setDocumentErrorBanner("");
     if (name === "issuedDate" && value) {
       const today = new Date().toISOString().split("T")[0];
       if (value > today) {
@@ -368,14 +374,26 @@ export default function Documents({ currentUser, employeeProfile, embedded = fal
     setSelectedFile(null);
     setFileError("");
     setForm(EMPTY_FORM);
+    setDocumentFieldErrors({});
+    setDocumentErrorBanner("");
     setFeedback({ type: "", text: "" });
   };
 
   const submitUpload = async () => {
-    if (!form.documentCategory || !form.documentType) {
-      setFeedback({ type: "danger", text: "Document category and type are required." });
+    const missingFields = {};
+    if (!form.documentCategory?.trim()) missingFields.documentCategory = true;
+    if (!form.documentType?.trim()) missingFields.documentType = true;
+    const missingFieldCount = Object.keys(missingFields).length;
+    if (missingFieldCount > 0) {
+      setDocumentFieldErrors(missingFields);
+      setDocumentErrorBanner(
+        `Please fill in the highlighted ${missingFieldCount} mandatory field${missingFieldCount > 1 ? "s" : ""} to submit.`
+      );
+      setFeedback({ type: "", text: "" });
       return;
     }
+    setDocumentFieldErrors({});
+    setDocumentErrorBanner("");
 
     const today = new Date().toISOString().split("T")[0];
     if (form.issuedDate && form.issuedDate > today) {
@@ -898,16 +916,13 @@ export default function Documents({ currentUser, employeeProfile, embedded = fal
                         </div>
                     </div>
 
-                    {isUploadOpen && <div className="modal-backdrop fade show" onClick={closeUpload}></div>}
+                    {isUploadOpen && <div className="modal-backdrop fade show"></div>}
 
                     <div
                         className={`modal fade${isUploadOpen ? " show d-block" : ""}`}
                         id="epdUploadModal"
                         tabIndex="-1"
                         aria-hidden={!isUploadOpen}
-                        onClick={(event) => {
-                            if (event.target === event.currentTarget) closeUpload();
-                        }}
                     >
 
                         <div className="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-lg">
@@ -935,6 +950,20 @@ export default function Documents({ currentUser, employeeProfile, embedded = fal
 
 
                                 <div className="modal-body">
+
+                                    {documentErrorBanner && (
+                                        <div className="es-mandatory-banner" role="alert">
+                                            <div className="es-mandatory-banner-icon"><i className="bi bi-exclamation-triangle-fill"></i></div>
+                                            <div><strong>Mandatory Fields Missing</strong><div>{documentErrorBanner}</div></div>
+                                            <button type="button" className="es-mandatory-banner-close" onClick={() => setDocumentErrorBanner("")} aria-label="Close">
+                                                <i className="bi bi-x-lg"></i>
+                                            </button>
+                                        </div>
+                                    )}
+                                    <div className="es-mandatory-notice">
+                                        <i className="bi bi-info-circle"></i>
+                                        <span>Fields marked with <span className="es-mandatory-star">*</span> are mandatory and must be completed.</span>
+                                    </div>
 
                                     <div
                                         className="epd-upload-zone"
@@ -1072,41 +1101,59 @@ export default function Documents({ currentUser, employeeProfile, embedded = fal
                                             
                                             <div className="col-lg-6">
 
-                                                <label className="epd-label">
+                                                <label className="epd-label" htmlFor="epdDocumentCategory">
                                                     Document Category
-                                                    <span>*</span>
+                                                    <span className="es-mandatory-star">*</span>
                                                 </label>
 
-                                                <select className="form-select epd-input" id="epdDocumentCategory" name="documentCategory" value={form.documentCategory} onChange={updateField}>
+                                                <div className="es-modal-input-wrap">
+                                                    <select
+                                                        className={`form-select epd-input ${documentFieldErrors.documentCategory ? "is-invalid border-danger" : ""}`}
+                                                        id="epdDocumentCategory"
+                                                        name="documentCategory"
+                                                        value={form.documentCategory}
+                                                        onChange={updateField}
+                                                        aria-invalid={documentFieldErrors.documentCategory || undefined}
+                                                    >
 
-                                                    <option>Identity</option>
+                                                        <option>Identity</option>
 
-                                                    <option>Employment</option>
+                                                        <option>Employment</option>
 
-                                                    <option>Education</option>
+                                                        <option>Education</option>
 
-                                                    <option>Bank</option>
+                                                        <option>Bank</option>
 
-                                                    <option>
-                                                        Tax
-                                                    </option>
+                                                        <option>
+                                                            Tax
+                                                        </option>
 
-                                                    <option>
-                                                        Compliance
-                                                    </option>
-                                                </select>
+                                                        <option>
+                                                            Compliance
+                                                        </option>
+                                                    </select>
+                                                    {documentFieldErrors.documentCategory && <span className="es-field-error-icon"><i className="bi bi-exclamation-circle-fill"></i></span>}
+                                                </div>
 
                                             </div>
 
                                             
                                             <div className="col-lg-6">
 
-                                                <label className="epd-label">
+                                                <label className="epd-label" htmlFor="epdDocumentType">
                                                     Document Type
-                                                    <span>*</span>
+                                                    <span className="es-mandatory-star">*</span>
                                                 </label>
 
-                                                <select className="form-select epd-input" id="epdDocumentType" name="documentType" value={form.documentType} onChange={updateField}>
+                                                <div className="es-modal-input-wrap">
+                                                    <select
+                                                        className={`form-select epd-input ${documentFieldErrors.documentType ? "is-invalid border-danger" : ""}`}
+                                                        id="epdDocumentType"
+                                                        name="documentType"
+                                                        value={form.documentType}
+                                                        onChange={updateField}
+                                                        aria-invalid={documentFieldErrors.documentType || undefined}
+                                                    >
 
                                                     <option value="">
                                                         Select Document Type
@@ -1167,7 +1214,9 @@ export default function Documents({ currentUser, employeeProfile, embedded = fal
                                                         Other
                                                     </option>
 
-                                                </select>
+                                                    </select>
+                                                    {documentFieldErrors.documentType && <span className="es-field-error-icon"><i className="bi bi-exclamation-circle-fill"></i></span>}
+                                                </div>
 
                                             </div>
 

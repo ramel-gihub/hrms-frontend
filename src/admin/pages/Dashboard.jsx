@@ -1,8 +1,5 @@
-import React from 'react';
-import EmptyState from "../../components/EmptyState";
+import React, { useState } from 'react';
 import Chart from 'react-apexcharts';
-import MetricCard from '../components/MetricCard';
-import { UsersIcon, ClockIcon, FileTextIcon, CheckCircleIcon, ArrowUpIcon, PlusIcon, CalendarIcon } from '../components/Icons';
 
 export default function Dashboard({
   employees = [],
@@ -14,19 +11,26 @@ export default function Dashboard({
   isSuperAdmin = false,
   currentTenant = {}
 }) {
+  const [celebrationFilter, setCelebrationFilter] = useState('all');
+  const [attendanceTrendFilter, setAttendanceTrendFilter] = useState('current_week');
+
   const pendingLeaves = leaveRequests.filter(r => (r.status || '').toLowerCase() === 'pending');
   const pendingGeneral = adminRequests.filter(r => (r.status || '').toLowerCase() === 'pending');
   const totalPending = pendingLeaves.length + pendingGeneral.length;
 
-  // Weekly attendance chart
+  const totalEmployeesCount = employees.length || 1280;
+  const presentCount = Math.round(totalEmployeesCount * 0.93) || 1194;
+  const remoteCount = Math.round(totalEmployeesCount * 0.32) || 410;
+  const onLeaveCount = pendingLeaves.length || 86;
+
   const attendanceChartOptions = {
     chart: {
       type: 'area',
-      height: 310,
+      height: 290,
       toolbar: { show: false },
-      fontFamily: 'Outfit, Inter, sans-serif'
+      fontFamily: 'Segoe UI, Outfit, Inter, sans-serif'
     },
-    colors: ['#3c50e0', '#10b981'],
+    colors: ['#3c2fbc', '#22b981'],
     dataLabels: { enabled: false },
     stroke: { curve: 'smooth', width: 3 },
     fill: {
@@ -42,13 +46,13 @@ export default function Dashboard({
       categories: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
       axisBorder: { show: false },
       axisTicks: { show: false },
-      labels: { style: { colors: '#64748b', fontSize: '12px' } }
+      labels: { style: { colors: '#85889b', fontSize: '12px' } }
     },
     yaxis: {
-      labels: { style: { colors: '#64748b', fontSize: '12px' } }
+      labels: { style: { colors: '#85889b', fontSize: '12px' } }
     },
     grid: {
-      borderColor: '#f1f5f9',
+      borderColor: '#ebecf3',
       strokeDashArray: 4
     },
     tooltip: { theme: 'light' },
@@ -60,18 +64,17 @@ export default function Dashboard({
     { name: 'On Approved Leave', data: [2, 1, 3, 1, 2, 0, 0] }
   ];
 
-  // Department distribution donut
   const deptMap = {};
   employees.forEach(e => {
     const dept = e.department || 'Engineering';
     deptMap[dept] = (deptMap[dept] || 0) + 1;
   });
-  const deptLabels = Object.keys(deptMap).length > 0 ? Object.keys(deptMap) : ['Engineering', 'HR', 'Design', 'Sales'];
-  const deptSeries = Object.values(deptMap).length > 0 ? Object.values(deptMap) : [14, 4, 3, 3];
+  const deptLabels = Object.keys(deptMap).length > 0 ? Object.keys(deptMap) : ['Engineering', 'HR', 'Design', 'Sales', 'Marketing'];
+  const deptSeries = Object.values(deptMap).length > 0 ? Object.values(deptMap) : [14, 4, 3, 3, 2];
 
   const deptChartOptions = {
-    chart: { type: 'donut', fontFamily: 'Outfit, Inter, sans-serif' },
-    colors: ['#3c50e0', '#0ea5e9', '#10b981', '#f59e0b', '#8b5cf6'],
+    chart: { type: 'donut', fontFamily: 'Segoe UI, Outfit, Inter, sans-serif' },
+    colors: ['#3c2fbc', '#4385f5', '#22b981', '#f59a42', '#e8679d'],
     labels: deptLabels,
     legend: { position: 'bottom' },
     dataLabels: { enabled: false },
@@ -83,8 +86,8 @@ export default function Dashboard({
             show: true,
             total: {
               show: true,
-              label: 'Total Staff',
-              formatter: () => `${employees.length || 24}`
+              label: 'Headcount',
+              formatter: () => `${totalEmployeesCount}`
             }
           }
         }
@@ -92,211 +95,563 @@ export default function Dashboard({
     }
   };
 
+  const todayDateFormatted = new Date().toLocaleDateString('en-GB', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric'
+  });
+
   return (
-    <div className="space-y-6">
-      {/* Page Title & Quick Actions */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
-            Dashboard Overview
-          </h2>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-            {isSuperAdmin 
-              ? "SaaS Superadmin — monitoring attendance, leave approvals, and multi-tenant operations."
-              : `${currentTenant?.company_name || 'Enterprise'} HRMS — monitoring staff, attendance, and leave approvals.`}
-          </p>
-        </div>
-
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => onNavigate("leave-approvals")}
-            className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
-          >
-            <CalendarIcon className="w-4 h-4 text-purple-500" />
-            Leave Approvals ({pendingLeaves.length})
-          </button>
-          <button
-            onClick={onOpenAddModal}
-            className="inline-flex items-center gap-2 rounded-xl bg-[#3c50e0] px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-[#3444be] transition-colors"
-          >
-            <PlusIcon className="w-4 h-4" />
-            Add Employee
-          </button>
-        </div>
-      </div>
-
-      {/* 4 TailAdmin KPI Metric Cards */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <MetricCard
-          title="Total Employees"
-          value={employees.length || 0}
-          change="+12.5%"
-          isPositive={true}
-          icon={<UsersIcon className="w-6 h-6" />}
-          color="blue"
-        />
-        {isSuperAdmin ? (
-          <MetricCard
-            title="Active Tenants"
-            value={tenants.length || 1}
-            change="Multi-Tenant Ready"
-            isPositive={true}
-            icon={<CheckCircleIcon className="w-6 h-6" />}
-            color="green"
-          />
-        ) : (
-          <MetricCard
-            title="Active Staff"
-            value={employees.length || 0}
-            change="Company Workforce"
-            isPositive={true}
-            icon={<CheckCircleIcon className="w-6 h-6" />}
-            color="green"
-          />
-        )}
-        <MetricCard
-          title="Pending Leave Requests"
-          value={pendingLeaves.length}
-          change={pendingLeaves.length > 0 ? "Action required" : "All cleared"}
-          isPositive={pendingLeaves.length === 0}
-          icon={<CalendarIcon className="w-6 h-6" />}
-          color="purple"
-        />
-        <MetricCard
-          title="Other Employee Requests"
-          value={pendingGeneral.length}
-          change={pendingGeneral.length > 0 ? `${pendingGeneral.length} pending` : "No pending"}
-          isPositive={pendingGeneral.length === 0}
-          icon={<FileTextIcon className="w-6 h-6" />}
-          color="orange"
-        />
-      </div>
-
-      {/* Charts Grid */}
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-12">
-        {/* Attendance Trends */}
-        <div className="rounded-2xl border border-gray-200 bg-white p-5 md:p-6 shadow-sm xl:col-span-8 dark:border-gray-800 dark:bg-gray-900">
-          <div className="flex items-center justify-between border-b border-gray-100 pb-4 dark:border-gray-800">
-            <div>
-              <h3 className="text-base font-bold text-gray-900 dark:text-white">
-                Weekly Attendance & Absence Analytics
-              </h3>
-              <p className="text-xs text-gray-400 mt-0.5">Real-time attendance ratio across teams</p>
+    <div className="employee-dashboard px-0">
+      <section className="page-heading employee-page-heading mb-4">
+        <div className="row align-items-center g-3">
+          <div className="col-lg-8">
+            <div className="dashboard-title-wrap">
+              <div>
+                <h2>Administration Dashboard</h2>
+                <p>
+                  Monitor real-time workforce analytics, attendance compliance, pending approvals,
+                  and payroll across all enterprise branches.
+                </p>
+              </div>
             </div>
-            <span className="rounded-lg bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-600 dark:bg-blue-900/30 dark:text-blue-400">
-              Live Week
-            </span>
           </div>
-          <div className="mt-4">
-            <Chart options={attendanceChartOptions} series={attendanceChartSeries} type="area" height={310} />
+          <div className="col-lg-4 text-lg-end">
+            <div className="dashboard-date">
+              <div className="dashboard-date-icon">
+                <i className="bi bi-calendar3"></i>
+              </div>
+              <div>
+                <span>Today</span>
+                <strong>{todayDateFormatted}</strong>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="ed-hero mb-4">
+        <div className="ed-hero-main">
+          <div
+            className="ed-profile-avatar"
+            style={{
+              background: 'linear-gradient(135deg, var(--primary), #9b8cff)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '32px',
+              color: '#fff',
+              fontWeight: 'bold',
+              width: '85px',
+              height: '85px',
+              borderRadius: '24px'
+            }}
+          >
+            AD
+            <span className="ed-online-dot"></span>
+          </div>
+          <div className="ed-hero-content">
+            <span className="ed-eyebrow">
+              <i className="bi bi-shield-check"></i> Enterprise Admin Workspace
+            </span>
+            <h1>Welcome back, Super Admin</h1>
+            <p>
+              {totalEmployeesCount.toLocaleString()} employees active today. You have <strong>{totalPending} pending approvals</strong> requiring
+              executive review and team alerts.
+            </p>
+            <div className="ed-employee-meta">
+              <span><i className="bi bi-building"></i> {currentTenant?.company_name || 'Ramel Techno Solutions'}</span>
+              <span><i className="bi bi-geo-alt"></i> Global HQ</span>
+              <span><i className="bi bi-diagram-3"></i> {deptLabels.length} Departments</span>
+              <span><i className="bi bi-activity"></i> System Operational</span>
+            </div>
+          </div>
+        </div>
+        <div className="d-flex flex-column gap-2 justify-content-center p-3">
+          <button 
+            type="button" 
+            className="btn-admin-primary"
+            onClick={onOpenAddModal}
+          >
+            <i className="bi bi-person-plus-fill me-1"></i> Add New Employee
+          </button>
+          <button 
+            type="button" 
+            className="btn-admin-secondary"
+            onClick={() => onNavigate('requests')}
+          >
+            <i className="bi bi-check2-circle me-1"></i> Review Approvals ({totalPending})
+          </button>
+        </div>
+      </section>
+
+      <div className="row g-4 mb-4">
+        <div className="col-xl-3 col-sm-6">
+          <div className="admin-stat-card">
+            <div className="admin-stat-header">
+              <div className="admin-stat-icon primary">
+                <i className="bi bi-people-fill"></i>
+              </div>
+              <span className="admin-stat-delta up">
+                <i className="bi bi-arrow-up-short"></i> +2.4% this month
+              </span>
+            </div>
+            <h3 className="admin-stat-value">{totalEmployeesCount}</h3>
+            <p className="admin-stat-label">Total Employees</p>
+            <div className="admin-stat-footer">
+              <span><i className="bi bi-person-check me-1 text-primary"></i> Full-Time</span>
+              <span className="text-muted">Enterprise</span>
+            </div>
           </div>
         </div>
 
-        {/* Department Breakdown Donut */}
-        <div className="rounded-2xl border border-gray-200 bg-white p-5 md:p-6 shadow-sm xl:col-span-4 dark:border-gray-800 dark:bg-gray-900 flex flex-col justify-between">
-          <div className="border-b border-gray-100 pb-4 dark:border-gray-800">
-            <h3 className="text-base font-bold text-gray-900 dark:text-white">
-              Department Distribution
-            </h3>
-            <p className="text-xs text-gray-400 mt-0.5">Staff allocation by division</p>
+        <div className="col-xl-3 col-sm-6">
+          <div className="admin-stat-card">
+            <div className="admin-stat-header">
+              <div className="admin-stat-icon green">
+                <i className="bi bi-calendar2-check-fill"></i>
+              </div>
+              <span className="admin-stat-delta up">
+                <i className="bi bi-dot"></i> 93.3% Rate
+              </span>
+            </div>
+            <h3 className="admin-stat-value">{presentCount}</h3>
+            <p className="admin-stat-label">Present Today</p>
+            <div className="admin-stat-footer">
+              <span><i className="bi bi-laptop me-1 text-info"></i> {remoteCount} Remote (WFH)</span>
+              <span className="text-danger fw-semibold">{onLeaveCount} On Leave</span>
+            </div>
           </div>
-          <div className="my-auto py-4">
-            <Chart options={deptChartOptions} series={deptSeries} type="donut" height={260} />
+        </div>
+
+        <div className="col-xl-3 col-sm-6">
+          <div className="admin-stat-card">
+            <div className="admin-stat-header">
+              <div className="admin-stat-icon orange">
+                <i className="bi bi-hourglass-split"></i>
+              </div>
+              <span className="admin-stat-delta down" style={{ background: '#fef3c7', color: '#b45309' }}>
+                <i className="bi bi-exclamation-circle me-1"></i> Action Needed
+              </span>
+            </div>
+            <h3 className="admin-stat-value">{totalPending}</h3>
+            <p className="admin-stat-label">Pending Approvals</p>
+            <div className="admin-stat-footer">
+              <span>{pendingLeaves.length} Leaves · {pendingGeneral.length} General</span>
+              <button 
+                type="button" 
+                onClick={() => onNavigate('requests')}
+                className="btn btn-link p-0 text-primary text-decoration-none fw-semibold border-0"
+              >
+                Review All →
+              </button>
+            </div>
           </div>
-          <div className="pt-2 border-t border-gray-100 dark:border-gray-800 text-center">
-            <button
-              onClick={() => onNavigate("employees")}
-              className="text-xs font-semibold text-[#3c50e0] hover:underline"
-            >
-              View Full Employee Directory →
-            </button>
+        </div>
+
+        <div className="col-xl-3 col-sm-6">
+          <div className="admin-stat-card">
+            <div className="admin-stat-header">
+              <div className="admin-stat-icon blue">
+                <i className="bi bi-laptop-fill"></i>
+              </div>
+              <span className="admin-stat-delta up">
+                <i className="bi bi-check2 me-1"></i> 88.3% In Use
+              </span>
+            </div>
+            <h3 className="admin-stat-value">2,140</h3>
+            <p className="admin-stat-label">Total IT Assets</p>
+            <div className="admin-stat-footer">
+              <span><i className="bi bi-pc-display me-1 text-primary"></i> 1,890 Assigned</span>
+              <span className="text-muted">180 In Stock</span>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Pending Leave Approvals Highlights */}
-      <div className="rounded-2xl border border-gray-200 bg-white p-5 md:p-6 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-        <div className="flex items-center justify-between border-b border-gray-100 pb-4 dark:border-gray-800">
-          <div>
-            <h3 className="text-base font-bold text-gray-900 dark:text-white">
-              Pending Leave Approvals (With Leave Balances)
-            </h3>
-            <p className="text-xs text-gray-400 mt-0.5">
-              Review leave applications with employee-wise balance cards
-            </p>
+      <div className="row g-4 mb-4">
+        <div className="col-lg-8">
+          <div className="admin-card mb-0 h-100">
+            <div className="admin-card-header">
+              <h4 className="admin-card-title">
+                <i className="bi bi-graph-up text-primary"></i> Attendance Trends
+              </h4>
+              <div className="d-flex align-items-center gap-2">
+                <select 
+                  className="form-select form-select-sm" 
+                  value={attendanceTrendFilter}
+                  onChange={(e) => setAttendanceTrendFilter(e.target.value)}
+                  style={{ minWidth: '135px', fontWeight: 500 }}
+                >
+                  <option value="current_week">This Week</option>
+                  <option value="this_month">This Month</option>
+                  <option value="last_month">Last Month</option>
+                </select>
+              </div>
+            </div>
+            <div style={{ minHeight: '290px' }}>
+              <Chart options={attendanceChartOptions} series={attendanceChartSeries} type="area" height={290} />
+            </div>
           </div>
-          <button
-            onClick={() => onNavigate("leave-approvals")}
-            className="text-xs font-semibold text-[#3c50e0] hover:underline"
-          >
-            Open Leave Approvals ({leaveRequests.length}) →
-          </button>
         </div>
 
-        <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-          {pendingLeaves.slice(0, 2).map((leave) => (
-            <div
-              key={leave.id}
-              className="p-4 rounded-xl border border-gray-200 bg-gray-50/50 dark:border-gray-800 dark:bg-gray-800/40 space-y-3"
-            >
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-purple-100 text-purple-600 font-bold flex items-center justify-center text-sm">
-                    {(leave.employee_name || 'E').charAt(0)}
-                  </div>
-                  <div>
-                    <h4 className="text-sm font-bold text-gray-900 dark:text-white leading-tight">
-                      {leave.employee_name}
-                    </h4>
-                    <span className="text-xs text-gray-500">{leave.employee_code} · {leave.department || 'Engineering'}</span>
-                  </div>
-                </div>
-                <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400">
-                  {leave.days_requested} {parseFloat(leave.days_requested) <= 1 ? 'Day' : 'Days'}
-                </span>
-              </div>
+        <div className="col-lg-4">
+          <div className="admin-card mb-0 h-100">
+            <div className="admin-card-header">
+              <h4 className="admin-card-title">
+                <i className="bi bi-pie-chart-fill text-primary"></i> Department Split
+              </h4>
+              <span className="admin-badge badge-info">Headcount</span>
+            </div>
+            <div style={{ minHeight: '290px' }}>
+              <Chart options={deptChartOptions} series={deptSeries} type="donut" height={290} />
+            </div>
+          </div>
+        </div>
+      </div>
 
-              {/* Employee Leave Balance Preview Card */}
-              <div className="p-2.5 rounded-lg bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-700/60">
-                <div className="flex items-center justify-between text-xs mb-1.5">
-                  <span className="font-semibold text-gray-700 dark:text-gray-300">Available Leave Count</span>
-                  <span className="font-bold text-purple-600 dark:text-purple-400">
-                    {leave.totalAvailableLeaves !== undefined ? `${leave.totalAvailableLeaves} Days Left` : '12 Days Left'}
-                  </span>
-                </div>
-                <div className="flex gap-2 flex-wrap">
-                  {(leave.balances || []).slice(0, 3).map((b, bIdx) => (
-                    <span key={bIdx} className="text-[11px] px-2 py-0.5 rounded bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300">
-                      {b.leave_type_name}: <b>{parseFloat(b.available_days || 0)}d</b>
-                    </span>
+      <div className="row g-4 mb-4">
+        <div className="col-lg-8">
+          <div className="admin-card mb-0">
+            <div className="admin-card-header">
+              <div>
+                <h4 className="admin-card-title">
+                  <i className="bi bi-check2-circle text-primary"></i> High Priority Approval Queue
+                </h4>
+                <p className="admin-section-heading mb-0" style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
+                  Requests waiting for HR Administrator review
+                </p>
+              </div>
+              <button 
+                type="button" 
+                onClick={() => onNavigate('requests')}
+                className="btn-admin-light border-0"
+              >
+                View All ({totalPending}) <i className="bi bi-arrow-right"></i>
+              </button>
+            </div>
+
+            <div className="admin-table-responsive">
+              <table className="admin-table">
+                <thead>
+                  <tr>
+                    <th>Employee</th>
+                    <th>Category</th>
+                    <th>Details</th>
+                    <th>Date</th>
+                    <th>Status</th>
+                    <th className="text-end">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {pendingLeaves.slice(0, 3).map((l, i) => (
+                    <tr key={`leave-${l.id || i}`}>
+                      <td>
+                        <div className="employee-cell">
+                          <div className="employee-avatar">{(l.employee_name || 'E').substring(0, 2).toUpperCase()}</div>
+                          <div className="employee-info">
+                            <h6>{l.employee_name || 'Staff Member'}</h6>
+                            <span>{l.employee_code || 'EMP'} · {l.department || 'Engineering'}</span>
+                          </div>
+                        </div>
+                      </td>
+                      <td><span className="admin-badge badge-purple">{l.leave_type_name || 'Leave'}</span></td>
+                      <td>{l.days_requested} Days ({l.reason || 'Personal'})</td>
+                      <td>{l.start_date ? new Date(l.start_date).toLocaleDateString('en-GB') : 'Upcoming'}</td>
+                      <td><span className="admin-badge badge-pending"><span className="admin-badge-dot"></span> Pending</span></td>
+                      <td className="text-end">
+                        <button 
+                          type="button"
+                          onClick={() => onNavigate('leave-approvals')}
+                          className="btn btn-sm btn-outline-primary rounded-pill px-3"
+                        >
+                          Review
+                        </button>
+                      </td>
+                    </tr>
                   ))}
+                  {pendingGeneral.slice(0, 2).map((r, i) => (
+                    <tr key={`req-${r.id || i}`}>
+                      <td>
+                        <div className="employee-cell">
+                          <div className="employee-avatar">{(r.employee_name || 'U').substring(0, 2).toUpperCase()}</div>
+                          <div className="employee-info">
+                            <h6>{r.employee_name || 'Employee'}</h6>
+                            <span>{r.source_type || 'General'}</span>
+                          </div>
+                        </div>
+                      </td>
+                      <td><span className="admin-badge badge-info">{r.category || 'Request'}</span></td>
+                      <td>{r.details || r.title || 'Review Required'}</td>
+                      <td>{new Date().toLocaleDateString('en-GB')}</td>
+                      <td><span className="admin-badge badge-pending"><span className="admin-badge-dot"></span> Pending</span></td>
+                      <td className="text-end">
+                        <button 
+                          type="button"
+                          onClick={() => onNavigate('requests')}
+                          className="btn btn-sm btn-outline-primary rounded-pill px-3"
+                        >
+                          Review
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                  {totalPending === 0 && (
+                    <tr>
+                      <td colSpan="6" className="text-center py-4 text-muted">
+                        <i className="bi bi-check2-circle text-success fs-4 d-block mb-1"></i>
+                        No pending requests in queue!
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <div className="col-lg-4">
+          <div className="admin-card mb-0 h-100">
+            <div className="admin-card-header">
+              <h4 className="admin-card-title">
+                <i className="bi bi-clock-history text-primary"></i> Live Activity Feed
+              </h4>
+              <span className="admin-badge badge-active"><span className="admin-badge-dot"></span> Realtime</span>
+            </div>
+
+            <div className="admin-activity-list">
+              <div className="admin-activity-item">
+                <div className="admin-activity-icon" style={{ background: 'var(--green-light)', color: 'var(--green)' }}>
+                  <i className="bi bi-person-check-fill"></i>
                 </div>
+                <div className="admin-activity-content">
+                  <h6>New Employee Onboarded</h6>
+                  <p>Active profile created in directory</p>
+                </div>
+                <span className="admin-activity-time">15m ago</span>
               </div>
 
-              <div className="flex items-center justify-between pt-1">
-                <span className="text-xs text-gray-500 italic truncate max-w-[200px]">
-                  "{leave.reason || 'Personal Purpose'}"
-                </span>
-                <button
-                  onClick={() => onNavigate("leave-approvals")}
-                  className="text-xs font-bold text-[#3c50e0] hover:underline"
+              <div className="admin-activity-item">
+                <div className="admin-activity-icon" style={{ background: 'var(--blue-light)', color: 'var(--blue)' }}>
+                  <i className="bi bi-file-earmark-lock-fill"></i>
+                </div>
+                <div className="admin-activity-content">
+                  <h6>Document Verified</h6>
+                  <p>Identity & Compliance documents approved</p>
+                </div>
+                <span className="admin-activity-time">42m ago</span>
+              </div>
+
+              <div className="admin-activity-item">
+                <div className="admin-activity-icon" style={{ background: 'var(--orange-light)', color: 'var(--orange)' }}>
+                  <i className="bi bi-laptop"></i>
+                </div>
+                <div className="admin-activity-content">
+                  <h6>Asset Allocated</h6>
+                  <p>Equipment tagged to staff member</p>
+                </div>
+                <span className="admin-activity-time">2h ago</span>
+              </div>
+
+              <div className="admin-activity-item">
+                <div className="admin-activity-icon" style={{ background: 'var(--pink-light)', color: 'var(--pink)' }}>
+                  <i className="bi bi-megaphone-fill"></i>
+                </div>
+                <div className="admin-activity-content">
+                  <h6>Announcement Broadcasted</h6>
+                  <p>All-hands update broadcasted</p>
+                </div>
+                <span className="admin-activity-time">4h ago</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="admin-section-heading mt-4">
+        <div>
+          <h3>Workforce Highlights & Daily Operations</h3>
+          <p>Real-time attendance logs, employee celebrations, and official company calendar</p>
+        </div>
+      </div>
+
+      <div className="row g-4 mb-4">
+        <div className="col-xl-4 col-md-6">
+          <div className="dash-widget-card">
+            <div>
+              <div className="dash-widget-header">
+                <h5 className="dash-widget-title">
+                  <i className="bi bi-clock-history text-primary"></i> Check-In/Out
+                </h5>
+                <button 
+                  type="button" 
+                  onClick={() => onNavigate('admin-leaves')}
+                  className="dash-widget-link btn btn-link p-0 border-0"
                 >
-                  Review Details & Action →
+                  View All <i className="bi bi-arrow-right"></i>
                 </button>
               </div>
-            </div>
-          ))}
 
-          {pendingLeaves.length === 0 && (
-            <div className="col-span-2">
-              <EmptyState
-                compact
-                emoji="🏖️"
-                title="No pending leave requests"
-                message="All employee leave requests have been reviewed and processed."
-              />
+              <div className="dash-checkin-list">
+                {employees.slice(0, 5).map((emp, idx) => (
+                  <div className="dash-checkin-item" key={emp.id || idx}>
+                    <div className="dash-checkin-user">
+                      <div className="dash-checkin-avatar" style={{ background: 'var(--primary)' }}>
+                        {(emp.first_name || emp.name || 'E').substring(0, 1).toUpperCase()}
+                      </div>
+                      <div className="dash-checkin-info">
+                        <h6>{emp.first_name || emp.name || 'Employee'}</h6>
+                        <span>{emp.department || emp.designation || 'Staff'}</span>
+                      </div>
+                    </div>
+                    <span className="dash-punch-pill in">09:18 AM</span>
+                    <span className="dash-punch-pill out">18:18 PM</span>
+                    <span className="dash-prod-time">09:18 hrs</span>
+                  </div>
+                ))}
+                {employees.length === 0 && (
+                  <div className="text-center py-3 text-muted">No attendance logs available</div>
+                )}
+              </div>
             </div>
-          )}
+          </div>
+        </div>
+
+        <div className="col-xl-4 col-md-6">
+          <div className="dash-widget-card">
+            <div>
+              <div className="dash-widget-header">
+                <h5 className="dash-widget-title">
+                  <i className="bi bi-gift-fill text-primary"></i> Celebrations & Special Days
+                </h5>
+                <button 
+                  type="button" 
+                  onClick={() => onNavigate('calendar')}
+                  className="dash-widget-link btn btn-link p-0 border-0"
+                >
+                  View All <i className="bi bi-arrow-right"></i>
+                </button>
+              </div>
+
+              <div className="dash-celebration-filter">
+                <button 
+                  type="button" 
+                  className={`dash-filter-pill ${celebrationFilter === 'all' ? 'active' : ''}`}
+                  onClick={() => setCelebrationFilter('all')}
+                >
+                  All (4)
+                </button>
+                <button 
+                  type="button" 
+                  className={`dash-filter-pill ${celebrationFilter === 'birthday' ? 'active' : ''}`}
+                  onClick={() => setCelebrationFilter('birthday')}
+                >
+                  <i className="bi bi-cake2-fill text-warning me-1"></i> Birthdays
+                </button>
+                <button 
+                  type="button" 
+                  className={`dash-filter-pill ${celebrationFilter === 'anniversary' ? 'active' : ''}`}
+                  onClick={() => setCelebrationFilter('anniversary')}
+                >
+                  <i className="bi bi-award-fill text-primary me-1"></i> Anniversaries
+                </button>
+              </div>
+
+              <div className="dash-birthday-group" data-group="today">
+                <div className="dash-group-tag">TODAY</div>
+                <div className="dash-celebration-item" data-type="birthday">
+                  <div className="dash-birthday-user">
+                    <div className="dash-birthday-avatar bg-peach">J</div>
+                    <div className="dash-birthday-info">
+                      <h6>Jasmine Roy</h6>
+                      <div className="d-flex align-items-center gap-2 mt-1">
+                        <span className="dash-event-badge birthday">
+                          <i className="bi bi-cake2-fill"></i> Birthday
+                        </span>
+                        <span className="dash-event-date">Today</span>
+                      </div>
+                    </div>
+                  </div>
+                  <button className="btn-wish-send" type="button">
+                    <i className="bi bi-send-fill me-1"></i> Wish
+                  </button>
+                </div>
+              </div>
+
+              <div className="dash-birthday-group" data-group="this_month">
+                <div className="dash-group-tag">THIS MONTH</div>
+                <div className="dash-celebration-item mb-2" data-type="anniversary">
+                  <div className="dash-birthday-user">
+                    <div className="dash-birthday-avatar bg-anniversary">
+                      <i className="bi bi-award-fill"></i>
+                    </div>
+                    <div className="dash-birthday-info">
+                      <h6>Ganesh V.</h6>
+                      <div className="d-flex align-items-center gap-2 mt-1">
+                        <span className="dash-event-badge anniversary">
+                          <i className="bi bi-award-fill"></i> 3rd Work Anniversary
+                        </span>
+                        <span className="dash-event-date">10 Nov · 3 Yrs</span>
+                      </div>
+                    </div>
+                  </div>
+                  <button className="btn-wish-send" type="button">
+                    <i className="bi bi-send-fill me-1"></i> Wish
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="col-xl-4 col-md-12">
+          <div className="dash-widget-card">
+            <div>
+              <div className="dash-widget-header">
+                <h5 className="dash-widget-title">
+                  <i className="bi bi-calendar3-week text-primary"></i> Upcoming Holidays
+                </h5>
+                <button 
+                  type="button"
+                  onClick={() => onNavigate('holidays')}
+                  className="dash-pill-btn btn btn-sm btn-link text-decoration-none border-0"
+                >
+                  <i className="bi bi-pencil-square me-1"></i> <span>EDIT</span>
+                </button>
+              </div>
+
+              <div className="dash-holiday-scroll">
+                <table className="dash-holiday-table">
+                  <tbody>
+                    <tr>
+                      <td>
+                        <span className="dash-holiday-name">Republic Day</span>
+                        <span className="dash-holiday-tag ms-1">(Optional)</span>
+                      </td>
+                      <td className="dash-holiday-date">26 JAN 2026</td>
+                    </tr>
+                    <tr>
+                      <td><span className="dash-holiday-name">Bogi Pongal</span></td>
+                      <td className="dash-holiday-date">13 JAN 2026</td>
+                    </tr>
+                    <tr>
+                      <td><span className="dash-holiday-name">Pongal</span></td>
+                      <td className="dash-holiday-date">14 JAN 2026</td>
+                    </tr>
+                    <tr>
+                      <td><span className="dash-holiday-name">Holi</span></td>
+                      <td className="dash-holiday-date">25 MAR 2026</td>
+                    </tr>
+                    <tr>
+                      <td><span className="dash-holiday-name">Good Friday</span></td>
+                      <td className="dash-holiday-date">18 APR 2026</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>

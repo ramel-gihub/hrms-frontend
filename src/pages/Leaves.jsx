@@ -16,6 +16,7 @@ export default function Leaves({ currentUser, employeeProfile, embedded = false 
   const [showApplyModal, setShowApplyModal] = useState(false);
   const [submittingLeave, setSubmittingLeave] = useState(false);
   const [leaveSubmitError, setLeaveSubmitError] = useState("");
+  const [leaveFieldErrors, setLeaveFieldErrors] = useState({});
   const [alertBanner, setAlertBanner] = useState(null); // { type: 'success' | 'danger', message: '' }
   const [openDropdown, setOpenDropdown] = useState(null);
   const [selectedLeave, setSelectedLeave] = useState(null);
@@ -108,6 +109,86 @@ export default function Leaves({ currentUser, employeeProfile, embedded = false 
     isHalfDay: false, halfDayPeriod: 'First Half'
   });
   const [daysCalculated, setDaysCalculated] = useState(0);
+
+  // Existing conflict check states
+  const [scheduleConflict, setScheduleConflict] = useState(null); // { message, type, status, dateRange }
+  const [editConflict, setEditConflict] = useState(null);
+  // Auto-check existing Leave or WFH overlap on date selection with 10s auto-dismiss
+  useEffect(() => {
+    if (!currentUser?.id || !formData.startDate) {
+      setScheduleConflict(null);
+      return;
+    }
+    const finalEnd = formData.isHalfDay ? formData.startDate : (formData.endDate || formData.startDate);
+    const apiBase = (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'))
+      ? 'http://localhost:5002'
+      : (import.meta.env.VITE_API_URL || 'https://hrms-backend-fzef.onrender.com');
+
+    let isMounted = true;
+    let timer = null;
+
+    fetch(`${apiBase}/api/employee/check-conflict?userId=${currentUser.id}&startDate=${formData.startDate}&endDate=${finalEnd}`)
+      .then(res => res.json())
+      .then(data => {
+        if (!isMounted) return;
+        if (data && data.conflict) {
+          setScheduleConflict(data);
+          // Auto-close alert after 10 seconds per requirement
+          timer = setTimeout(() => {
+            if (isMounted) setScheduleConflict(null);
+          }, 10000);
+        } else {
+          setScheduleConflict(null);
+        }
+      })
+      .catch(() => {
+        if (isMounted) setScheduleConflict(null);
+      });
+
+    return () => {
+      isMounted = false;
+      if (timer) clearTimeout(timer);
+    };
+  }, [currentUser?.id, formData.startDate, formData.endDate, formData.isHalfDay]);
+
+  // Check conflict during edit modal
+  useEffect(() => {
+    if (!currentUser?.id || !isEditMode || !viewLeave?.start_date) {
+      setEditConflict(null);
+      return;
+    }
+    const sDate = viewLeave.start_date.includes('T') ? viewLeave.start_date.split('T')[0] : viewLeave.start_date;
+    const eDate = viewLeave.end_date ? (viewLeave.end_date.includes('T') ? viewLeave.end_date.split('T')[0] : viewLeave.end_date) : sDate;
+    const apiBase = (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'))
+      ? 'http://localhost:5002'
+      : (import.meta.env.VITE_API_URL || 'https://hrms-backend-fzef.onrender.com');
+
+    let isMounted = true;
+    let timer = null;
+
+    fetch(`${apiBase}/api/employee/check-conflict?userId=${currentUser.id}&startDate=${sDate}&endDate=${eDate}&excludeLeaveId=${viewLeave.id}`)
+      .then(res => res.json())
+      .then(data => {
+        if (!isMounted) return;
+        if (data && data.conflict) {
+          setEditConflict(data);
+          timer = setTimeout(() => {
+            if (isMounted) setEditConflict(null);
+          }, 10000);
+        } else {
+          setEditConflict(null);
+        }
+      })
+      .catch(() => {
+        if (isMounted) setEditConflict(null);
+      });
+
+    return () => {
+      isMounted = false;
+      if (timer) clearTimeout(timer);
+    };
+  }, [currentUser?.id, isEditMode, viewLeave?.start_date, viewLeave?.end_date, viewLeave?.id]);
+
 
   const handleOpenLeaveDocument = (leaveId, docUrl, docName) => {
     if (leaveId) {
@@ -235,38 +316,52 @@ export default function Leaves({ currentUser, employeeProfile, embedded = false 
     }
   }, [formData.startDate, formData.endDate, formData.isHalfDay, data.holidays]);
 
+  const clearLeaveFieldError = (field) => {
+    const next = { ...leaveFieldErrors };
+    delete next[field];
+    setLeaveFieldErrors(next);
+    const remainingCount = Object.keys(next).length;
+    setLeaveSubmitError(
+      remainingCount > 0
+        ? `Please fill in the highlighted ${remainingCount} mandatory field${remainingCount === 1 ? "" : "s"} to submit.`
+        : ""
+    );
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (submittingLeave) return;
+    if (submittingLeave || scheduleConflict) return;
     setLeaveSubmitError("");
 
-    // Form validation: other than document upload, all fields required
+    const errors = {};
     if (!formData.leaveTypeId) {
-      setLeaveSubmitError("Please select a leave type.");
-      return;
+      errors.leaveTypeId = "Please select a leave type.";
     }
     if (!formData.approverId) {
-      setLeaveSubmitError("Please select an approver.");
-      return;
+      errors.approverId = "Please select an approver.";
     }
     if (!formData.startDate) {
-      setLeaveSubmitError("Please select a from date.");
-      return;
+      errors.startDate = "Please select a from date.";
     }
     if (!formData.isHalfDay && !formData.endDate) {
-      setLeaveSubmitError("Please select a to date.");
-      return;
+      errors.endDate = "Please select a to date.";
     }
-    if (formData.startDate < minSelectableDate || formData.startDate > maxSelectableDate) {
-      setLeaveSubmitError(`From Date must be between ${minSelectableDate} and ${maxSelectableDate}.`);
-      return;
+    if (formData.startDate && (formData.startDate < minSelectableDate || formData.startDate > maxSelectableDate)) {
+      errors.startDate = `From Date must be between ${minSelectableDate} and ${maxSelectableDate}.`;
     }
     if (!formData.isHalfDay && formData.endDate < formData.startDate) {
-      setLeaveSubmitError("To Date cannot be earlier than From Date.");
-      return;
+      errors.endDate = "To Date cannot be earlier than From Date.";
     }
     if (!formData.reason || !formData.reason.trim()) {
-      setLeaveSubmitError("Please enter a reason for your leave.");
+      errors.reason = "Please enter a reason for your leave.";
+    }
+
+    setLeaveFieldErrors(errors);
+    if (Object.keys(errors).length > 0) {
+      const missingCount = Object.keys(errors).length;
+      setLeaveSubmitError(
+        `Please fill in the highlighted ${missingCount} mandatory field${missingCount === 1 ? "" : "s"} to submit.`
+      );
       return;
     }
 
@@ -294,6 +389,7 @@ export default function Leaves({ currentUser, employeeProfile, embedded = false 
       if (!response.ok) throw new Error(result.error || 'Unable to submit leave request');
       setShowApplyModal(false);
       setFormData({ leaveTypeId: '', approverId: '', startDate: '', endDate: '', reason: '', documentFile: null, isHalfDay: false, halfDayPeriod: 'First Half' });
+      setLeaveFieldErrors({});
       setAlertBanner({ type: 'success', message: 'Leave request submitted successfully!' });
       setTimeout(() => setAlertBanner(null), 5000);
       await fetchData();
@@ -330,9 +426,31 @@ export default function Leaves({ currentUser, employeeProfile, embedded = false 
   const holidaysRemainingCount = upcomingHolidays.length;
   const holidayCompletedPercent = totalHolidays > 0 ? Math.round((holidaysCompletedCount / totalHolidays) * 100) : 0;
 
-  const orgLeaveTypes = (data.leaveTypes && data.leaveTypes.length > 0)
-    ? data.leaveTypes.map(lt => ({ id: lt.id, name: lt.name }))
-    : (data.balances || []).map(b => ({ id: b.leave_type_id, name: b.leave_type_name }));
+  const orgLeaveTypes = useMemo(() => {
+    const optionsByName = new Map();
+    [...(data.leaveTypes || []), ...(data.balances || [])].forEach((leaveType) => {
+      const id = leaveType.id ?? leaveType.leave_type_id;
+      const name = (leaveType.name ?? leaveType.leave_type_name)?.trim();
+      if (id === undefined || id === null || !name) return;
+
+      const key = name.toLocaleLowerCase();
+      if (!optionsByName.has(key)) {
+        optionsByName.set(key, { id: String(id), name });
+      }
+    });
+    [
+      { name: "Annual Leave", defaultDays: 18 },
+      { name: "Casual Leave", defaultDays: 5 },
+      { name: "Paid / Earned Leave", defaultDays: 18 },
+      { name: "Sick Leave", defaultDays: 10 }
+    ].forEach(({ name }) => {
+      const key = name.toLocaleLowerCase();
+      if (!optionsByName.has(key)) {
+        optionsByName.set(key, { id: `default:${name}`, name, needsCreation: true });
+      }
+    });
+    return Array.from(optionsByName.values());
+  }, [data.leaveTypes, data.balances]);
 
   const computedBalances = (data.balances || []).map(b => {
       const typeName = b.leave_type_name;
@@ -488,7 +606,7 @@ export default function Leaves({ currentUser, employeeProfile, embedded = false 
 
                                 {/* {!embedded && <button type="button" className="btn" style={{ borderColor: '#4e36f5', color: '#4e36f5', backgroundColor: '#fff', fontWeight: '500', padding: '8px 16px', borderRadius: '6px' }} id="eplExportBtn" onClick={() => alert("Export functionality coming soon!")}><i className="bi bi-download"></i> Export</button>} */}
 
-                                <button type="button" className="btn" style={{ backgroundColor: '#4e36f5', color: '#fff', fontWeight: '500', padding: '8px 16px', borderRadius: '6px' }} id="eplApplyLeaveBtn" onClick={() => { setLeaveSubmitError(""); setShowApplyModal(true); }}><i className="bi bi-plus-lg"></i> Apply Leave</button>
+                                <button type="button" className="btn" style={{ backgroundColor: '#4e36f5', color: '#fff', fontWeight: '500', padding: '8px 16px', borderRadius: '6px' }} id="eplApplyLeaveBtn" onClick={() => { setLeaveSubmitError(""); setLeaveFieldErrors({}); setShowApplyModal(true); }}><i className="bi bi-plus-lg"></i> Apply Leave</button>
 
                             </div>
 
@@ -1286,7 +1404,7 @@ export default function Leaves({ currentUser, employeeProfile, embedded = false 
 
       {/* Dynamic Apply Leave Modal (overriding the bootstrap one in HTML if it was there) */}
       {showApplyModal && (
-        <div className="modal fade show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
+        <div className="modal fade show d-block leave-apply-modal" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
           <div className="modal-dialog modal-dialog-centered modal-lg">
             <div className="modal-content epl-modal">
               <div className="modal-header">
@@ -1296,27 +1414,101 @@ export default function Leaves({ currentUser, employeeProfile, embedded = false 
     </div>
     <button type="button" className="btn-close" onClick={() => setShowApplyModal(false)} aria-label="Close"></button>
 </div>
-              <form onSubmit={handleSubmit}>
+              <form noValidate onSubmit={handleSubmit}>
                 <div className="modal-body">
+                  {leaveSubmitError && (
+                    <div className="es-mandatory-banner" role="alert">
+                      <div className="es-mandatory-banner-icon">
+                        <i className="bi bi-exclamation-triangle-fill" aria-hidden="true"></i>
+                      </div>
+                      <div>
+                        <strong>{Object.keys(leaveFieldErrors).length > 0 ? "Mandatory Fields Missing" : "Unable to Submit Leave"}</strong>
+                        <div>{leaveSubmitError}</div>
+                      </div>
+                      <button
+                        type="button"
+                        className="es-mandatory-banner-close"
+                        onClick={() => setLeaveSubmitError("")}
+                        aria-label="Close"
+                      >
+                        <i className="bi bi-x-lg" aria-hidden="true"></i>
+                      </button>
+                    </div>
+                  )}
+                  <div className="es-mandatory-notice">
+                    <i className="bi bi-info-circle" aria-hidden="true"></i>
+                    <span>Fields marked with <span className="es-mandatory-star">*</span> are mandatory and must be completed.</span>
+                  </div>
                   <div className="row g-4">
+                    {scheduleConflict && (
+                      <div className="col-12">
+                        <div className="alert alert-warning border-warning d-flex align-items-start justify-content-between p-3 rounded-3 shadow-sm mb-0" role="alert">
+                          <div className="d-flex align-items-start gap-2">
+                            <i className="bi bi-exclamation-triangle-fill text-warning fs-5 mt-0.5"></i>
+                            <div>
+                              <strong className="d-block text-dark mb-1">Existing Schedule Conflict Detected</strong>
+                              <span style={{ fontSize: '13.5px', color: '#854d0e', lineHeight: 1.5 }}>
+                                {scheduleConflict.message}
+                              </span>
+                              <div className="mt-1 small text-muted">
+                                Status: <strong className="text-dark">{scheduleConflict.status}</strong> · This alert will auto-dismiss in 10 seconds.
+                              </div>
+                            </div>
+                          </div>
+                          <button type="button" className="btn-close" onClick={() => setScheduleConflict(null)} aria-label="Close"></button>
+                        </div>
+                      </div>
+                    )}
                     {leaveSubmitError && <div className="col-12"><div className="alert alert-danger mb-0" role="alert">{leaveSubmitError}</div></div>}
                     <div className="col-md-6">
-                      <label className="form-label">Leave Type <span className="text-danger">*</span></label>
-                      <select className="form-select" required value={formData.leaveTypeId} onChange={e => setFormData({...formData, leaveTypeId: e.target.value})}>
-                        <option value="">Select Leave Type</option>
-                        {orgLeaveTypes.map(lt => <option key={lt.id} value={lt.id}>{lt.name}</option>)}
-                      </select>
+                      <label className="form-label" htmlFor="applyLeaveType">Leave Type <span className="es-mandatory-star">*</span></label>
+                      <div className="es-modal-input-wrap">
+                        <select
+                          id="applyLeaveType"
+                          className={`form-select ${leaveFieldErrors.leaveTypeId ? "is-invalid border-danger" : ""}`}
+                          aria-invalid={leaveFieldErrors.leaveTypeId || undefined}
+                          value={formData.leaveTypeId}
+                          onChange={e => {
+                            setFormData({ ...formData, leaveTypeId: e.target.value });
+                            clearLeaveFieldError("leaveTypeId");
+                          }}
+                        >
+                          <option value="">Select Leave Type</option>
+                          {orgLeaveTypes.length > 0 ? (
+                            orgLeaveTypes.map(lt => <option key={lt.id} value={lt.id}>{lt.name}</option>)
+                          ) : (
+                            <option value="" disabled>
+                              {loading ? "Loading leave types..." : "No leave types available"}
+                            </option>
+                          )}
+                        </select>
+                        {leaveFieldErrors.leaveTypeId && <span className="es-field-error-icon"><i className="bi bi-exclamation-circle-fill"></i></span>}
+                      </div>
+                      {leaveFieldErrors.leaveTypeId && <span className="leave-field-error-text">{leaveFieldErrors.leaveTypeId}</span>}
                     </div>
                     <div className="col-md-6">
-                      <label className="form-label">Approver <span className="text-danger">*</span></label>
-                      <select className="form-select" required value={formData.approverId} onChange={e => setFormData({...formData, approverId: e.target.value})}>
-                        <option value="">Select Approver (Admin Only)</option>
-                        {adminApprovers.map(a => (
-                          <option key={a.id} value={a.id}>
-                            {`${a.first_name || ''} ${a.last_name || ''}`.trim() || 'Admin User'} ({a.role_name || 'Organization Admin'})
-                          </option>
-                        ))}
-                      </select>
+                      <label className="form-label" htmlFor="applyLeaveApprover">Approver <span className="es-mandatory-star">*</span></label>
+                      <div className="es-modal-input-wrap">
+                        <select
+                          id="applyLeaveApprover"
+                          className={`form-select ${leaveFieldErrors.approverId ? "is-invalid border-danger" : ""}`}
+                          aria-invalid={leaveFieldErrors.approverId || undefined}
+                          value={formData.approverId}
+                          onChange={e => {
+                            setFormData({ ...formData, approverId: e.target.value });
+                            clearLeaveFieldError("approverId");
+                          }}
+                        >
+                          <option value="">Select Approver (Admin Only)</option>
+                          {adminApprovers.map(a => (
+                            <option key={a.id} value={a.id}>
+                              {`${a.first_name || ''} ${a.last_name || ''}`.trim() || 'Admin User'} ({a.role_name || 'Organization Admin'})
+                            </option>
+                          ))}
+                        </select>
+                        {leaveFieldErrors.approverId && <span className="es-field-error-icon"><i className="bi bi-exclamation-circle-fill"></i></span>}
+                      </div>
+                      {leaveFieldErrors.approverId && <span className="leave-field-error-text">{leaveFieldErrors.approverId}</span>}
                     </div>
                     <div className="col-12">
                       <div className="d-flex align-items-center justify-content-between rounded-3" style={{ background: '#f8fafc', border: '1px solid #e2e8f0', padding: '10px 14px' }}>
@@ -1368,42 +1560,25 @@ export default function Leaves({ currentUser, employeeProfile, embedded = false 
                       </div>
                     </div>
                     <div className="col-md-6">
-                      <label className="form-label">{formData.isHalfDay ? 'Leave Date' : 'From Date'} <span className="text-danger">*</span></label>
-                      <input
-                        type="date"
-                        className="form-control"
-                        required
-                        min={minSelectableDate}
-                        max={maxSelectableDate}
-                        value={formData.startDate}
-                        onChange={e => {
-                          const val = e.target.value;
-                          setFormData(prev => ({
-                            ...prev,
-                            startDate: val,
-                            ...(prev.isHalfDay ? { endDate: val } : {})
-                          }));
-                        }}
-                        onClick={(e) => {
-                          try { e.currentTarget.showPicker(); } catch (_) {}
-                        }}
-                        onFocus={(e) => {
-                          try { e.currentTarget.showPicker(); } catch (_) {}
-                        }}
-                        style={{ cursor: "pointer" }}
-                      />
-                    </div>
-                    {!formData.isHalfDay ? (
-                      <div className="col-md-6">
-                        <label className="form-label">To Date <span className="text-danger">*</span></label>
+                      <label className="form-label" htmlFor="applyLeaveStartDate">{formData.isHalfDay ? 'Leave Date' : 'From Date'} <span className="es-mandatory-star">*</span></label>
+                      <div className="es-modal-input-wrap">
                         <input
+                          id="applyLeaveStartDate"
                           type="date"
-                          className="form-control"
-                          required
-                          min={formData.startDate || minSelectableDate}
+                          className={`form-control ${leaveFieldErrors.startDate ? "is-invalid border-danger" : ""}`}
+                          aria-invalid={leaveFieldErrors.startDate || undefined}
+                          min={minSelectableDate}
                           max={maxSelectableDate}
-                          value={formData.endDate}
-                          onChange={e => setFormData({...formData, endDate: e.target.value})}
+                          value={formData.startDate}
+                          onChange={e => {
+                            const val = e.target.value;
+                            setFormData(prev => ({
+                              ...prev,
+                              startDate: val,
+                              ...(prev.isHalfDay ? { endDate: val } : {})
+                            }));
+                            clearLeaveFieldError("startDate");
+                          }}
                           onClick={(e) => {
                             try { e.currentTarget.showPicker(); } catch (_) {}
                           }}
@@ -1412,6 +1587,37 @@ export default function Leaves({ currentUser, employeeProfile, embedded = false 
                           }}
                           style={{ cursor: "pointer" }}
                         />
+                        {leaveFieldErrors.startDate && <span className="es-field-error-icon"><i className="bi bi-exclamation-circle-fill"></i></span>}
+                      </div>
+                      {leaveFieldErrors.startDate && <span className="leave-field-error-text">{leaveFieldErrors.startDate}</span>}
+                    </div>
+                    {!formData.isHalfDay ? (
+                      <div className="col-md-6">
+                        <label className="form-label" htmlFor="applyLeaveEndDate">To Date <span className="es-mandatory-star">*</span></label>
+                        <div className="es-modal-input-wrap">
+                          <input
+                            id="applyLeaveEndDate"
+                            type="date"
+                            className={`form-control ${leaveFieldErrors.endDate ? "is-invalid border-danger" : ""}`}
+                            aria-invalid={leaveFieldErrors.endDate || undefined}
+                            min={formData.startDate || minSelectableDate}
+                            max={maxSelectableDate}
+                            value={formData.endDate}
+                            onChange={e => {
+                              setFormData({ ...formData, endDate: e.target.value });
+                              clearLeaveFieldError("endDate");
+                            }}
+                            onClick={(e) => {
+                              try { e.currentTarget.showPicker(); } catch (_) {}
+                            }}
+                            onFocus={(e) => {
+                              try { e.currentTarget.showPicker(); } catch (_) {}
+                            }}
+                            style={{ cursor: "pointer" }}
+                          />
+                          {leaveFieldErrors.endDate && <span className="es-field-error-icon"><i className="bi bi-exclamation-circle-fill"></i></span>}
+                        </div>
+                        {leaveFieldErrors.endDate && <span className="leave-field-error-text">{leaveFieldErrors.endDate}</span>}
                       </div>
                     ) : (
                       <div className="col-md-6">
@@ -1476,15 +1682,32 @@ export default function Leaves({ currentUser, employeeProfile, embedded = false 
                       )}
                     </div>
                     <div className="col-12">
-                      <label className="form-label">Reason <span className="text-danger">*</span></label>
-                      <textarea className="form-control" rows="3" placeholder="Enter reason for leave" required value={formData.reason} onChange={e => setFormData({...formData, reason: e.target.value})}></textarea>
+                      <label className="form-label" htmlFor="applyLeaveReason">Reason <span className="es-mandatory-star">*</span></label>
+                      <div className="es-modal-input-wrap">
+                        <textarea
+                          id="applyLeaveReason"
+                          className={`form-control ${leaveFieldErrors.reason ? "is-invalid border-danger" : ""}`}
+                          rows="3"
+                          placeholder="Enter reason for leave"
+                          aria-invalid={leaveFieldErrors.reason || undefined}
+                          value={formData.reason}
+                          onChange={e => {
+                            setFormData({ ...formData, reason: e.target.value });
+                            clearLeaveFieldError("reason");
+                          }}
+                        ></textarea>
+                        {leaveFieldErrors.reason && <span className="es-field-error-icon"><i className="bi bi-exclamation-circle-fill"></i></span>}
+                      </div>
+                      {leaveFieldErrors.reason && <span className="leave-field-error-text">{leaveFieldErrors.reason}</span>}
                     </div>
                   </div>
                 </div>
                 <hr></hr>
                 <div className="modal-footer border-0 pt-0 px-4 pb-4 gap-2">
                   <button type="button" className="btn" style={{ background: '#fff', border: '1px solid #e2e8f0', color: '#64748b', borderRadius: '10px', padding: '10px 24px', fontWeight: '500' }} onClick={() => setShowApplyModal(false)}>Cancel</button>
-                  <button type="submit" className="btn" style={{ background: '#3525b8', border: 'none', color: '#fff', borderRadius: '10px', padding: '10px 24px', fontWeight: '600', boxShadow: '0 4px 12px rgba(53,37,184,0.25)' }} disabled={submittingLeave}>{submittingLeave ? "Submitting..." : "Submit Leave"}</button>
+                  {!scheduleConflict && (
+                    <button type="submit" className="btn" style={{ background: '#3525b8', border: 'none', color: '#fff', borderRadius: '10px', padding: '10px 24px', fontWeight: '600', boxShadow: '0 4px 12px rgba(53,37,184,0.25)' }} disabled={submittingLeave}>{submittingLeave ? "Submitting..." : "Submit Leave"}</button>
+                  )}
                 </div>
               </form>
             </div>
@@ -1505,6 +1728,25 @@ export default function Leaves({ currentUser, employeeProfile, embedded = false 
               </div>
               <div className="modal-body px-4 pb-4 pt-3">
                   <div className="row g-3">
+                    {isEditMode && editConflict && (
+                      <div className="col-12">
+                        <div className="alert alert-warning border-warning d-flex align-items-start justify-content-between p-3 rounded-3 shadow-sm mb-1" role="alert">
+                          <div className="d-flex align-items-start gap-2">
+                            <i className="bi bi-exclamation-triangle-fill text-warning fs-5 mt-0.5"></i>
+                            <div>
+                              <strong className="d-block text-dark mb-1">Existing Schedule Conflict Detected</strong>
+                              <span style={{ fontSize: '13.5px', color: '#854d0e', lineHeight: 1.5 }}>
+                                {editConflict.message}
+                              </span>
+                              <div className="mt-1 small text-muted">
+                                Status: <strong className="text-dark">{editConflict.status}</strong> · Auto-dismisses in 10s.
+                              </div>
+                            </div>
+                          </div>
+                          <button type="button" className="btn-close" onClick={() => setEditConflict(null)} aria-label="Close"></button>
+                        </div>
+                      </div>
+                    )}
                       <div className="col-md-3">
                           <div className="p-3 rounded h-100 d-flex flex-column justify-content-between" style={{ border: '1px solid #eaeaea', backgroundColor: '#ffffff' }}>
                               <small className="text-muted d-block mb-1" style={{ fontSize: '13px' }}>Leave Type</small>
@@ -1758,6 +2000,7 @@ export default function Leaves({ currentUser, employeeProfile, embedded = false 
                           <button type="button" className="btn btn-outline-secondary px-4 fw-medium rounded-3" onClick={() => { setIsEditMode(false); setEditDocFile(null); }}>
                               Cancel
                           </button>
+                          {!editConflict && (
                           <button type="button" className="btn text-white px-4 fw-medium rounded-3 d-flex align-items-center gap-2 ms-auto" style={{ backgroundColor: '#4e36f5' }} onClick={async () => {
                               try {
                                   const sDateStr = viewLeave.start_date ? (viewLeave.start_date.includes('T') ? viewLeave.start_date.split('T')[0] : viewLeave.start_date) : '';
@@ -1807,6 +2050,7 @@ export default function Leaves({ currentUser, employeeProfile, embedded = false 
                           }}>
                               <i className="bi bi-check2"></i> Save changes
                           </button>
+                          )}
                       </>
                   )}
               </div>

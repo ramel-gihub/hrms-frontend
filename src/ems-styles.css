@@ -8911,6 +8911,22 @@ button.ep-complete-profile-btn:hover,
     box-shadow: 0 0 0 3px rgba(60, 47, 188, .08);
 }
 
+.leave-apply-modal .modal-body > .es-mandatory-banner {
+    margin-bottom: 12px;
+}
+
+.leave-apply-modal .modal-body > .es-mandatory-notice {
+    margin-bottom: 16px;
+}
+
+.leave-apply-modal .leave-field-error-text {
+    display: block;
+    margin-top: 5px;
+    color: #dc2626;
+    font-size: 12px;
+    line-height: 1.4;
+}
+
 .epl-cancel-btn {
     padding: 10px 16px;
     border: 1px solid #dddff0;
@@ -9858,6 +9874,22 @@ button.ep-complete-profile-btn:hover,
 
 .employee-assets-page .ea-modal .modal-body {
     padding: 24px;
+}
+
+.ea-modal #eaNewAssetRequestForm > .es-mandatory-banner {
+    margin-bottom: 12px;
+}
+
+.ea-modal #eaNewAssetRequestForm > .es-mandatory-notice {
+    margin-bottom: 18px;
+}
+
+.ea-modal .ea-field-error-text {
+    display: block;
+    margin-top: 5px;
+    color: #dc2626;
+    font-size: 12px;
+    line-height: 1.4;
 }
 
 .employee-assets-page .ea-modal .modal-footer {
@@ -22279,6 +22311,7 @@ button.es-edit-btn:hover,
     max-height: calc(100vh - 48px);
 }
 
+.employee-requests-page.request-modal-dialog,
 .employee-requests-page .request-modal-dialog {
     width: 100%;
     max-width: 620px;
@@ -22367,6 +22400,14 @@ button.es-edit-btn:hover,
     padding: 20px 24px;
 }
 
+.request-modal-body > .es-mandatory-banner {
+    margin-bottom: 12px;
+}
+
+.request-modal-body > .es-mandatory-notice {
+    margin-bottom: 16px;
+}
+
 .employee-requests-page .request-form-grid {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
@@ -22378,15 +22419,53 @@ button.es-edit-btn:hover,
     flex-direction: column;
     gap: 6px;
     min-width: 0;
+    position: relative;
 }
 
 .employee-requests-page .request-form-group.full {
     grid-column: 1 / -1;
 }
 
+.employee-requests-page .request-form-group.has-error::after {
+    content: "!";
+    position: absolute;
+    right: 12px;
+    top: 35px;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: #ef4444;
+    color: #fff;
+    font-size: 13px;
+    font-weight: 800;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+}
+
+.employee-requests-page .request-form-group.request-details-group.has-error::after {
+    top: 60px;
+}
+
+.employee-requests-page .request-form-group.has-error > input,
+.employee-requests-page .request-form-group.has-error > select,
+.employee-requests-page .request-form-group.has-error > textarea {
+    border-color: #ef4444 !important;
+    background: #fff8f8;
+    box-shadow: 0 0 0 3px rgba(239, 68, 68, .12);
+}
+
 .employee-requests-page .request-form-group label {
     font-weight: 600;
     color: var(--text-dark);
+}
+
+.employee-requests-page .request-form-group label .es-mandatory-star,
+.employee-requests-page .request-form-group .es-mandatory-star {
+    color: #dc2626;
+    font-weight: 700;
+    margin-left: 4px;
 }
 
 .employee-requests-page .request-modal .request-form-group label,
@@ -22411,6 +22490,22 @@ button.es-edit-btn:hover,
     font: inherit;
     font-size: 14px;
     transition: border-color .2s ease, box-shadow .2s ease;
+}
+
+.employee-requests-page .request-form-group input.request-field-error,
+.employee-requests-page .request-form-group select.request-field-error,
+.employee-requests-page .request-form-group textarea.request-field-error {
+    border-color: #ef4444 !important;
+    background: #fff8f8;
+    box-shadow: 0 0 0 3px rgba(239, 68, 68, .12);
+}
+
+.employee-requests-page .request-field-error-text {
+    display: block;
+    margin-top: 4px;
+    font-size: 12px;
+    line-height: 1.4;
+    color: #dc2626;
 }
 
 .employee-requests-page .request-form-group textarea {
@@ -22482,16 +22577,6 @@ button.es-edit-btn:hover,
 
 .employee-requests-page .request-file-error {
     color: var(--red);
-    font-size: 13px;
-}
-
-.employee-requests-page .request-form-error {
-    margin: 0 24px 12px;
-    padding: 10px 14px;
-    border: 1px solid #f4c7c7;
-    border-radius: 10px;
-    background: var(--red-light);
-    color: #b42323;
     font-size: 13px;
 }
 
@@ -22856,6 +22941,7 @@ button.es-edit-btn:hover,
         grid-template-columns: 1fr;
     }
 
+    .employee-requests-page.request-modal-dialog,
     .employee-requests-page .request-modal-dialog {
         width: calc(100% - 24px);
         margin: 12px auto;
@@ -22906,10 +22992,6 @@ button.es-edit-btn:hover,
     .employee-requests-page .request-modal-body,
     .employee-requests-page .request-modal-footer {
         padding: 18px;
-    }
-
-    .employee-requests-page .request-form-error {
-        margin: 0 18px 12px;
     }
 
     .employee-requests-page .request-modal-header h2 {

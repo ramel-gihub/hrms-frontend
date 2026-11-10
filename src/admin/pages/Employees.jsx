@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import EmptyState from '../../components/EmptyState';
-import { SearchIcon, PlusIcon, UsersIcon } from '../components/Icons';
+import { PlusIcon } from '../components/Icons';
+import EmployeeProfileView from './EmployeeProfileView';
 
 export default function Employees({
   employees = [],
@@ -16,429 +17,1097 @@ export default function Employees({
 
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedDept, setSelectedDept] = useState('All');
+  const [sortBy, setSortBy] = useState('recent');
+  const [viewMode, setViewMode] = useState('cards'); // 'cards' | 'list'
   const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(5);
+  const [pageSize, setPageSize] = useState(12);
 
-  // Delete modal state
+  // Local state for optimistic update on save
+  const [localEmployees, setLocalEmployees] = useState(employees);
+
+  useEffect(() => {
+    setLocalEmployees(employees);
+  }, [employees]);
+
+  // Profile view navigation
+  const [selectedEmployeeForView, setSelectedEmployeeForView] = useState(null);
+
+  // Floating 3-dots menu state
+  const [openMenuId, setOpenMenuId] = useState(null);
+
+  // Company Roles list from backend (roles table)
+  const [companyRoles, setCompanyRoles] = useState([]);
+
+  // Delete / Deactivate modal state
   const [employeeToDelete, setEmployeeToDelete] = useState(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [feedback, setFeedback] = useState(null);
 
-  // Filter out superadmin records so they are never displayed in the employee directory
-  const visibleEmployees = employees.filter(e => {
+  // Edit Employment Details modal state
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [employeeToEdit, setEmployeeToEdit] = useState(null);
+  const [editFormData, setEditFormData] = useState({
+    role_key: '',
+    role_id: '',
+    designation: '',
+    department: 'Engineering',
+    team: '',
+    location: 'Remote',
+    employment_type: 'Full Time',
+    status: 'Active',
+    joining_date: ''
+  });
+  const [savingEdit, setSavingEdit] = useState(false);
+
+  // Fetch Company Created Roles on component mount
+  useEffect(() => {
+    const fetchRoles = async () => {
+      try {
+        const res = await fetch(API_URL + '/api/admin/roles').catch(function() { return null; });
+        if (res && res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data)) {
+            setCompanyRoles(data);
+          }
+        }
+      } catch (err) {
+        console.error('Error fetching company roles:', err);
+      }
+    };
+    fetchRoles();
+  }, [API_URL]);
+
+  // Close 3-dots menu when clicking outside
+  useEffect(() => {
+    const handleWindowClick = () => {
+      setOpenMenuId(null);
+    };
+    window.addEventListener('click', handleWindowClick);
+    return () => window.removeEventListener('click', handleWindowClick);
+  }, []);
+
+  // Filter out superadmin records
+  const visibleEmployees = localEmployees.filter(e => {
     const role = (e.role_name || e.roleKey || e.role || '').toLowerCase();
     const email = (e.email || '').toLowerCase();
     const code = (e.employee_code || '').toLowerCase();
-    const name = `${e.first_name || ''} ${e.last_name || ''} ${e.full_name || ''}`.toLowerCase();
-    const isSuperAdmin = (
-      role.includes('super_admin') || 
-      role.includes('superadmin') || 
-      email.includes('superadmin') || 
-      code.includes('emp-super') || 
-      name.includes('super administrator')
-    );
-    return !isSuperAdmin;
+    const name = ((e.first_name || '') + ' ' + (e.last_name || '') + ' ' + (e.full_name || '')).toLowerCase();
+    return !role.includes('superadmin') && 
+           !role.includes('super_admin') && 
+           !email.includes('superadmin') &&
+           code !== 'emp-super' &&
+           !name.includes('super admin');
   });
 
+  // Extract unique departments for filter dropdown
   const departments = ['All', ...new Set(visibleEmployees.map(e => e.department).filter(Boolean))];
 
-  const filtered = visibleEmployees.filter(e => {
-    const fullName = `${e.first_name || ''} ${e.last_name || ''} ${e.full_name || ''}`.toLowerCase();
-    const email = (e.email || '').toLowerCase();
-    const code = (e.employee_code || '').toLowerCase();
-    const query = searchTerm.toLowerCase();
+  // Apply search and filter
+  const filteredEmployees = visibleEmployees.filter(emp => {
+    const fullName = (emp.full_name || ((emp.first_name || '') + ' ' + (emp.last_name || ''))).toLowerCase();
+    const code = (emp.employee_code || '').toLowerCase();
+    const email = (emp.email || '').toLowerCase();
+    const designation = (emp.designation || '').toLowerCase();
+    const team = (emp.team || '').toLowerCase();
+    const search = searchTerm.toLowerCase();
 
-    const matchesSearch = fullName.includes(query) || email.includes(query) || code.includes(query);
-    const matchesDept = selectedDept === 'All' || e.department === selectedDept;
+    const matchesSearch = !searchTerm || 
+      fullName.includes(search) || 
+      code.includes(search) || 
+      email.includes(search) || 
+      designation.includes(search) ||
+      team.includes(search);
+
+    const matchesDept = selectedDept === 'All' || emp.department === selectedDept;
 
     return matchesSearch && matchesDept;
   });
 
-  // Reset to page 1 on filter/search change
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [searchTerm, selectedDept, pageSize]);
+  // Apply sorting
+  const sortedEmployees = [...filteredEmployees].sort((a, b) => {
+    if (sortBy === 'name') {
+      const nameA = a.full_name || a.first_name || '';
+      const nameB = b.full_name || b.first_name || '';
+      return nameA.localeCompare(nameB);
+    }
+    if (sortBy === 'department') {
+      return (a.department || '').localeCompare(b.department || '');
+    }
+    if (sortBy === 'employee-id') {
+      return (a.employee_code || '').localeCompare(b.employee_code || '');
+    }
+    // Default 'recent': higher id or created_at first
+    return (b.id || 0) - (a.id || 0);
+  });
 
-  // Open delete modal
+  // Pagination calculation
+  const totalEmployees = sortedEmployees.length;
+  const totalPages = Math.ceil(totalEmployees / pageSize) || 1;
+  const startIndex = (currentPage - 1) * pageSize;
+  const currentEmployees = sortedEmployees.slice(startIndex, startIndex + pageSize);
+
+  // Deactivate modal handlers
   const handleOpenDeleteModal = (emp) => {
     setEmployeeToDelete(emp);
     setShowDeleteModal(true);
   };
 
-  // Confirm delete handler
+  const handleCloseDeleteModal = () => {
+    if (!deleting) {
+      setShowDeleteModal(false);
+      setEmployeeToDelete(null);
+    }
+  };
+
   const handleConfirmDelete = async () => {
     if (!employeeToDelete) return;
     setDeleting(true);
     setFeedback(null);
+
     try {
-      const res = await fetch(`${API_URL}/api/admin/employees/${employeeToDelete.id}`, {
+      const empId = employeeToDelete.id;
+      const res = await fetch(API_URL + '/api/admin/employees/' + empId, {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' }
       });
+
       const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.error || data.message || 'Failed to delete employee');
+        throw new Error(data.error || data.message || 'Failed to deactivate employee');
       }
 
+      setFeedback({ type: 'success', message: 'Employee ' + (employeeToDelete.full_name || employeeToDelete.employee_code) + ' deactivated successfully' });
       setShowDeleteModal(false);
-      const deletedName = employeeToDelete.full_name || `${employeeToDelete.first_name || ''} ${employeeToDelete.last_name || ''}`.trim() || employeeToDelete.employee_code;
       setEmployeeToDelete(null);
-
-      setFeedback({
-        type: 'success',
-        message: `Employee "${deletedName}" has been successfully deleted.`
-      });
-
-      // Refresh employee list from backend (is_deleted = false filter will automatically exclude it)
-      if (typeof fetchEmployees === 'function') {
-        await fetchEmployees();
-      }
-
-      setTimeout(() => setFeedback(null), 5000);
+      if (fetchEmployees) fetchEmployees();
     } catch (err) {
-      console.error('Delete employee error:', err);
-      setFeedback({
-        type: 'error',
-        message: err.message || 'An error occurred while deleting employee.'
-      });
+      setFeedback({ type: 'danger', message: err.message || 'Failed to deactivate employee' });
     } finally {
       setDeleting(false);
     }
   };
 
-  // Pagination calculations
-  const totalItems = filtered.length;
-  const totalPages = Math.ceil(totalItems / pageSize) || 1;
-  const startIndex = (currentPage - 1) * pageSize;
-  const endIndex = Math.min(startIndex + pageSize, totalItems);
-  const currentEmployees = filtered.slice(startIndex, endIndex);
+  // Edit Employment Details handlers
+  const handleOpenEditEmploymentModal = (emp) => {
+    setEmployeeToEdit(emp);
+    
+    // Resolve matching company role
+    const matchedRole = companyRoles.find(r => 
+      r.role_key === emp.role_key ||
+      r.role_key === emp.roleKey ||
+      r.role_name === emp.role_name ||
+      (r.role_key && emp.role && r.role_key.toLowerCase() === emp.role.toLowerCase())
+    );
+
+    setEditFormData({
+      role_key: matchedRole ? matchedRole.role_key : (emp.role_key || 'SOFTWARE_ENGINEER'),
+      role_id: matchedRole ? matchedRole.id : '',
+      designation: emp.designation || (matchedRole ? matchedRole.role_name : 'Software Engineer'),
+      department: emp.department || 'NA',
+      team: emp.team || 'Backend',
+      location: emp.location || emp.work_mode || 'NA',
+      employment_type: emp.employment_type || 'NA',
+      status: emp.status || 'Active',
+      joining_date: emp.joining_date ? emp.joining_date.split('T')[0] : ''
+    });
+    setShowEditModal(true);
+  };
+
+  const handleSaveEmploymentDetails = async (e) => {
+    if (e) e.preventDefault();
+    if (!employeeToEdit) return;
+    setSavingEdit(true);
+    setFeedback(null);
+
+    try {
+      const res = await fetch(API_URL + '/api/admin/employees/' + employeeToEdit.id + '/employment', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(editFormData)
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || data.message || 'Failed to update employment details');
+      }
+
+      // Optimistically update local list so card updates immediately
+      setLocalEmployees(prev => prev.map(emp => {
+        if (emp.id === employeeToEdit.id) {
+          const selectedRole = companyRoles.find(r => r.role_key === editFormData.role_key);
+          return {
+            ...emp,
+            designation: editFormData.designation,
+            department: editFormData.department,
+            team: editFormData.team,
+            location: editFormData.location,
+            work_mode: editFormData.location,
+            employment_type: editFormData.employment_type,
+            status: editFormData.status,
+            joining_date: editFormData.joining_date || emp.joining_date,
+            role_key: editFormData.role_key,
+            role_name: selectedRole ? selectedRole.role_name : emp.role_name
+          };
+        }
+        return emp;
+      }));
+
+      setFeedback({
+        type: 'success',
+        message: 'Employment details updated successfully for ' + (employeeToEdit.full_name || employeeToEdit.first_name || 'Employee')
+      });
+      setShowEditModal(false);
+      setEmployeeToEdit(null);
+      if (fetchEmployees) fetchEmployees();
+    } catch (err) {
+      setFeedback({ type: 'danger', message: err.message || 'Error updating employment details' });
+    } finally {
+      setSavingEdit(false);
+    }
+  };
+
+  // CSV Export
+  const handleExportCSV = () => {
+    if (!sortedEmployees || sortedEmployees.length === 0) return;
+    const headers = ['ID', 'Employee Code', 'Full Name', 'Email', 'Department', 'Designation', 'Status', 'Joining Date', 'Employment Type'];
+    const rows = sortedEmployees.map(e => [
+      e.id,
+      e.employee_code || '',
+      e.full_name || ((e.first_name || '') + ' ' + (e.last_name || '')),
+      e.email || '',
+      e.department || '',
+      e.designation || '',
+      e.status || 'Active',
+      e.joining_date ? e.joining_date.split('T')[0] : '',
+      e.employment_type || 'Full Time'
+    ]);
+    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map(r => r.join(','))].join(String.fromCharCode(10));
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement('a');
+    link.setAttribute('href', encodedUri);
+    link.setAttribute('download', 'employees_export_' + new Date().toISOString().split('T')[0] + '.csv');
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  // If user clicked "View" or "View Profile", render the full EmployeeProfileView
+  if (selectedEmployeeForView) {
+    return (
+      <EmployeeProfileView
+        employee={selectedEmployeeForView}
+        onBack={() => setSelectedEmployeeForView(null)}
+        currentUser={currentUser}
+      />
+    );
+  }
 
   return (
-    <div className="space-y-6">
-      {/* Header bar */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+    <div className="employee-list-page">
+      {/* Top Header */}
+      <div className="employee-page-header">
         <div>
-          <h2 className="text-2xl font-bold tracking-tight text-gray-900 dark:text-white flex items-center gap-2">
-            <UsersIcon className="h-6 w-6 text-[#3c50e0]" />
-            Employee Directory
-          </h2>
-          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-            Manage your company workforce, view roles, and manage employee accounts.
-          </p>
+          <h2 className="employee-page-title">Employee List</h2>
+          <p className="employee-page-subtitle">Manage employees, departments, teams, assignments and employment details.</p>
         </div>
-
-        <div className="flex items-center gap-3">
-          <button
-            type="button"
-            onClick={onOpenAddModal}
-            className="inline-flex items-center gap-2 rounded-xl bg-[#3c50e0] px-4 py-2.5 text-xs font-semibold text-white shadow-sm hover:bg-[#3245c5] transition-all cursor-pointer"
+        <div className="d-flex align-items-center gap-2">
+          <button 
+            type="button" 
+            className="btn-admin-secondary"
+            onClick={handleExportCSV}
+            title="Download CSV report of current employees"
           >
-            <PlusIcon className="h-4 w-4" />
-            Add New Employee
+            <i className="bi bi-download me-1"></i>
+            <span>Export</span>
+          </button>
+          <button 
+            type="button" 
+            className="btn-admin-primary"
+            onClick={onOpenAddModal}
+          >
+            <i className="bi bi-plus-lg me-1"></i>
+            <span>Add Employee</span>
           </button>
         </div>
       </div>
 
-      {/* Feedback Banner */}
+      {/* Hero Welcome Banner */}
+      <div className="en-welcome-banner mb-4">
+        <div className="en-welcome-icon">
+          <i className="bi bi-people-fill"></i>
+        </div>
+        <div className="en-welcome-content">
+          <span className="en-eyebrow">WORKFORCE DIRECTORY &amp; ROSTER</span>
+          <h3>Enterprise Staff Directory &amp; Roster Overview</h3>
+          <p>Search, filter, and inspect detailed employment records across branches, departments, and working modes.</p>
+        </div>
+        <div className="en-banner-decoration">
+          <i className="bi bi-people"></i>
+          <i className="bi bi-stars"></i>
+        </div>
+      </div>
+
+      {/* Toast Feedback */}
       {feedback && (
-        <div
-          className={`flex items-center justify-between rounded-xl p-3.5 text-xs font-medium border animate-in fade-in ${
-            feedback.type === 'success'
-              ? 'bg-emerald-50 text-emerald-800 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-200 dark:border-emerald-800'
-              : 'bg-rose-50 text-rose-800 border-rose-200 dark:bg-rose-950/40 dark:text-rose-200 dark:border-rose-800'
-          }`}
-        >
-          <div className="flex items-center gap-2">
-            <i className={`bi ${feedback.type === 'success' ? 'bi-check-circle-fill text-emerald-600' : 'bi-exclamation-octagon-fill text-rose-600'} text-base`}></i>
-            <span>{feedback.message}</span>
-          </div>
-          <button
-            type="button"
-            onClick={() => setFeedback(null)}
-            className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
-          >
-            <i className="bi bi-x text-base"></i>
-          </button>
+        <div className={'alert alert-' + feedback.type + ' alert-dismissible fade show rounded-3 mb-4'} role="alert">
+          <i className={'bi ' + (feedback.type === 'success' ? 'bi-check-circle-fill' : 'bi-exclamation-triangle-fill') + ' me-2'}></i>
+          {feedback.message}
+          <button type="button" className="btn-close" onClick={() => setFeedback(null)} aria-label="Close"></button>
         </div>
       )}
 
-      {/* Filter and Search Bar */}
-      <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4 bg-white dark:bg-gray-900 p-4 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-xs">
-        <div className="relative flex-1 max-w-md">
-          <SearchIcon className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-          <input
-            type="text"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Search by name, employee code or email..."
-            className="w-full rounded-xl border border-gray-200 bg-gray-50/50 pl-10 pr-4 py-2 text-xs text-gray-800 focus:border-[#3c50e0] focus:bg-white focus:outline-none dark:border-gray-700 dark:bg-gray-800 dark:text-white dark:focus:bg-gray-800"
-          />
-        </div>
+      {/* Search, Filter & Toolbar Bar */}
+      <div className="employee-toolbar-card mb-4">
+        <div className="employee-search-row">
+          {/* Universal Search Input */}
+          <div className="employee-search-input-wrapper">
+            <i className="bi bi-search"></i>
+            <input 
+              type="text" 
+              className="employee-search-input"
+              placeholder="Search by employee ID, name, email, phone, department or designation..."
+              value={searchTerm}
+              onChange={(e) => {
+                setSearchTerm(e.target.value);
+                setCurrentPage(1);
+              }}
+            />
+            {searchTerm && (
+              <button 
+                type="button" 
+                className="btn-clear-search"
+                onClick={() => setSearchTerm('')}
+              >
+                <i className="bi bi-x-lg"></i>
+              </button>
+            )}
+          </div>
 
-        <div className="flex items-center gap-4 flex-wrap">
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-gray-500 font-medium">Department:</span>
-            <select
+          {/* Department Filter */}
+          <div className="employee-filter-select-wrapper">
+            <label>Department:</label>
+            <select 
               value={selectedDept}
-              onChange={(e) => setSelectedDept(e.target.value)}
-              className="rounded-xl border border-gray-200 bg-gray-50/50 px-3 py-2 text-xs text-gray-800 focus:border-[#3c50e0] focus:outline-none dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+              onChange={(e) => {
+                setSelectedDept(e.target.value);
+                setCurrentPage(1);
+              }}
+              className="employee-filter-select"
             >
-              {departments.map(d => (
-                <option key={d} value={d}>{d}</option>
+              {departments.map(dept => (
+                <option key={dept} value={dept}>{dept}</option>
               ))}
             </select>
           </div>
 
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-gray-500 font-medium">Show:</span>
-            <select
-              value={pageSize}
-              onChange={(e) => setPageSize(Number(e.target.value))}
-              className="rounded-xl border border-gray-200 bg-gray-50/50 px-3 py-2 text-xs text-gray-800 focus:border-[#3c50e0] focus:outline-none dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+          {/* Sort By Dropdown */}
+          <div className="employee-filter-select-wrapper">
+            <label>Sort:</label>
+            <select 
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value)}
+              className="employee-filter-select"
             >
-              <option value={5}>5 per page</option>
-              <option value={10}>10 per page</option>
-              <option value={20}>20 per page</option>
-              <option value={50}>50 per page</option>
-              <option value={100}>100 per page</option>
+              <option value="recent">Recently Joined</option>
+              <option value="name">Employee Name</option>
+              <option value="department">Department</option>
+              <option value="employee-id">Employee ID</option>
             </select>
+          </div>
+
+          {/* View Switcher (Cards vs List) */}
+          <div className="employee-view-switcher" role="group">
+            <button 
+              type="button" 
+              className={'employee-view-btn ' + (viewMode === 'cards' ? 'active' : '')}
+              onClick={() => setViewMode('cards')}
+              title="Card view"
+            >
+              <i className="bi bi-grid-fill"></i>
+            </button>
+            <button 
+              type="button" 
+              className={'employee-view-btn ' + (viewMode === 'list' ? 'active' : '')}
+              onClick={() => setViewMode('list')}
+              title="List view"
+            >
+              <i className="bi bi-list-ul"></i>
+            </button>
           </div>
         </div>
       </div>
 
-      {/* Employees Table Container */}
-      <div className="rounded-2xl border border-gray-200 bg-white p-5 md:p-6 shadow-sm dark:border-gray-800 dark:bg-gray-900 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm text-gray-600 dark:text-gray-300">
-            <thead className="bg-gray-50/75 text-xs uppercase font-semibold text-gray-500 dark:bg-gray-800/50 dark:text-gray-400">
-              <tr>
-                <th className="px-4 py-3 rounded-l-xl">Employee</th>
-                <th className="px-4 py-3">Employee Code</th>
-                <th className="px-4 py-3">Department</th>
-                <th className="px-4 py-3">Designation</th>
-                <th className="px-4 py-3">System Role</th>
-                <th className="px-4 py-3 text-center">Status</th>
-                <th className="px-4 py-3 text-right rounded-r-xl">Action</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-              {currentEmployees.map((emp, i) => {
-                const name = emp.full_name || `${emp.first_name || ''} ${emp.last_name || ''}`.trim() || 'Employee';
-                const roleLower = (emp.role_name || emp.roleKey || emp.role || '').toLowerCase();
-                const codeLower = (emp.employee_code || '').toLowerCase();
-                const emailLower = (emp.email || '').toLowerCase();
-                // Only actual admin user accounts (e.g. EMP-ADMIN, Organization Admin)
-                const isAdmin = (
-                  roleLower === 'admin' ||
-                  roleLower === 'org_admin' ||
-                  roleLower === 'organization admin' ||
-                  roleLower === 'super_admin' ||
-                  roleLower === 'superadmin' ||
-                  codeLower === 'emp-admin' ||
-                  codeLower === 'emp-super' ||
-                  emailLower.startsWith('admin@') ||
-                  emailLower.startsWith('superadmin@')
-                );
+      {/* Main Content Area */}
+      {loading ? (
+        <div className="text-center py-5">
+          <div className="spinner-border text-primary" role="status" style={{ width: '3rem', height: '3rem' }}>
+            <span className="visually-hidden">Loading workforce...</span>
+          </div>
+          <p className="text-muted mt-3 fw-medium">Loading employee roster...</p>
+        </div>
+      ) : currentEmployees.length === 0 ? (
+        <div className="admin-card text-center py-5">
+          <div className="my-4">
+            <EmptyState
+              title={searchTerm || selectedDept !== 'All' ? 'No matching employees found' : 'No employees added yet'}
+              description={searchTerm || selectedDept !== 'All' ? 'Try adjusting your search filters or department selection.' : 'Add your first organization team member to get started.'}
+              actionLabel="Add Employee"
+              onAction={onOpenAddModal}
+              icon={PlusIcon}
+            />
+          </div>
+        </div>
+      ) : viewMode === 'cards' ? (
+        /* CARD GRID VIEW */
+        <div className="employee-card-grid">
+          {currentEmployees.map(emp => {
+            const fullName = emp.full_name || ((emp.first_name || '') + ' ' + (emp.last_name || '')) || 'Employee';
+            const initials = fullName
+              .split(' ')
+              .filter(Boolean)
+              .slice(0, 2)
+              .map(n => n[0])
+              .join('')
+              .toUpperCase() || 'EM';
 
-                return (
-                  <tr key={emp.id || i} className="hover:bg-gray-50/50 dark:hover:bg-gray-800/40 transition-colors">
-                    <td className="px-4 py-3.5 font-medium text-gray-900 dark:text-white">
-                      <div className="flex items-center gap-3">
-                        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-tr from-[#3c50e0] to-[#607afb] text-white font-bold text-xs shrink-0 shadow-sm">
-                          {name.charAt(0).toUpperCase()}
-                        </div>
-                        <div>
-                          <p className="font-bold text-gray-900 dark:text-white leading-tight">
-                            {name}
-                          </p>
-                          <span className="text-xs text-gray-400">{emp.email}</span>
+            const statusLower = (emp.status || 'active').toLowerCase();
+            const isInactive = statusLower === 'inactive';
+            const isProbation = statusLower === 'probation';
+            const statusLabel = isInactive ? 'Inactive' : isProbation ? 'Probation' : 'Active';
+
+            return (
+              <div key={emp.id} className="employee-card">
+                <div className="employee-card-top">
+                  <div className="employee-card-top-row">
+                    <div className="employee-card-identity">
+                      <div className="employee-card-avatar">
+                        {emp.avatar_url || emp.profile_pic ? (
+                          <img 
+                            src={emp.avatar_url || emp.profile_pic} 
+                            alt={fullName}
+                            onError={(e) => {
+                              e.target.style.display = 'none';
+                              if (e.target.nextSibling) e.target.nextSibling.style.display = 'flex';
+                            }}
+                          />
+                        ) : null}
+                        <div 
+                          className="employee-card-avatar-fallback" 
+                          style={{ display: emp.avatar_url || emp.profile_pic ? 'none' : 'flex' }}
+                        >
+                          {initials}
                         </div>
                       </div>
-                    </td>
+                      <div className="employee-card-name">
+                        <h3 title={fullName}>{fullName}</h3>
+                        <span>{emp.designation || 'NA'}</span>
+                      </div>
+                    </div>
 
-                    <td className="px-4 py-3.5 font-mono text-xs font-semibold text-[#3c50e0]">
-                      {emp.employee_code || `EMP-${emp.id}`}
-                    </td>
+                    {/* 3-DOTS ACTION MENU WITH FLOATING DROPDOWN */}
+                    <div className="dropdown position-relative">
+                      <button 
+                        type="button" 
+                        className="employee-card-menu"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setOpenMenuId(openMenuId === emp.id ? null : emp.id);
+                        }}
+                        title="Actions"
+                      >
+                        <i className="bi bi-three-dots"></i>
+                      </button>
 
-                    <td className="px-4 py-3.5 text-xs text-gray-700 dark:text-gray-300">
-                      {emp.department || 'Engineering'}
-                    </td>
+                      {openMenuId === emp.id && (
+                        <ul 
+                          className="dropdown-menu dropdown-menu-end show shadow-lg border"
+                          style={{
+                            position: 'absolute',
+                            top: '100%',
+                            right: '0',
+                            zIndex: 1050,
+                            minWidth: '180px',
+                            borderRadius: '12px',
+                            padding: '6px',
+                            backgroundColor: '#fff'
+                          }}
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <li>
+                            <button
+                              type="button"
+                              className="dropdown-item d-flex align-items-center py-2 px-3 rounded-2"
+                              onClick={() => {
+                                setOpenMenuId(null);
+                                setSelectedEmployeeForView(emp);
+                              }}
+                            >
+                              <i className="bi bi-eye me-2 text-primary"></i>
+                              <span>View Profile</span>
+                            </button>
+                          </li>
 
-                    <td className="px-4 py-3.5 text-xs text-gray-700 dark:text-gray-300">
-                      {emp.designation || 'Software Engineer'}
-                    </td>
+                          {/* Edit Employee commented as requested */}
+                          {/* 
+                          <li>
+                            <button
+                              type="button"
+                              className="dropdown-item d-flex align-items-center py-2 px-3 rounded-2"
+                              onClick={() => {
+                                setOpenMenuId(null);
+                                handleOpenEditEmploymentModal(emp);
+                              }}
+                            >
+                              <i className="bi bi-pencil me-2"></i>
+                              <span>Edit Employee</span>
+                            </button>
+                          </li>
+                          */}
 
-                    <td className="px-4 py-3.5">
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-400">
-                        {emp.role_name || emp.roleKey || emp.role || 'Employee'}
+                          {/* Documents commented as requested */}
+                          {/*
+                          <li>
+                            <button
+                              type="button"
+                              className="dropdown-item d-flex align-items-center py-2 px-3 rounded-2"
+                              onClick={() => {
+                                setOpenMenuId(null);
+                                alert('Documents panel for ' + fullName);
+                              }}
+                            >
+                              <i className="bi bi-folder2-open me-2"></i>
+                              <span>Documents</span>
+                            </button>
+                          </li>
+                          */}
+
+                          <li>
+                            <hr className="dropdown-divider my-1" />
+                          </li>
+
+                          <li>
+                            <button
+                              type="button"
+                              className="dropdown-item d-flex align-items-center text-danger py-2 px-3 rounded-2"
+                              onClick={() => {
+                                setOpenMenuId(null);
+                                handleOpenDeleteModal(emp);
+                              }}
+                            >
+                              <i className="bi bi-person-x me-2"></i>
+                              <span>Deactivate</span>
+                            </button>
+                          </li>
+                        </ul>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Card Meta Bar */}
+                  <div className="employee-card-meta">
+                    <span className="employee-id">{emp.employee_code || ('EMP-' + emp.id)}</span>
+                    <span className={'admin-badge ' + (isInactive ? 'badge-danger' : isProbation ? 'badge-info' : 'badge-active')}>
+                      <span className="admin-badge-dot"></span>
+                      {statusLabel}
+                    </span>
+                  </div>
+                </div>
+
+                {/* 2-Column Detail Grid */}
+                <div className="employee-card-details">
+                  <div className="employee-card-detail-grid">
+                    <div className="employee-card-detail">
+                      <span className="employee-card-detail-label">Department</span>
+                      <span className="employee-card-detail-value">{emp.department || 'NA'}</span>
+                    </div>
+                    <div className="employee-card-detail">
+                      <span className="employee-card-detail-label">Team</span>
+                      <span className="employee-card-detail-value">{emp.team || 'NA'}</span>
+                    </div>
+                    <div className="employee-card-detail">
+                      <span className="employee-card-detail-label">Manager</span>
+                      <span className="employee-card-detail-value">{emp.reporting_manager || 'NA'}</span>
+                    </div>
+                    <div className="employee-card-detail">
+                      <span className="employee-card-detail-label">Location</span>
+                      <span className="employee-card-detail-value">{emp.location || emp.work_mode || 'NA'}</span>
+                    </div>
+                    <div className="employee-card-detail">
+                      <span className="employee-card-detail-label">Employment</span>
+                      <span className="employee-card-detail-value">{emp.employment_type || 'NA'}</span>
+                    </div>
+                    <div className="employee-card-detail">
+                      <span className="employee-card-detail-label">Joining Date</span>
+                      <span className="employee-card-detail-value">
+                        {emp.joining_date 
+                          ? new Date(emp.joining_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+                          : 'NA'}
                       </span>
-                    </td>
+                    </div>
+                  </div>
+                </div>
 
-                    <td className="px-4 py-3.5 text-center">
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400">
-                        ● Active
-                      </span>
-                    </td>
+                {/* Card Footer: View and Edit */}
+                <div className="employee-card-footer">
+                  <button 
+                    type="button" 
+                    className="employee-card-action"
+                    onClick={() => setSelectedEmployeeForView(emp)}
+                  >
+                    <i className="bi bi-eye"></i>
+                    <span>View</span>
+                  </button>
+                  <button 
+                    type="button" 
+                    className="employee-card-action primary"
+                    onClick={() => handleOpenEditEmploymentModal(emp)}
+                  >
+                    <i className="bi bi-pencil"></i>
+                    <span>Edit</span>
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        /* LIST TABLE VIEW */
+        <div className="admin-card p-0 overflow-hidden mb-4">
+          <div className="table-responsive">
+            <table className="admin-table table-hover align-middle mb-0">
+              <thead>
+                <tr>
+                  <th>Employee</th>
+                  <th>Employee Code</th>
+                  <th>Department</th>
+                  <th>Designation</th>
+                  <th>Team</th>
+                  <th>Status</th>
+                  <th className="text-end">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {currentEmployees.map(emp => {
+                  const fullName = emp.full_name || ((emp.first_name || '') + ' ' + (emp.last_name || '')) || 'Employee';
+                  const initials = fullName
+                    .split(' ')
+                    .filter(Boolean)
+                    .slice(0, 2)
+                    .map(n => n[0])
+                    .join('')
+                    .toUpperCase() || 'EM';
 
-                    <td className="px-4 py-3.5 text-right">
-                      {isAdmin ? (
-                        <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold text-gray-400 bg-gray-100 dark:bg-gray-800 dark:text-gray-500">
-                          Admin
+                  const statusLower = (emp.status || 'active').toLowerCase();
+                  const isInactive = statusLower === 'inactive';
+                  const isProbation = statusLower === 'probation';
+                  const statusLabel = isInactive ? 'Inactive' : isProbation ? 'Probation' : 'Active';
+
+                  return (
+                    <tr key={emp.id}>
+                      <td>
+                        <div className="d-flex align-items-center gap-3">
+                          <div 
+                            style={{ 
+                              width: '40px', 
+                              height: '40px', 
+                              borderRadius: '12px', 
+                              background: '#eeecff', 
+                              color: '#3c2fbc', 
+                              display: 'flex', 
+                              alignItems: 'center', 
+                              justifyContent: 'center', 
+                              fontWeight: '700',
+                              fontSize: '14px' 
+                            }}
+                          >
+                            {initials}
+                          </div>
+                          <div>
+                            <span className="fw-bold d-block text-dark">{fullName}</span>
+                            <span className="text-muted small">{emp.email}</span>
+                          </div>
+                        </div>
+                      </td>
+                      <td>
+                        <span className="employee-id">{emp.employee_code || ('EMP-' + emp.id)}</span>
+                      </td>
+                      <td>{emp.department || 'NA'}</td>
+                      <td>{emp.designation || 'NA'}</td>
+                      <td>{emp.team || 'NA'}</td>
+                      <td>
+                        <span className={'admin-badge ' + (isInactive ? 'badge-danger' : isProbation ? 'badge-info' : 'badge-active')}>
+                          <span className="admin-badge-dot"></span>
+                          {statusLabel}
                         </span>
-                      ) : (
+                      </td>
+                      <td className="text-end">
+                        <button
+                          type="button"
+                          onClick={() => setSelectedEmployeeForView(emp)}
+                          className="btn btn-sm btn-outline-primary rounded-pill px-3 me-2"
+                        >
+                          <i className="bi bi-eye me-1"></i> View
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleOpenEditEmploymentModal(emp)}
+                          className="btn btn-sm btn-primary rounded-pill px-3 me-2"
+                          style={{ background: '#3c2fbc', borderColor: '#3c2fbc' }}
+                        >
+                          <i className="bi bi-pencil me-1"></i> Edit
+                        </button>
                         <button
                           type="button"
                           onClick={() => handleOpenDeleteModal(emp)}
-                          className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-rose-600 hover:text-rose-700 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/30 dark:text-rose-400 dark:hover:bg-rose-950/60 border border-rose-200 dark:border-rose-900/50 transition-all cursor-pointer shadow-2xs"
-                          title={`Delete ${name}`}
+                          className="btn btn-sm btn-outline-danger rounded-pill px-3"
                         >
-                          <i className="bi bi-trash3 text-xs"></i>
-                          <span>Delete</span>
+                          <i className="bi bi-person-x me-1"></i> Deactivate
                         </button>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
-
-              {currentEmployees.length === 0 && (
-                <tr>
-                  <td colSpan="7" style={{ padding: 0 }}>
-                    <EmptyState
-                      emoji="👥"
-                      title="No employees found"
-                      message="No employees found matching the search or filter criteria."
-                    />
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
+      )}
 
-        {/* TailAdmin Pagination Bar */}
-        {totalItems > 0 && (
-          <div className="pt-5 mt-4 border-t border-gray-100 dark:border-gray-800 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <div className="text-xs text-gray-500 dark:text-gray-400">
-              Showing <span className="font-bold text-gray-800 dark:text-gray-200">{startIndex + 1}</span> to{' '}
-              <span className="font-bold text-gray-800 dark:text-gray-200">{endIndex}</span> of{' '}
-              <span className="font-bold text-gray-800 dark:text-gray-200">{totalItems}</span> entries
-            </div>
+      {/* Pagination Footer Bar */}
+      {totalPages > 1 && (
+        <div className="employee-pagination-bar">
+          <div className="employee-pagination-info">
+            Showing <strong>{startIndex + 1}</strong> to <strong>{Math.min(startIndex + pageSize, totalEmployees)}</strong> of <strong>{totalEmployees}</strong> employees
+          </div>
 
-            <div className="flex items-center gap-1.5 self-center sm:self-auto">
-              {/* Previous Button */}
-              <button
+          <div className="employee-pagination-controls">
+            <button 
+              type="button" 
+              className="employee-page-nav-btn"
+              onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+              disabled={currentPage === 1}
+            >
+              <i className="bi bi-chevron-left"></i> Previous
+            </button>
+
+            {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
+              <button 
+                key={page}
                 type="button"
-                onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-                disabled={currentPage === 1}
-                className="flex items-center justify-center rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800 transition-colors"
+                className={'employee-page-num ' + (currentPage === page ? 'active' : '')}
+                onClick={() => setCurrentPage(page)}
               >
-                Previous
+                {page}
               </button>
+            ))}
 
-              {/* Page Number Buttons */}
-              {Array.from({ length: totalPages }, (_, idx) => idx + 1).map((pageNum) => {
-                const isActive = pageNum === currentPage;
-                return (
-                  <button
-                    key={pageNum}
-                    type="button"
-                    onClick={() => setCurrentPage(pageNum)}
-                    className={`h-8 w-8 rounded-lg text-xs font-bold transition-colors ${
-                      isActive
-                        ? 'bg-[#3c50e0] text-white shadow-sm'
-                        : 'border border-gray-200 text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800'
-                    }`}
+            <button 
+              type="button" 
+              className="employee-page-nav-btn"
+              onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+              disabled={currentPage === totalPages}
+            >
+              Next <i className="bi bi-chevron-right"></i>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* EDIT EMPLOYMENT DETAILS MODAL (IMAGE 1 WISE WITH COMPANY ROLE DROPDOWN) */}
+      {showEditModal && employeeToEdit && (
+        <div 
+          className="modal fade show" 
+          style={{ display: 'block', backgroundColor: 'rgba(15, 23, 42, 0.65)', zIndex: 1060 }}
+          onClick={() => { if (!savingEdit) setShowEditModal(false); }}
+        >
+          <div 
+            className="modal-dialog modal-dialog-centered modal-lg" 
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="modal-content border-0 shadow-lg" style={{ borderRadius: '20px', overflow: 'hidden' }}>
+              <div className="modal-header px-4 py-3 bg-white border-bottom d-flex align-items-center justify-content-between">
+                <div className="d-flex align-items-center gap-3">
+                  <div 
+                    style={{ 
+                      width: '44px', 
+                      height: '44px', 
+                      borderRadius: '12px', 
+                      background: '#eeecff', 
+                      color: '#3c2fbc', 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      justifyContent: 'center', 
+                      fontSize: '20px' 
+                    }}
                   >
-                    {pageNum}
-                  </button>
-                );
-              })}
+                    <i className="bi bi-briefcase-fill"></i>
+                  </div>
+                  <div>
+                    <h5 className="modal-title fw-bold mb-0 text-dark">Edit Employment Details</h5>
+                    <small className="text-muted">
+                      {employeeToEdit.full_name || ((employeeToEdit.first_name || '') + ' ' + (employeeToEdit.last_name || ''))} • {employeeToEdit.employee_code || ('EMP-' + employeeToEdit.id)}
+                    </small>
+                  </div>
+                </div>
+                <button 
+                  type="button" 
+                  className="btn-close" 
+                  onClick={() => setShowEditModal(false)}
+                  disabled={savingEdit}
+                ></button>
+              </div>
 
-              {/* Next Button */}
-              <button
-                type="button"
-                onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-                disabled={currentPage === totalPages}
-                className="flex items-center justify-center rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800 transition-colors"
-              >
-                Next
-              </button>
+              <form onSubmit={handleSaveEmploymentDetails}>
+                <div className="modal-body p-4 bg-light">
+                  <div className="bg-white p-4 rounded-4 border mb-3">
+                    <span className="badge bg-primary-subtle text-primary border border-primary-subtle px-3 py-1 mb-3">
+                      <i className="bi bi-info-circle me-1"></i> Organizational Terms &amp; Role Details
+                    </span>
+
+                    <div className="row g-3">
+                      {/* COMPANY ROLE DROPDOWN (IMAGE 1 ENHANCEMENT) */}
+                      <div className="col-md-6">
+                        <label className="form-label small fw-semibold text-muted">
+                          Company Role <span className="text-primary fw-normal">(System Role Access)</span>
+                        </label>
+                        <select
+                          className="form-select rounded-3"
+                          value={editFormData.role_key}
+                          onChange={(e) => {
+                            const selected = companyRoles.find(r => r.role_key === e.target.value);
+                            setEditFormData({ 
+                              ...editFormData, 
+                              role_key: e.target.value,
+                              role_id: selected ? selected.id : '',
+                              // Auto-suggest designation matching role if desired
+                              designation: editFormData.designation || (selected ? selected.role_name : '')
+                            });
+                          }}
+                          required
+                        >
+                          {companyRoles.length > 0 ? (
+                            companyRoles.map(role => (
+                              <option key={role.id} value={role.role_key}>
+                                {role.role_name} {role.department_category ? `(${role.department_category})` : ''}
+                              </option>
+                            ))
+                          ) : (
+                            <>
+                              <option value="SOFTWARE_ENGINEER">Software Engineer</option>
+                              <option value="SR_SOFTWARE_ENGINEER">Senior Software Engineer</option>
+                              <option value="HR_MANAGER">HR Manager</option>
+                              <option value="QA_ENGINEER">QA / Test Engineer</option>
+                              <option value="MANAGER">Department Manager / Lead</option>
+                              <option value="EMPLOYEE">Standard Employee</option>
+                            </>
+                          )}
+                        </select>
+                      </div>
+
+                      {/* Designation */}
+                      <div className="col-md-6">
+                        <label className="form-label small fw-semibold text-muted">Designation</label>
+                        <input
+                          type="text"
+                          className="form-control rounded-3"
+                          value={editFormData.designation}
+                          onChange={(e) => setEditFormData({ ...editFormData, designation: e.target.value })}
+                          placeholder="e.g. Developer / Senior DevOps Engineer"
+                          required
+                        />
+                      </div>
+
+                      {/* Department */}
+                      <div className="col-md-6">
+                        <label className="form-label small fw-semibold text-muted">Department</label>
+                        <select
+                          className="form-select rounded-3"
+                          value={editFormData.department}
+                          onChange={(e) => setEditFormData({ ...editFormData, department: e.target.value })}
+                          required
+                        >
+                          <option value="Engineering">Engineering</option>
+                          <option value="Human Resources">Human Resources</option>
+                          <option value="Sales">Sales</option>
+                          <option value="Marketing">Marketing</option>
+                          <option value="Finance">Finance</option>
+                          <option value="Operations">Operations</option>
+                        </select>
+                      </div>
+
+                      {/* Team / Subdivision */}
+                      <div className="col-md-6">
+                        <label className="form-label small fw-semibold text-muted">Team / Subdivision</label>
+                        <input
+                          type="text"
+                          className="form-control rounded-3"
+                          value={editFormData.team}
+                          onChange={(e) => setEditFormData({ ...editFormData, team: e.target.value })}
+                          placeholder="e.g. Backend / Frontend / Core Platform"
+                        />
+                      </div>
+
+                      {/* Location / Working Mode */}
+                      <div className="col-md-6">
+                        <label className="form-label small fw-semibold text-muted">Location / Working Mode</label>
+                        <select
+                          className="form-select rounded-3"
+                          value={editFormData.location}
+                          onChange={(e) => setEditFormData({ ...editFormData, location: e.target.value })}
+                        >
+                          <option value="Remote">Remote</option>
+                          <option value="Chennai Office">Chennai Office</option>
+                          <option value="Bangalore Campus">Bangalore Campus</option>
+                          <option value="Head Office (Hybrid)">Head Office (Hybrid)</option>
+                          <option value="On-site">On-site</option>
+                        </select>
+                      </div>
+
+                      {/* Employment Type */}
+                      <div className="col-md-6">
+                        <label className="form-label small fw-semibold text-muted">Employment Type</label>
+                        <select
+                          className="form-select rounded-3"
+                          value={editFormData.employment_type}
+                          onChange={(e) => setEditFormData({ ...editFormData, employment_type: e.target.value })}
+                        >
+                          <option value="Full Time">Full Time</option>
+                          <option value="Contract">Contract</option>
+                          <option value="Intern">Intern</option>
+                          <option value="Probationary">Probationary</option>
+                          <option value="Part Time">Part Time</option>
+                        </select>
+                      </div>
+
+                      {/* Employment Status */}
+                      <div className="col-md-6">
+                        <label className="form-label small fw-semibold text-muted">Employment Status</label>
+                        <select
+                          className="form-select rounded-3"
+                          value={editFormData.status}
+                          onChange={(e) => setEditFormData({ ...editFormData, status: e.target.value })}
+                        >
+                          <option value="Active">Active</option>
+                          <option value="Probation">Probation</option>
+                          <option value="Inactive">Inactive</option>
+                        </select>
+                      </div>
+
+                      {/* Date of Joining */}
+                      <div className="col-md-6">
+                        <label className="form-label small fw-semibold text-muted">Date of Joining</label>
+                        <input
+                          type="date"
+                          className="form-control rounded-3"
+                          value={editFormData.joining_date}
+                          onChange={(e) => setEditFormData({ ...editFormData, joining_date: e.target.value })}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="modal-footer px-4 py-3 bg-white border-top">
+                  <button 
+                    type="button" 
+                    className="btn btn-outline-secondary rounded-pill px-4"
+                    onClick={() => setShowEditModal(false)}
+                    disabled={savingEdit}
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    type="submit" 
+                    className="btn btn-primary rounded-pill px-4"
+                    style={{ background: '#3c2fbc', borderColor: '#3c2fbc' }}
+                    disabled={savingEdit}
+                  >
+                    {savingEdit ? (
+                      <>
+                        <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                        Saving...
+                      </>
+                    ) : (
+                      <>
+                        <i className="bi bi-check2-circle me-1"></i> Save Changes
+                      </>
+                    )}
+                  </button>
+                </div>
+              </form>
             </div>
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
-      {/* Delete Confirmation Modal */}
+      {/* DEACTIVATE CONFIRMATION MODAL */}
       {showDeleteModal && employeeToDelete && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-xs animate-in fade-in duration-150">
-          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl dark:bg-gray-900 border border-gray-200 dark:border-gray-800 animate-in zoom-in-95 duration-150">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-rose-100 text-rose-600 dark:bg-rose-950 dark:text-rose-400 shrink-0">
-                <i className="bi bi-exclamation-triangle-fill text-2xl"></i>
-              </div>
-              <div>
-                <h4 className="text-lg font-bold text-gray-900 dark:text-white">
-                  Confirm Delete Employee
-                </h4>
-                <p className="text-xs text-rose-600 dark:text-rose-400 font-semibold">
-                  This action will soft-delete the employee.
+        <div 
+          className="modal fade show" 
+          style={{ display: 'block', backgroundColor: 'rgba(15, 23, 42, 0.65)', zIndex: 1060 }}
+          onClick={handleCloseDeleteModal}
+        >
+          <div 
+            className="modal-dialog modal-dialog-centered" 
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="modal-content border-0 shadow-lg" style={{ borderRadius: '20px', overflow: 'hidden' }}>
+              <div className="modal-body p-4 text-center">
+                <div 
+                  className="mx-auto mb-3" 
+                  style={{ 
+                    width: '64px', 
+                    height: '64px', 
+                    borderRadius: '50%', 
+                    background: '#fef2f2', 
+                    color: '#dc2626', 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    justifyContent: 'center', 
+                    fontSize: '28px' 
+                  }}
+                >
+                  <i className="bi bi-person-x"></i>
+                </div>
+
+                <h4 className="fw-bold mb-2">Deactivate Employee?</h4>
+                <p className="text-muted mb-4 small">
+                  Are you sure you want to deactivate{' '}
+                  <strong className="text-dark">
+                    {employeeToDelete.full_name || ((employeeToDelete.first_name || '') + ' ' + (employeeToDelete.last_name || ''))}
+                  </strong>{' '}
+                  ({employeeToDelete.employee_code || ('EMP-' + employeeToDelete.id)})? 
+                  This will mark their profile as Inactive and revoke system access.
                 </p>
-              </div>
-            </div>
 
-            <div className="bg-gray-50 dark:bg-gray-800/50 rounded-xl p-4 border border-gray-200/60 dark:border-gray-700 text-xs space-y-2 mb-4">
-              <div className="flex items-center gap-3">
-                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-tr from-[#3c50e0] to-[#607afb] text-white font-bold text-xs shrink-0">
-                  {((employeeToDelete.full_name || employeeToDelete.first_name || 'E')).charAt(0).toUpperCase()}
+                <div className="d-flex align-items-center justify-content-center gap-2">
+                  <button
+                    type="button"
+                    className="btn btn-outline-secondary rounded-pill px-4"
+                    onClick={handleCloseDeleteModal}
+                    disabled={deleting}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-danger rounded-pill px-4"
+                    onClick={handleConfirmDelete}
+                    disabled={deleting}
+                  >
+                    {deleting ? (
+                      <>
+                        <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                        Deactivating...
+                      </>
+                    ) : (
+                      <>
+                        <i className="bi bi-person-x me-1"></i> Deactivate Employee
+                      </>
+                    )}
+                  </button>
                 </div>
-                <div>
-                  <div className="font-bold text-gray-900 dark:text-white text-sm">
-                    {employeeToDelete.full_name || `${employeeToDelete.first_name || ''} ${employeeToDelete.last_name || ''}`.trim() || 'Employee'}
-                  </div>
-                  <div className="text-gray-400 text-xs font-mono">
-                    {employeeToDelete.employee_code} • {employeeToDelete.email}
-                  </div>
-                </div>
               </div>
-            </div>
-
-            <p className="text-xs text-gray-600 dark:text-gray-300 mb-5 leading-relaxed">
-              Are you sure you want to delete this employee? Once confirmed, the employee will be marked as deleted (<span className="font-mono font-semibold text-rose-600 dark:text-rose-400">is_deleted = true</span>), deactivated, and removed from the active employee directory.
-            </p>
-
-            <div className="flex items-center justify-end gap-3">
-              <button
-                type="button"
-                onClick={() => {
-                  setShowDeleteModal(false);
-                  setEmployeeToDelete(null);
-                }}
-                disabled={deleting}
-                className="px-4 py-2 rounded-xl text-sm font-semibold text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800 cursor-pointer transition-all"
-              >
-                Cancel
-              </button>
-
-              <button
-                type="button"
-                onClick={handleConfirmDelete}
-                disabled={deleting}
-                className="px-5 py-2.5 rounded-xl text-sm font-semibold text-white bg-rose-600 hover:bg-rose-700 disabled:opacity-50 shadow-md shadow-rose-600/30 flex items-center gap-2 cursor-pointer transition-all"
-              >
-                {deleting ? (
-                  <>
-                    <div className="spinner-border spinner-border-sm" role="status"></div>
-                    Deleting...
-                  </>
-                ) : (
-                  <>
-                    <i className="bi bi-trash3-fill"></i>
-                    Yes, Delete Employee
-                  </>
-                )}
-              </button>
             </div>
           </div>
         </div>

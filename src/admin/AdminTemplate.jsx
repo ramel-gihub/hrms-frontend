@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import './tailadmin.css';
-import AdminSidebar from './components/AdminSidebar';
-import AdminHeader from './components/AdminHeader';
+import './admin-theme.css';
 import AddEmployeeModal from './components/AddEmployeeModal';
 import HRAssistant from '../components/HRAssistant';
 
@@ -50,38 +49,32 @@ export default function AdminTemplate({
     }
   });
 
+  const [menuOpen, setMenuOpen] = useState(false);
+
   useEffect(() => {
     try {
       if (activeTab) localStorage.setItem('admin_active_tab', activeTab);
     } catch (e) {}
   }, [activeTab]);
-  const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  // Role check: superadmin vs company admin
   const isSuperAdmin = (currentUser?.role || '').toLowerCase() === 'super_admin' || 
                        (currentUser?.role || '').toLowerCase() === 'superadmin' || 
                        currentUser?.is_superadmin === true;
 
-  // Leave Requests state (with employee-wise leave balances)
   const [leaveRequests, setLeaveRequests] = useState([]);
   const [loadingLeaveRequests, setLoadingLeaveRequests] = useState(false);
-
-  // Unmapped employees count for sidebar badge
   const [unmappedCount, setUnmappedCount] = useState(0);
-
-  // Multi-Tenant state (only active for superadmin)
   const [tenants, setTenants] = useState([]);
   const [currentTenantId, setCurrentTenantId] = useState(currentUser?.tenant?.id || currentUser?.organization_id || 1);
   const [loadingTenants, setLoadingTenants] = useState(false);
 
   const API_URL = (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') ? 'http://localhost:5002' : (import.meta.env.VITE_API_URL || 'https://hrms-backend-fzef.onrender.com'));
 
-  // Fetch Leave Requests with employee-wise leave balances
   const fetchLeaveRequests = async () => {
     if (!currentUser?.id) return;
     setLoadingLeaveRequests(true);
     try {
-      const res = await fetch(`${API_URL}/api/admin/leave-requests?adminUserId=${currentUser.id}&orgId=${currentTenantId}`);
+      const res = await fetch(API_URL + '/api/admin/leave-requests?adminUserId=' + currentUser.id + '&orgId=' + currentTenantId);
       const data = await res.json();
       if (data && Array.isArray(data.requests)) {
         setLeaveRequests(data.requests);
@@ -93,23 +86,23 @@ export default function AdminTemplate({
     }
   };
 
-  // Fetch Unmapped Leave Balances count
   const fetchUnmappedCount = async () => {
     try {
-      const res = await fetch(`${API_URL}/api/admin/unmapped-leave-balances?orgId=${currentTenantId}`);
+      const res = await fetch(API_URL + '/api/admin/unmapped-leave-balances?orgId=' + currentTenantId);
       const data = await res.json();
       if (data && Array.isArray(data.unmappedEmployees)) {
         const filtered = data.unmappedEmployees.filter(e => {
           const role = (e.role_name || e.roleKey || e.role || '').toLowerCase();
           const email = (e.email || '').toLowerCase();
           const code = (e.employee_code || '').toLowerCase();
-          const name = `${e.first_name || ''} ${e.last_name || ''} ${e.employee_name || ''}`.toLowerCase();
+          const name = (e.first_name || '') + ' ' + (e.last_name || '') + ' ' + (e.employee_name || '');
+          const lowerName = name.toLowerCase();
           return !(
             role.includes('super_admin') || 
             role.includes('superadmin') || 
             email.includes('superadmin') || 
             code.includes('emp-super') || 
-            name.includes('super administrator')
+            lowerName.includes('super administrator')
           );
         });
         setUnmappedCount(filtered.length);
@@ -119,12 +112,11 @@ export default function AdminTemplate({
     }
   };
 
-  // Fetch Tenants (Only if superadmin)
   const fetchTenants = async () => {
     if (!isSuperAdmin) return;
     setLoadingTenants(true);
     try {
-      const res = await fetch(`${API_URL}/api/admin/tenants`);
+      const res = await fetch(API_URL + '/api/admin/tenants');
       const data = await res.json();
       if (data && Array.isArray(data.tenants)) {
         setTenants(data.tenants);
@@ -144,9 +136,8 @@ export default function AdminTemplate({
     }
   }, [currentUser, currentTenantId, isSuperAdmin]);
 
-  // Update Leave Request status (Approve / Reject)
   const handleUpdateLeaveStatus = async (leaveId, status, adminRemarks = '') => {
-    const res = await fetch(`${API_URL}/api/admin/leave-requests/${leaveId}/status`, {
+    const res = await fetch(API_URL + '/api/admin/leave-requests/' + leaveId + '/status', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -163,389 +154,470 @@ export default function AdminTemplate({
     if (fetchAdminRequests) fetchAdminRequests();
   };
 
-  // Create new tenant (Superadmin only)
-  const handleCreateTenant = async (tenantData) => {
-    const res = await fetch(`${API_URL}/api/admin/tenants`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(tenantData)
-    });
-    if (!res.ok) {
-      const err = await res.json();
-      throw new Error(err.error || 'Failed to create tenant organization');
-    }
-    const data = await res.json();
-    await fetchTenants();
-    return data;
-  };
-
-  // Update tenant details (Superadmin only)
-  const handleUpdateTenant = async (tenantId, tenantData) => {
-    const res = await fetch(`${API_URL}/api/admin/tenants/${tenantId}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(tenantData)
-    });
-    if (!res.ok) {
-      const err = await res.json();
-      throw new Error(err.error || 'Failed to update tenant organization');
-    }
-    const data = await res.json();
-    await fetchTenants();
-    return data;
-  };
-
-  // Toggle tenant status (Active <-> Suspended)
-  const handleToggleTenantStatus = async (tenantId, newStatus) => {
-    const res = await fetch(`${API_URL}/api/admin/tenants/${tenantId}/status`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status: newStatus })
-    });
-    if (!res.ok) {
-      const err = await res.json();
-      throw new Error(err.error || 'Failed to update tenant status');
-    }
-    const data = await res.json();
-    await fetchTenants();
-    return data;
-  };
-
-  // Delete tenant (Superadmin only)
-  const handleDeleteTenant = async (tenantId) => {
-    const res = await fetch(`${API_URL}/api/admin/tenants/${tenantId}`, {
-      method: 'DELETE'
-    });
-    if (!res.ok) {
-      const err = await res.json();
-      throw new Error(err.error || 'Failed to delete tenant organization');
-    }
-    const data = await res.json();
-    if (currentTenantId === tenantId) {
-      setCurrentTenantId(1);
-    }
-    await fetchTenants();
-    return data;
-  };
-
   const currentTenant = tenants.find(t => t.id === currentTenantId) || {
-    company_name: currentUser?.tenant?.name || 'Ramel',
-    subdomain: 'ramel',
-    id: currentTenantId
+    id: currentTenantId,
+    company_name: currentUser?.tenant?.name || currentUser?.company_name || 'Ramel Techno Solutions',
+    subdomain: 'ramel'
   };
 
   const pendingLeavesCount = leaveRequests.filter(r => (r.status || '').toLowerCase() === 'pending').length;
   const pendingRequestsCount = adminRequests.filter(r => (r.status || '').toLowerCase() === 'pending').length;
 
+  const navigateTo = (tabId) => {
+    setActiveTab(tabId);
+    setMenuOpen(false);
+  };
+
   return (
-    <div className="flex h-screen overflow-hidden bg-gray-50 dark:bg-gray-950 font-sans text-gray-800 dark:text-gray-100">
-      {/* TailAdmin Sidebar */}
-      <AdminSidebar
-        activeTab={activeTab}
-        setActiveTab={setActiveTab}
-        sidebarOpen={sidebarOpen}
-        setSidebarOpen={setSidebarOpen}
-        currentUser={currentUser}
-        handleLogout={handleLogout}
-        isSuperAdmin={isSuperAdmin}
-        currentTenant={currentTenant}
-        unmappedCount={unmappedCount}
-        pendingLeavesCount={pendingLeavesCount}
-        pendingRequestsCount={pendingRequestsCount}
-      />
-
-      {/* Main Content Area */}
-      <div className="relative flex flex-1 flex-col overflow-y-auto overflow-x-hidden">
-        {/* TailAdmin Header */}
-        <AdminHeader
-          sidebarOpen={sidebarOpen}
-          setSidebarOpen={setSidebarOpen}
-          currentUser={currentUser}
-          handleLogout={handleLogout}
-          onNavigate={setActiveTab}
-          isSuperAdmin={isSuperAdmin}
-          currentTenant={currentTenant}
-        />
-
-        {/* Multi-Tenant Context Indicator Bar - ONLY VISIBLE TO SUPERADMIN */}
-        {isSuperAdmin && (
-          <div className="bg-[#1c2434] px-6 py-2.5 text-xs text-gray-300 flex flex-wrap items-center justify-between border-b border-gray-800">
-            <div className="flex items-center gap-2">
-              <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse"></span>
-              <span className="text-gray-400">Active Tenant Organization:</span>
-              <strong className="text-white font-bold">{currentTenant.company_name}</strong>
-              <span className="bg-blue-900/60 text-blue-300 text-[10px] px-2 py-0.5 rounded font-mono">
-                Tenant ID: #{currentTenantId}
-              </span>
+    <div className="admin-app-root">
+      {/* OFFCANVAS ADMIN NAVIGATION MENU (luxury-frangollo style) */}
+      <div 
+        className={"offcanvas offcanvas-start custom-offcanvas " + (menuOpen ? "show" : "")} 
+        tabIndex="-1" 
+        style={{ visibility: menuOpen ? "visible" : "hidden", zIndex: 1055 }}
+      >
+        <div className="offcanvas-header">
+          <div className="menu-brand">
+            <div className="menu-brand-icon">
+              <i className="bi bi-grid-1x2-fill"></i>
             </div>
-
-            <div className="flex items-center gap-2 mt-1 sm:mt-0">
-              <span className="text-gray-400">Switch Tenant:</span>
-              <select
-                value={currentTenantId}
-                onChange={(e) => setCurrentTenantId(parseInt(e.target.value, 10))}
-                className="bg-[#243044] text-white rounded-lg px-2.5 py-1 text-xs border border-gray-700 focus:outline-none focus:border-[#3c50e0]"
-              >
-                {tenants.map(t => (
-                  <option key={t.id} value={t.id}>
-                    {t.company_name} ({t.subdomain})
-                  </option>
-                ))}
-              </select>
-              <button
-                onClick={() => setActiveTab('tenants')}
-                className="text-[#3c50e0] hover:text-white font-semibold text-xs ml-1 hover:underline"
-              >
-                Manage Tenants →
-              </button>
+            <div>
+              <h5>Ramel | HR</h5>
+              <span>Enterprise Admin</span>
             </div>
           </div>
-        )}
+          <button type="button" className="btn-close" onClick={() => setMenuOpen(false)} aria-label="Close"></button>
+        </div>
+        <div className="offcanvas-body p-0">
+          <div className="menu-nav">
+            <span className="menu-label">OVERVIEW</span>
+            <a 
+              className={"menu-item " + (activeTab === "dashboard" ? "active" : "")}
+              href="#dashboard"
+              onClick={(e) => { e.preventDefault(); navigateTo("dashboard"); }}
+            >
+              <i className="bi bi-grid-1x2"></i>
+              <span>Admin Dashboard</span>
+            </a>
 
-        {/* Page Content View */}
-        <main className="p-4 md:p-6 lg:p-8 max-w-7xl w-full mx-auto">
-          {activeTab === 'dashboard' && (
-            <Dashboard
-              employees={employees}
-              adminRequests={adminRequests}
-              leaveRequests={leaveRequests}
-              tenants={tenants}
-              onNavigate={setActiveTab}
-              onOpenAddModal={() => setShowModal(true)}
-              isSuperAdmin={isSuperAdmin}
-              currentTenant={currentTenant}
-            />
-          )}
+            <span className="menu-label">WORKFORCE MANAGEMENT</span>
+            <a 
+              className={"menu-item " + (activeTab === "employees" ? "active" : "")}
+              href="#employees"
+              onClick={(e) => { e.preventDefault(); navigateTo("employees"); }}
+            >
+              <i className="bi bi-people"></i>
+              <span>Employee Directory</span>
+            </a>
+            <a 
+              className={"menu-item " + (activeTab === "project-teams" ? "active" : "")}
+              href="#project-teams"
+              onClick={(e) => { e.preventDefault(); navigateTo("project-teams"); }}
+            >
+              <i className="bi bi-diagram-3"></i>
+              <span>Departments & Roles</span>
+            </a>
+            <a 
+              className={"menu-item " + (activeTab === "requests" ? "active" : "")}
+              href="#requests"
+              onClick={(e) => { e.preventDefault(); navigateTo("requests"); }}
+            >
+              <i className="bi bi-check2-square"></i>
+              <span>Request Approvals</span>
+              {pendingRequestsCount > 0 && (
+                <span className="badge bg-warning text-dark ms-auto">{pendingRequestsCount}</span>
+              )}
+            </a>
 
-          {activeTab === 'admin-leaves' && (
-            <AdminLeaves
-              currentUser={currentUser}
-              currentTenantId={currentTenantId}
-              employees={employees}
-              fetchEmployees={fetchEmployees}
-            />
-          )}
+            <span className="menu-label">TIME & ATTENDANCE</span>
+            <a 
+              className={"menu-item " + (activeTab === "admin-leaves" ? "active" : "")}
+              href="#admin-leaves"
+              onClick={(e) => { e.preventDefault(); navigateTo("admin-leaves"); }}
+            >
+              <i className="bi bi-clock-history"></i>
+              <span>Attendance Tracking</span>
+            </a>
+            <a 
+              className={"menu-item " + (activeTab === "admin-wfh" ? "active" : "")}
+              href="#admin-wfh"
+              onClick={(e) => { e.preventDefault(); navigateTo("admin-wfh"); }}
+            >
+              <i className="bi bi-laptop"></i>
+              <span>Manage Leaves & WFH</span>
+            </a>
+            <a 
+              className={"menu-item " + (activeTab === "leave-approvals" ? "active" : "")}
+              href="#leave-approvals"
+              onClick={(e) => { e.preventDefault(); navigateTo("leave-approvals"); }}
+            >
+              <i className="bi bi-calendar2-check"></i>
+              <span>Leave Management</span>
+              {pendingLeavesCount > 0 && (
+                <span className="badge bg-danger ms-auto">{pendingLeavesCount}</span>
+              )}
+            </a>
+            <a 
+              className={"menu-item " + (activeTab === "leave-balance-mapping" ? "active" : "")}
+              href="#leave-balance-mapping"
+              onClick={(e) => { e.preventDefault(); navigateTo("leave-balance-mapping"); }}
+            >
+              <i className="bi bi-layers"></i>
+              <span>Leave Types & Quotas</span>
+              {unmappedCount > 0 && (
+                <span className="badge bg-danger ms-auto">{unmappedCount}</span>
+              )}
+            </a>
 
-          {activeTab === 'admin-wfh' && (
-            <AdminWFH
-              currentUser={currentUser}
-              currentTenantId={currentTenantId}
-              employees={employees}
-              fetchEmployees={fetchEmployees}
-            />
-          )}
+            <span className="menu-label">PAYROLL & FINANCIALS</span>
+            <a 
+              className={"menu-item " + (activeTab === "payroll" ? "active" : "")}
+              href="#payroll"
+              onClick={(e) => { e.preventDefault(); navigateTo("payroll"); }}
+            >
+              <i className="bi bi-wallet2"></i>
+              <span>Payroll & CTC Packages</span>
+            </a>
 
-          {activeTab === 'data-reset' && (
-            <DataReset
-              currentUser={currentUser}
-              currentTenantId={currentTenantId}
-              employees={employees}
-              fetchEmployees={fetchEmployees}
-              onNavigate={setActiveTab}
-            />
-          )}
+            <span className="menu-label">COMMUNICATION & SCHEDULE</span>
+            <a 
+              className={"menu-item " + (activeTab === "calendar" ? "active" : "")}
+              href="#calendar"
+              onClick={(e) => { e.preventDefault(); navigateTo("calendar"); }}
+            >
+              <i className="bi bi-calendar3"></i>
+              <span>Company Calendar</span>
+            </a>
+            <a 
+              className={"menu-item " + (activeTab === "holidays" ? "active" : "")}
+              href="#holidays"
+              onClick={(e) => { e.preventDefault(); navigateTo("holidays"); }}
+            >
+              <i className="bi bi-calendar-event"></i>
+              <span>Public Holidays</span>
+            </a>
+            <a 
+              className={"menu-item " + (activeTab === "announcements" ? "active" : "")}
+              href="#announcements"
+              onClick={(e) => { e.preventDefault(); navigateTo("announcements"); }}
+            >
+              <i className="bi bi-megaphone"></i>
+              <span>Broadcast Announcements</span>
+            </a>
 
-          {activeTab === 'leave-approvals' && (
-            <LeaveApprovals
-              leaveRequests={leaveRequests}
-              loading={loadingLeaveRequests}
-              onUpdateStatus={handleUpdateLeaveStatus}
-              currentUser={currentUser}
-            />
-          )}
+            <span className="menu-label">SYSTEM & CONFIG</span>
+            <a 
+              className={"menu-item " + (activeTab === "analytics" ? "active" : "")}
+              href="#analytics"
+              onClick={(e) => { e.preventDefault(); navigateTo("analytics"); }}
+            >
+              <i className="bi bi-bar-chart-line"></i>
+              <span>Reports & Analytics</span>
+            </a>
+            {isSuperAdmin && (
+              <a 
+                className={"menu-item " + (activeTab === "tenants" ? "active" : "")}
+                href="#tenants"
+                onClick={(e) => { e.preventDefault(); navigateTo("tenants"); }}
+              >
+                <i className="bi bi-building"></i>
+                <span>Tenant Organizations</span>
+              </a>
+            )}
+            <a 
+              className={"menu-item " + (activeTab === "data-reset" ? "active" : "")}
+              href="#data-reset"
+              onClick={(e) => { e.preventDefault(); navigateTo("data-reset"); }}
+            >
+              <i className="bi bi-arrow-counterclockwise"></i>
+              <span>Data Reset & Cleanup</span>
+            </a>
 
-          {activeTab === 'requests' && (
-            <EmployeeRequestApprovals
-              adminRequests={adminRequests}
-              loading={loadingAdminRequests}
-              onUpdateStatus={handleUpdateRequestStatus}
-            />
-          )}
+            <span className="menu-label">ACCOUNT</span>
+            <a 
+              className="menu-item text-danger"
+              href="#logout"
+              onClick={(e) => { e.preventDefault(); handleLogout(); }}
+            >
+              <i className="bi bi-box-arrow-left"></i>
+              <span>Logout</span>
+            </a>
+          </div>
+        </div>
+      </div>
 
-          {activeTab === 'project-teams' && (
-            <ProjectTeams
-              currentTenantId={currentTenantId}
-              currentUser={currentUser}
-              employees={employees}
-            />
-          )}
+      {menuOpen && (
+        <div 
+          className="offcanvas-backdrop fade show" 
+          onClick={() => setMenuOpen(false)}
+          style={{ zIndex: 1050 }}
+        ></div>
+      )}
 
-          {activeTab === 'employees' && (
-            <Employees
-              employees={employees}
-              loading={loadingEmployees}
-              onOpenAddModal={() => setShowModal(true)}
-              fetchEmployees={fetchEmployees}
-              currentUser={currentUser}
-            />
-          )}
+      {/* Netlify Template Wrapper */}
+      <main className="dashboard-wrapper">
+        <div className="dashboard-container">
+          {/* Top Header */}
+          <header className="top-header mb-4">
+            <div className="d-flex align-items-center justify-content-between">
+              <a 
+                className="brand-logo" 
+                href="#dashboard"
+                onClick={(e) => { e.preventDefault(); navigateTo("dashboard"); }}
+              >
+                <div className="brand-icon">
+                  <i className="bi bi-grid-1x2-fill"></i>
+                </div>
+                <div>
+                  <h5>Ramel HR</h5>
+                  <span>Admin Workspace</span>
+                </div>
+              </a>
 
-          {/* Leave Balance Auto-Mapping Page */}
-          {activeTab === 'leave-balance-mapping' && (
-            <LeaveBalanceMapping
-              currentTenantId={currentTenantId}
-              currentUser={currentUser}
-              onBalancesMapped={() => {
-                fetchUnmappedCount();
-                fetchLeaveRequests();
-              }}
-            />
-          )}
+              <div className="d-flex align-items-center gap-3 header-actions">
+                <button 
+                  className="header-action" 
+                  title="Search"
+                  type="button"
+                >
+                  <i className="bi bi-search"></i>
+                </button>
 
-          {/* Public Holidays Management Page */}
-          {activeTab === 'holidays' && (
-            <HolidaysManagement
-              currentTenantId={currentTenantId}
-              currentUser={currentUser}
-            />
-          )}
+                <button 
+                  className="header-action position-relative" 
+                  title="Notifications"
+                  type="button"
+                  onClick={() => navigateTo("requests")}
+                >
+                  <i className="bi bi-bell"></i>
+                  {(pendingLeavesCount + pendingRequestsCount) > 0 && (
+                    <span className="notification-dot"></span>
+                  )}
+                </button>
 
-          {/* HR & Company Announcements */}
-          {activeTab === 'announcements' && (
-            <div className="bg-white rounded-xl shadow-xs border border-gray-100 p-2 sm:p-4">
-              <Announcements
-                currentUser={currentUser}
-                employeeProfile={null}
-              />
+                <div className="dropdown">
+                  <button 
+                    className="profile-button d-flex align-items-center gap-2" 
+                    type="button"
+                    onClick={handleLogout}
+                    title="Click to logout"
+                  >
+                    <div className="profile-avatar">
+                      {(currentUser?.name || currentUser?.email || 'AD').substring(0, 2).toUpperCase()}
+                    </div>
+                    <div className="profile-info text-start d-none d-sm-block">
+                      <h6>{currentUser?.name || 'Admin User'}</h6>
+                      <span className="text-nowrap">{currentUser?.role || 'Super Administrator'}</span>
+                    </div>
+                    <i className="bi bi-box-arrow-right ms-1 text-muted"></i>
+                  </button>
+                </div>
+
+                <button 
+                  className="header-action" 
+                  type="button"
+                  onClick={() => setMenuOpen(true)}
+                  aria-label="Open Navigation"
+                >
+                  <i className="bi bi-list fs-5"></i>
+                </button>
+              </div>
+            </div>
+          </header>
+
+          {/* Superadmin Context Bar */}
+          {isSuperAdmin && (
+            <div className="p-3 mb-4 rounded-4 bg-white border border-secondary border-opacity-10 shadow-sm d-flex flex-wrap align-items-center justify-content-between gap-2">
+              <div className="d-flex align-items-center gap-2">
+                <span className="badge bg-success-subtle text-success rounded-pill px-2.5 py-1 font-monospace">
+                  <i className="bi bi-building me-1"></i> Tenant #{currentTenantId}
+                </span>
+                <strong className="text-dark">{currentTenant.company_name}</strong>
+              </div>
+              <div className="d-flex align-items-center gap-2">
+                <span className="text-muted small">Switch Tenant:</span>
+                <select
+                  value={currentTenantId}
+                  onChange={(e) => setCurrentTenantId(parseInt(e.target.value, 10))}
+                  className="form-select form-select-sm"
+                  style={{ minWidth: '180px' }}
+                >
+                  {tenants.map(t => (
+                    <option key={t.id} value={t.id}>
+                      {t.company_name} ({t.subdomain})
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  onClick={() => navigateTo("tenants")}
+                  className="btn btn-sm btn-outline-primary"
+                >
+                  Manage Tenants
+                </button>
+              </div>
             </div>
           )}
 
-          {/* Tenants (Super Admin Only) */}
-          {activeTab === 'tenants' && isSuperAdmin && (
-            <Tenants
-              tenants={tenants}
-              loading={loadingTenants}
-              onCreateTenant={handleCreateTenant}
-              onUpdateTenant={handleUpdateTenant}
-              onToggleTenantStatus={handleToggleTenantStatus}
-              onDeleteTenant={handleDeleteTenant}
-              currentTenantId={currentTenantId}
-              onSwitchTenant={setCurrentTenantId}
-            />
-          )}
+          {/* Render Active View */}
+          <div className="employee-dashboard px-0">
+            {activeTab === 'dashboard' && (
+              <Dashboard
+                employees={employees}
+                adminRequests={adminRequests}
+                leaveRequests={leaveRequests}
+                tenants={tenants}
+                onNavigate={navigateTo}
+                onOpenAddModal={() => setShowModal(true)}
+                isSuperAdmin={isSuperAdmin}
+                currentTenant={currentTenant}
+              />
+            )}
 
-          {/* Analytics & Reports */}
-          {activeTab === 'analytics' && (
-            <Analytics
-              employees={employees}
-              leaveRequests={leaveRequests}
-              adminRequests={adminRequests}
-              currentTenant={currentTenant}
-            />
-          )}
+            {activeTab === 'admin-leaves' && (
+              <AdminLeaves
+                currentUser={currentUser}
+                currentTenantId={currentTenantId}
+                employees={employees}
+                fetchEmployees={fetchEmployees}
+              />
+            )}
 
-          {/* Payroll & CTC Management */}
-          {activeTab === 'payroll' && (
-            <PayrollManagement
-              currentTenant={currentTenant}
-              currentUser={currentUser}
-            />
-          )}
+            {activeTab === 'admin-wfh' && (
+              <AdminWFH
+                currentUser={currentUser}
+                currentTenantId={currentTenantId}
+                employees={employees}
+                fetchEmployees={fetchEmployees}
+              />
+            )}
 
-          {activeTab === 'calendar' && (
-            <div className="space-y-6">
-              <div>
-                <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Events & Leaves Calendar</h2>
-                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Calendar overview of scheduled absences and holidays.</p>
-              </div>
-              <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-                <LeaveApprovals
-                  leaveRequests={leaveRequests}
-                  loading={loadingLeaveRequests}
-                  onUpdateStatus={handleUpdateLeaveStatus}
+            {activeTab === 'data-reset' && (
+              <DataReset
+                currentUser={currentUser}
+                currentTenantId={currentTenantId}
+                employees={employees}
+                fetchEmployees={fetchEmployees}
+                onNavigate={navigateTo}
+              />
+            )}
+
+            {activeTab === 'leave-approvals' && (
+              <LeaveApprovals
+                leaveRequests={leaveRequests}
+                loading={loadingLeaveRequests}
+                onUpdateStatus={handleUpdateLeaveStatus}
+                currentUser={currentUser}
+              />
+            )}
+
+            {activeTab === 'requests' && (
+              <EmployeeRequestApprovals
+                adminRequests={adminRequests}
+                loading={loadingAdminRequests}
+                onUpdateStatus={handleUpdateRequestStatus}
+              />
+            )}
+
+            {activeTab === 'project-teams' && (
+              <ProjectTeams
+                currentTenantId={currentTenantId}
+                currentUser={currentUser}
+                employees={employees}
+              />
+            )}
+
+            {activeTab === 'employees' && (
+              <Employees
+                employees={employees}
+                loading={loadingEmployees}
+                onOpenAddModal={() => setShowModal(true)}
+                fetchEmployees={fetchEmployees}
+                currentUser={currentUser}
+              />
+            )}
+
+            {activeTab === 'leave-balance-mapping' && (
+              <LeaveBalanceMapping
+                currentTenantId={currentTenantId}
+                currentUser={currentUser}
+                onBalancesMapped={() => {
+                  fetchUnmappedCount();
+                  fetchLeaveRequests();
+                }}
+              />
+            )}
+
+            {activeTab === 'holidays' && (
+              <HolidaysManagement
+                currentTenantId={currentTenantId}
+                currentUser={currentUser}
+              />
+            )}
+
+            {activeTab === 'announcements' && (
+              <Announcements
+                currentUser={currentUser}
+              />
+            )}
+
+            {activeTab === 'calendar' && (
+              <div className="admin-card p-4">
+                <h4 className="admin-card-title mb-3">
+                  <i className="bi bi-calendar3 text-primary me-2"></i> Company Calendar
+                </h4>
+                <HolidaysManagement
+                  currentTenantId={currentTenantId}
                   currentUser={currentUser}
                 />
               </div>
-            </div>
-          )}
+            )}
 
-          {activeTab === 'settings' && (
-            <div className="rounded-2xl border border-gray-200 bg-white p-8 shadow-sm dark:border-gray-800 dark:bg-gray-900 max-w-2xl mx-auto space-y-6">
-              <div>
-                <h3 className="text-xl font-bold text-gray-900 dark:text-white">Organization Settings</h3>
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                  System preferences and configurations for {currentTenant.company_name}.
-                </p>
-              </div>
+            {activeTab === 'analytics' && (
+              <Analytics
+                employees={employees}
+                leaveRequests={leaveRequests}
+                adminRequests={adminRequests}
+                currentTenant={currentTenant}
+              />
+            )}
 
-              <div className="space-y-4 text-sm">
-                <div className="p-4 rounded-xl bg-gray-50 dark:bg-gray-800/50 flex justify-between items-center">
-                  <div>
-                    <p className="font-semibold text-gray-800 dark:text-white">Organization Name</p>
-                    <p className="text-xs text-gray-500">{currentTenant.company_name}</p>
-                  </div>
-                  <span className="text-xs font-mono bg-blue-100 text-blue-800 px-2.5 py-1 rounded-full">
-                    Tenant #{currentTenantId}
-                  </span>
-                </div>
+            {activeTab === 'payroll' && (
+              <PayrollManagement
+                employees={employees}
+                currentTenant={currentTenant}
+                currentUser={currentUser}
+              />
+            )}
 
-                <div className="p-4 rounded-xl bg-gray-50 dark:bg-gray-800/50 flex justify-between items-center">
-                  <div>
-                    <p className="font-semibold text-gray-800 dark:text-white">Public Holidays & Policies</p>
-                    <p className="text-xs text-gray-500">Configure annual statutory holidays</p>
-                  </div>
-                  <button
-                    onClick={() => setActiveTab('holidays')}
-                    className="text-xs font-bold text-[#3c50e0] hover:underline"
-                  >
-                    Manage Holidays →
-                  </button>
-                </div>
+            {activeTab === 'tenants' && isSuperAdmin && (
+              <Tenants
+                tenants={tenants}
+                loading={loadingTenants}
+                onCreateTenant={fetchTenants}
+                onUpdateTenant={fetchTenants}
+                onToggleStatus={fetchTenants}
+                onDeleteTenant={fetchTenants}
+              />
+            )}
+          </div>
+        </div>
+      </main>
 
-                <div className="p-4 rounded-xl bg-gray-50 dark:bg-gray-800/50 flex justify-between items-center">
-                  <div>
-                    <p className="font-semibold text-gray-800 dark:text-white">Leave Balance Quotas</p>
-                    <p className="text-xs text-gray-500">Check and auto-map staff leave balances</p>
-                  </div>
-                  <button
-                    onClick={() => setActiveTab('leave-balance-mapping')}
-                    className="text-xs font-bold text-[#3c50e0] hover:underline"
-                  >
-                    Check Balances ({unmappedCount} unmapped) →
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
+      {showModal && (
+        <AddEmployeeModal
+          showModal={showModal}
+          setShowModal={setShowModal}
+          creatingEmployee={creatingEmployee}
+          handleCreateEmployee={handleCreateEmployee}
+          newEmp={newEmp}
+          setNewEmp={setNewEmp}
+          updateNewEmployee={updateNewEmployee}
+          currentTenant={currentTenant}
+        />
+      )}
 
-          {activeTab === 'profile' && (
-            <div className="rounded-2xl border border-gray-200 bg-white p-8 shadow-sm dark:border-gray-800 dark:bg-gray-900 max-w-xl mx-auto text-center space-y-4">
-              <div className="w-20 h-20 rounded-full bg-gradient-to-tr from-[#3c50e0] to-[#607afb] text-white text-3xl font-bold flex items-center justify-center mx-auto shadow-md">
-                {(currentUser?.email || 'A').charAt(0).toUpperCase()}
-              </div>
-              <div>
-                <h3 className="text-xl font-bold text-gray-900 dark:text-white">
-                  {currentUser?.name || currentUser?.email?.split('@')[0] || 'Administrator'}
-                </h3>
-                <p className="text-sm text-gray-500 dark:text-gray-400">{currentUser?.email}</p>
-                <span className="inline-block mt-2 px-3 py-1 rounded-full text-xs font-bold bg-blue-50 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300">
-                  {isSuperAdmin ? 'Super Administrator' : (currentUser?.role || 'Company Admin')} · {currentTenant.company_name}
-                </span>
-              </div>
-            </div>
-          )}
-        </main>
-      </div>
-
-      {/* Add Employee Modal */}
-      <AddEmployeeModal
-        showModal={showModal}
-        setShowModal={setShowModal}
-        newEmp={newEmp}
-        updateNewEmployee={updateNewEmployee}
-        handleCreateEmployee={async (e) => {
-          await handleCreateEmployee(e);
-          // Refresh unmapped count and leave requests
-          setTimeout(() => {
-            fetchUnmappedCount();
-            fetchLeaveRequests();
-          }, 600);
-        }}
-        creatingEmployee={creatingEmployee}
-      />
-
-      {/* Floating Ramel HR Enterprise AI Copilot */}
-      <HRAssistant currentUser={currentUser} employeeProfile={null} mode="admin" />
+      <HRAssistant currentUser={currentUser} />
     </div>
   );
 }
