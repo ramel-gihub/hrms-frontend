@@ -361,17 +361,20 @@ export default function AdminTemplate({
           <header className="top-header mb-4">
             <div className="d-flex align-items-center justify-content-between">
               <a 
-                className="brand-logo" 
+                className="brand-logo d-flex align-items-center" 
                 href="#dashboard"
                 onClick={(e) => { e.preventDefault(); navigateTo("dashboard"); }}
+                style={{ cursor: "pointer" }}
               >
-                <div className="brand-icon">
-                  <i className="bi bi-grid-1x2-fill"></i>
-                </div>
-                <div>
-                  <h5>Ramel HR</h5>
-                  <span>Admin Workspace</span>
-                </div>
+                <img 
+                  src="/images/logo/official_ramel_logo.png" 
+                  alt="Ramel Employee Management System" 
+                  style={{ height: "38px", objectFit: "contain" }} 
+                  onError={(e) => {
+                    e.target.onerror = null;
+                    e.target.src = "/images/logo/logo.png";
+                  }}
+                />
               </a>
 
               <div className="d-flex align-items-center gap-3 header-actions">

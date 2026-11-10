@@ -112,11 +112,14 @@ export default function Leaves({ currentUser, employeeProfile, embedded = false 
 
   // Existing conflict check states
   const [scheduleConflict, setScheduleConflict] = useState(null); // { message, type, status, dateRange }
+  const [hasActiveConflict, setHasActiveConflict] = useState(false);
   const [editConflict, setEditConflict] = useState(null);
+  const [hasEditActiveConflict, setHasEditActiveConflict] = useState(false);
   // Auto-check existing Leave or WFH overlap on date selection with 10s auto-dismiss
   useEffect(() => {
     if (!currentUser?.id || !formData.startDate) {
       setScheduleConflict(null);
+      setHasActiveConflict(false);
       return;
     }
     const finalEnd = formData.isHalfDay ? formData.startDate : (formData.endDate || formData.startDate);
@@ -133,12 +136,14 @@ export default function Leaves({ currentUser, employeeProfile, embedded = false 
         if (!isMounted) return;
         if (data && data.conflict) {
           setScheduleConflict(data);
+          setHasActiveConflict(true);
           // Auto-close alert after 10 seconds per requirement
           timer = setTimeout(() => {
             if (isMounted) setScheduleConflict(null);
           }, 10000);
         } else {
           setScheduleConflict(null);
+          setHasActiveConflict(false);
         }
       })
       .catch(() => {
@@ -155,6 +160,7 @@ export default function Leaves({ currentUser, employeeProfile, embedded = false 
   useEffect(() => {
     if (!currentUser?.id || !isEditMode || !viewLeave?.start_date) {
       setEditConflict(null);
+      setHasEditActiveConflict(false);
       return;
     }
     const sDate = viewLeave.start_date.includes('T') ? viewLeave.start_date.split('T')[0] : viewLeave.start_date;
@@ -172,11 +178,13 @@ export default function Leaves({ currentUser, employeeProfile, embedded = false 
         if (!isMounted) return;
         if (data && data.conflict) {
           setEditConflict(data);
+          setHasEditActiveConflict(true);
           timer = setTimeout(() => {
             if (isMounted) setEditConflict(null);
           }, 10000);
         } else {
           setEditConflict(null);
+          setHasEditActiveConflict(false);
         }
       })
       .catch(() => {
@@ -330,7 +338,7 @@ export default function Leaves({ currentUser, employeeProfile, embedded = false 
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (submittingLeave || scheduleConflict) return;
+    if (submittingLeave || scheduleConflict || hasActiveConflict) return;
     setLeaveSubmitError("");
 
     const errors = {};
@@ -1705,7 +1713,7 @@ export default function Leaves({ currentUser, employeeProfile, embedded = false 
                 <hr></hr>
                 <div className="modal-footer border-0 pt-0 px-4 pb-4 gap-2">
                   <button type="button" className="btn" style={{ background: '#fff', border: '1px solid #e2e8f0', color: '#64748b', borderRadius: '10px', padding: '10px 24px', fontWeight: '500' }} onClick={() => setShowApplyModal(false)}>Cancel</button>
-                  {!scheduleConflict && (
+                  {!scheduleConflict && !hasActiveConflict && (
                     <button type="submit" className="btn" style={{ background: '#3525b8', border: 'none', color: '#fff', borderRadius: '10px', padding: '10px 24px', fontWeight: '600', boxShadow: '0 4px 12px rgba(53,37,184,0.25)' }} disabled={submittingLeave}>{submittingLeave ? "Submitting..." : "Submit Leave"}</button>
                   )}
                 </div>
@@ -2000,7 +2008,7 @@ export default function Leaves({ currentUser, employeeProfile, embedded = false 
                           <button type="button" className="btn btn-outline-secondary px-4 fw-medium rounded-3" onClick={() => { setIsEditMode(false); setEditDocFile(null); }}>
                               Cancel
                           </button>
-                          {!editConflict && (
+                          {!editConflict && !hasEditActiveConflict && (
                           <button type="button" className="btn text-white px-4 fw-medium rounded-3 d-flex align-items-center gap-2 ms-auto" style={{ backgroundColor: '#4e36f5' }} onClick={async () => {
                               try {
                                   const sDateStr = viewLeave.start_date ? (viewLeave.start_date.includes('T') ? viewLeave.start_date.split('T')[0] : viewLeave.start_date) : '';
